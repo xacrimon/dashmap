@@ -1,21 +1,10 @@
 image: 'rust:latest'
 
 stages:
-  - rustfmt
   - test
 
-rustfmt:
-  stage: rustfmt
-  script:
-    - rustup install stable
-    - rustup component add rustfmt --toolchain stable-x86_64-unknown-linux-gnu
-    - cargo fmt --version
-    - cargo fmt -- --check
-
 test:
-  stage: test
-  when: delayed
-  start_in: 15 seconds
+  stage: 
   script:
     - rustc --version
     - cargo --version
