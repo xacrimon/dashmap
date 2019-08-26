@@ -1,0 +1,32 @@
+[package]
+name = "dashmap"
+version = "1.0.0"
+authors = ["acrimon <joel.wejdenstal@gmail.com>"]
+edition = "2018"
+license = "MIT"
+repository = "https://gitlab.nebulanet.cc/xacrimon/dashmap"
+homepage = "https://gitlab.nebulanet.cc/xacrimon/dashmap"
+description = "Extremely fast concurrent map."
+readme = "README.md"
+documentation = "https://docs.rs/dashmap"
+keywords = ["atomic", "concurrent", "hashmap"]
+categories = ["concurrency", "algorithms", "data-structures"]
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", ".cargo/registry/src/github.com-1ecc6299db9ec823/pwnies-0.0.14/pwnies.html"]
+
+[features]
+nightly = ["parking_lot/nightly", "hashbrown/nightly"]
+
+[dependencies]
+hashbrown = "0.6.0"
+parking_lot = { version = "0.9.0", features = ["owning_ref"] }
+num_cpus = "1.10.1"
+seahash = "3.0.6"
+owning_ref = "0.4.0"
+slab = "0.4.2"
+stable_deref_trait = "1.1.1"
+futures-preview = "=0.3.0-alpha.17"
+
+[dev-dependencies]
+rayon = "1.1.0"
