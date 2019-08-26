@@ -3,15 +3,14 @@
 mod fut_rwlock;
 mod util;
 
+use ahash::ABuildHasher;
 use fut_rwlock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use futures::future::{Future, FutureExt};
 use hashbrown::HashMap;
 use owning_ref::{OwningRef, OwningRefMut};
-use seahash::SeaHasher;
 use std::borrow::Borrow;
 use std::convert::TryInto;
-use std::hash::Hash;
-use std::hash::Hasher;
+use std::hash::{BuildHasher, Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
@@ -44,6 +43,7 @@ where
 {
     ncb: usize,
     submaps: Box<[RwLock<HashMap<K, V>>]>,
+    hash_builder: ABuildHasher,
 }
 
 impl<'a, K: 'a, V: 'a> DashMap<K, V>
@@ -65,6 +65,7 @@ where
                 .map(|_| RwLock::new(HashMap::new()))
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
+            hash_builder: ABuildHasher::new(),
         }
     }
 
@@ -81,6 +82,7 @@ where
                 .map(|_| RwLock::new(HashMap::with_capacity(cpm)))
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
+            hash_builder: ABuildHasher::new(),
         }
     }
 
@@ -464,7 +466,7 @@ where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let mut hash_state = SeaHasher::new();
+        let mut hash_state = self.hash_builder.build_hasher();
         key.hash(&mut hash_state);
 
         let hash = hash_state.finish();
@@ -485,7 +487,7 @@ where
 {
     /// Creates a new DashMap and automagically determines the optimal amount of chunks.
     fn default() -> Self {
-        let vcount = num_cpus::get() * 8;
+        let vcount = num_cpus::get() * 4;
 
         let base: usize = 2;
         let mut p2exp: u32 = 1;
