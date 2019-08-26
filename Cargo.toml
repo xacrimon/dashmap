@@ -12,9 +12,6 @@ documentation = "https://docs.rs/dashmap"
 keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
-[package.metadata.docs.rs]
-rustdoc-args = ["--html-in-header", ".cargo/registry/src/github.com-1ecc6299db9ec823/pwnies-0.0.14/pwnies.html"]
-
 [features]
 nightly = ["parking_lot/nightly", "hashbrown/nightly"]
 
