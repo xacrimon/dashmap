@@ -1,8 +1,8 @@
 use hashbrown::HashMap;
 use owning_ref::{OwningRef, OwningRefMut};
-use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use std::ops::{Deref, DerefMut};
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
+use std::ops::{Deref, DerefMut};
 
 // -- Shared
 
@@ -12,9 +12,7 @@ pub struct DashMapRef<'a, K: Eq + Hash, V> {
 
 impl<'a, K: Eq + Hash, V> DashMapRef<'a, K, V> {
     pub(crate) fn new(ptr: OwningRef<RwLockReadGuard<'a, HashMap<K, V>>, V>) -> Self {
-        Self {
-            ptr,
-        }
+        Self { ptr }
     }
 
     pub fn value(&self) -> &V {
@@ -40,9 +38,7 @@ pub struct DashMapRefMut<'a, K: Eq + Hash, V> {
 
 impl<'a, K: Eq + Hash, V> DashMapRefMut<'a, K, V> {
     pub(crate) fn new(ptr: OwningRefMut<RwLockWriteGuard<'a, HashMap<K, V>>, V>) -> Self {
-        Self {
-            ptr,
-        }
+        Self { ptr }
     }
 
     pub fn value(&self) -> &V {

@@ -1,15 +1,15 @@
 #![forbid(unsafe_code)]
 
-mod util;
 pub mod mapref;
 pub mod query;
+mod util;
 
 use ahash::ABuildHasher;
-use parking_lot::RwLock;
 use hashbrown::HashMap;
-use std::hash::{BuildHasher, Hash, Hasher};
+use parking_lot::RwLock;
 use query::DashMapQuery;
 use std::borrow::Borrow;
+use std::hash::{BuildHasher, Hash, Hasher};
 
 pub struct DashMap<K, V>
 where
@@ -42,7 +42,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     pub fn new() -> Self {
         let shard_amount = (num_cpus::get() * 4).next_power_of_two();
         let shift = (shard_amount as f32).log2() as usize;
-        let shards = (0..shard_amount).map(|_| RwLock::new(HashMap::new())).collect::<Vec<_>>().into_boxed_slice();
+        let shards = (0..shard_amount)
+            .map(|_| RwLock::new(HashMap::new()))
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
 
         Self {
             ncb: shift,
