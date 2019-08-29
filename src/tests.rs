@@ -1,4 +1,4 @@
-use super::{DashMap, DashMapExecutableQuery};
+use super::{DashMap, ExecutableQuery};
 
 #[test]
 fn insert_and_get() {

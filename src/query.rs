@@ -3,26 +3,11 @@ use crate::DashMap;
 use owning_ref::{OwningRef, OwningRefMut};
 use std::borrow::Borrow;
 use std::hash::Hash;
-use std::marker::PhantomData;
 
 pub trait ExecutableQuery {
-    type Result;
-    fn exec(self) -> Self::Result;
-}
-
-pub trait DataProvider {
-    type Data;
-    fn get_data(&mut self) -> Self::Data;
-}
-
-pub trait MapProvider<'a, K: Eq + Hash, V> {
-    fn get_map(&'a self) -> &'a DashMap<K, V>;
-}
-
-pub trait LogicProvider<'a> {
     type Output;
 
-    fn execute(&'a mut self) -> Self::Output;
+    fn exec(self) -> Self::Output;
 }
 
 // -- Query
@@ -36,11 +21,23 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
         map.transaction_lock().acquire_shared();
         Self { map }
     }
-}
 
-impl<'a, K: Eq + Hash, V> MapProvider<'a, K, V> for Query<'a, K, V> {
-    fn get_map(&'a self) -> &'a DashMap<K, V> {
-        &self.map
+    pub fn insert(self, key: K, value: V) -> QueryInsert<'a, K, V> {
+        QueryInsert::new(self, key, value)
+    }
+
+    pub fn get<'k, Q: Eq + Hash>(self, key: &'k Q) -> QueryGet<'a, 'k, Q, K, V>
+    where
+        K: Borrow<Q>,
+    {
+        QueryGet::new(self, key)
+    }
+
+    pub fn remove<'k, Q: Eq + Hash>(self, key: &'k Q) -> QueryRemove<'a, 'k, Q, K, V>
+    where
+        K: Borrow<Q>,
+    {
+        QueryRemove::new(self, key)
     }
 }
 
@@ -54,35 +51,47 @@ impl<'a, K: Eq + Hash, V> Drop for Query<'a, K, V> {
 
 // --
 
-// -- QueryDataProvider
+// -- QueryRemove
 
-pub struct QueryDataProvider<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V>, T> {
-    inner: Q,
-    data: Option<T>,
-    _phantom: PhantomData<&'a (K, V)>,
+pub struct QueryRemove<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: Query<'a, K, V>,
+    key: &'k Q,
 }
 
-impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V>, T> QueryDataProvider<'a, K, V, Q, T> {
-    pub fn new(inner: Q, data: T) -> Self {
-        Self {
-            inner,
-            data: Some(data),
-            _phantom: PhantomData,
-        }
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryRemove<'a, 'k, Q, K, V> {
+    pub fn new(inner: Query<'a, K, V>, key: &'k Q) -> Self {
+        Self { inner, key }
+    }
+
+    pub fn sync(self) -> QueryRemoveSync<'a, 'k, Q, K, V> {
+        QueryRemoveSync::new(self)
     }
 }
 
-impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V>, T> MapProvider<'a, K, V> for QueryDataProvider<'a, K, V, Q, T> {
-    fn get_map(&'a self) -> &'a DashMap<K, V> {
-        self.inner.get_map()
+// --
+
+// -- QueryRemoveSync
+
+pub struct QueryRemoveSync<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: QueryRemove<'a, 'k, Q, K, V>,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryRemoveSync<'a, 'k, Q, K, V> {
+    pub fn new(inner: QueryRemove<'a, 'k, Q, K, V>) -> Self {
+        Self { inner }
     }
 }
 
-impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V>, T> DataProvider for QueryDataProvider<'a, K, V, Q, T> {
-    type Data = T;
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
+    for QueryRemoveSync<'a, 'k, Q, K, V>
+{
+    type Output = Option<(K, V)>;
 
-    fn get_data(&mut self) -> Self::Data {
-        self.data.take().unwrap()
+    fn exec(self) -> Self::Output {
+        let shard_id = self.inner.inner.map.determine_map(&self.inner.key);
+        let shards = self.inner.inner.map.shards();
+        let mut shard = shards[shard_id].write();
+        shard.remove_entry(&self.inner.key)
     }
 }
 
@@ -90,46 +99,158 @@ impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V>, T> DataProvider for QueryDat
 
 // -- QueryInsert
 
-pub struct QueryInsert<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V> + DataProvider<Data = (K, V)>> {
-    inner: Q,
-    _phantom: PhantomData<&'a ()>,
+pub struct QueryInsert<'a, K: Eq + Hash, V> {
+    inner: Query<'a, K, V>,
+    key: K,
+    value: V,
 }
 
-impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V> + DataProvider<Data = (K, V)>> QueryInsert<'a, K, V, Q> {
-    pub fn new(inner: Q) -> Self {
-        Self {
-            inner,
-            _phantom: PhantomData,
+impl<'a, K: Eq + Hash, V> QueryInsert<'a, K, V> {
+    pub fn new(inner: Query<'a, K, V>, key: K, value: V) -> Self {
+        Self { inner, key, value }
+    }
+
+    pub fn sync(self) -> QueryInsertSync<'a, K, V> {
+        QueryInsertSync::new(self)
+    }
+}
+
+// --
+
+// -- QueryInsertSync
+
+pub struct QueryInsertSync<'a, K: Eq + Hash, V> {
+    inner: QueryInsert<'a, K, V>,
+}
+
+impl<'a, K: Eq + Hash, V> QueryInsertSync<'a, K, V> {
+    pub fn new(inner: QueryInsert<'a, K, V>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryInsertSync<'a, K, V> {
+    type Output = Option<V>;
+
+    fn exec(self) -> Self::Output {
+        let shard_id = self.inner.inner.map.determine_map(&self.inner.key);
+        let shards = self.inner.inner.map.shards();
+        let mut shard = shards[shard_id].write();
+        shard.insert(self.inner.key, self.inner.value)
+    }
+}
+
+// --
+
+// -- QueryGet
+
+pub struct QueryGet<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: Query<'a, K, V>,
+    key: &'k Q,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryGet<'a, 'k, Q, K, V> {
+    pub fn new(inner: Query<'a, K, V>, key: &'k Q) -> Self {
+        Self { inner, key }
+    }
+
+    pub fn sync(self) -> QueryGetSync<'a, 'k, Q, K, V> {
+        QueryGetSync::new(self)
+    }
+
+    pub fn mutable(self) -> QueryGetMut<'a, 'k, Q, K, V> {
+        QueryGetMut::new(self)
+    }
+}
+
+// --
+
+// -- QueryGetMut
+
+pub struct QueryGetMut<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: QueryGet<'a, 'k, Q, K, V>,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryGetMut<'a, 'k, Q, K, V> {
+    pub fn new(inner: QueryGet<'a, 'k, Q, K, V>) -> Self {
+        Self { inner }
+    }
+
+    pub fn sync(self) -> QueryGetMutSync<'a, 'k, Q, K, V> {
+        QueryGetMutSync::new(self)
+    }
+}
+
+// --
+
+// -- QueryGetSync
+
+pub struct QueryGetSync<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: QueryGet<'a, 'k, Q, K, V>,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryGetSync<'a, 'k, Q, K, V> {
+    pub fn new(inner: QueryGet<'a, 'k, Q, K, V>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
+    for QueryGetSync<'a, 'k, Q, K, V>
+{
+    type Output = Option<DashMapRef<'a, K, V>>;
+
+    fn exec(self) -> Self::Output {
+        let shard_id = self.inner.inner.map.determine_map(&self.inner.key);
+        let shards = self.inner.inner.map.shards();
+        let shard = shards[shard_id].read();
+
+        if shard.contains_key(&self.inner.key) {
+            let or = OwningRef::new(shard);
+            let or = or.map(|shard| shard.get(self.inner.key).unwrap());
+            Some(DashMapRef::new(or))
+        } else {
+            None
         }
     }
 }
 
-impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V> + DataProvider<Data = (K, V)>> MapProvider<'a, K, V> for QueryInsert<'a, K, V, Q> {
-    fn get_map(&'a self) -> &'a DashMap<K, V> {
-        self.inner.get_map()
+// --
+
+// -- QueryGetMutSync
+
+pub struct QueryGetMutSync<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: QueryGetMut<'a, 'k, Q, K, V>,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryGetMutSync<'a, 'k, Q, K, V> {
+    pub fn new(inner: QueryGetMut<'a, 'k, Q, K, V>) -> Self {
+        Self { inner }
     }
 }
 
-impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V> + DataProvider<Data = (K, V)>> DataProvider for QueryInsert<'a, K, V, Q> {
-    type Data = (K, V);
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
+    for QueryGetMutSync<'a, 'k, Q, K, V>
+{
+    type Output = Option<DashMapRefMut<'a, K, V>>;
 
-    fn get_data(&mut self) -> Self::Data {
-        self.inner.get_data()
-    }
-}
+    fn exec(self) -> Self::Output {
+        let shard_id = self
+            .inner
+            .inner
+            .inner
+            .map
+            .determine_map(&self.inner.inner.key);
+        let shards = self.inner.inner.inner.map.shards();
+        let shard = shards[shard_id].write();
 
-impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V> + DataProvider<Data = (K, V)>> LogicProvider<'a> for QueryInsert<'a, K, V, Q> {
-    type Output = Option<(V)>;
-
-    fn execute(&'a mut self) -> Self::Output {
-        let (key, value) = self.get_data();
-        let map = self.get_map();
-
-        let shard_id = map.determine_map(&key);
-        let shards = map.shards();
-        let mut shard = shards[shard_id].write();
-
-        shard.insert(key, value)
+        if shard.contains_key(&self.inner.inner.key) {
+            let or = OwningRefMut::new(shard);
+            let or = or.map_mut(|shard| shard.get_mut(self.inner.inner.key).unwrap());
+            Some(DashMapRefMut::new(or))
+        } else {
+            None
+        }
     }
 }
 
