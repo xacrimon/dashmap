@@ -30,10 +30,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         &self.shards
     }
 
-    pub(crate) fn hash_builder(&'a self) -> &'a ABuildHasher {
-        &self.hash_builder
-    }
-
     pub(crate) fn determine_map<Q>(&self, key: &Q) -> usize
     where
         K: Borrow<Q>,
