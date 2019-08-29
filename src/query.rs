@@ -51,19 +51,39 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapQueryGet<'a, 'k, 
             key,
         }
     }
+
+    pub fn sync(self) -> DashMapQueryGetSync<'a, 'k, Q, K, V> {
+        DashMapQueryGetSync::new(self)
+    }
 }
 
-impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapExecutableQuery for DashMapQueryGet<'a, 'k, Q, K, V> {
+// --
+
+// -- QueryGetSync
+
+pub struct DashMapQueryGetSync<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: DashMapQueryGet<'a, 'k, Q, K, V>,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapQueryGetSync<'a, 'k, Q, K, V> {
+    pub fn new(inner: DashMapQueryGet<'a, 'k, Q, K, V>) -> Self {
+        Self {
+            inner
+        }
+    }
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapExecutableQuery for DashMapQueryGetSync<'a, 'k, Q, K, V> {
     type Output = Option<DashMapRef<'a, K, V>>;
 
     fn exec(self) -> Self::Output {
-        let shard_id = self.inner.map.determine_map(&self.key);
-        let shards = self.inner.map.shards();
+        let shard_id = self.inner.inner.map.determine_map(&self.inner.key);
+        let shards = self.inner.inner.map.shards();
         let shard = shards[shard_id].read();
 
-        if shard.contains_key(&self.key) {
+        if shard.contains_key(&self.inner.key) {
             let or = OwningRef::new(shard);
-            let or = or.map(|shard| shard.get(self.key).unwrap());
+            let or = or.map(|shard| shard.get(self.inner.key).unwrap());
             Some(DashMapRef::new(or))
         } else {
             None
