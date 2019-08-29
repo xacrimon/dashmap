@@ -4,12 +4,16 @@ pub mod mapref;
 pub mod query;
 mod util;
 
+#[cfg(test)]
+mod tests;
+
 use ahash::ABuildHasher;
 use hashbrown::HashMap;
 use parking_lot::RwLock;
 use query::DashMapQuery;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
+pub use query::DashMapExecutableQuery;
 
 pub struct DashMap<K, V>
 where

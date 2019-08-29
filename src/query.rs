@@ -23,6 +23,10 @@ impl<'a, K: Eq + Hash, V> DashMapQuery<'a, K, V> {
         Self { map }
     }
 
+    pub fn insert(self, key: K, value: V) -> DashMapQueryInsert<'a, K, V> {
+        DashMapQueryInsert::new(self, key, value)
+    }
+
     pub fn get<'k, Q: Eq + Hash>(self, key: &'k Q) -> DashMapQueryGet<'a, 'k, Q, K, V>
     where
         K: Borrow<Q>,
@@ -66,15 +70,13 @@ impl<'a, K: Eq + Hash, V> DashMapQueryInsertSync<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> DashMapExecutableQuery for DashMapQueryInsertSync<'a, K, V> {
-    type Output = Option<(K, V)>;
+    type Output = Option<V>;
 
     fn exec(self) -> Self::Output {
         let shard_id = self.inner.inner.map.determine_map(&self.inner.key);
         let shards = self.inner.inner.map.shards();
         let mut shard = shards[shard_id].write();
-        let r = shard.remove_entry(&self.inner.key);
-        shard.insert(self.inner.key, self.inner.value);
-        r
+        shard.insert(self.inner.key, self.inner.value)
     }
 }
 
