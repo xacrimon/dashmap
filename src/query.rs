@@ -6,8 +6,8 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 pub trait ExecutableQuery {
-    type Output;
-    fn exec(self) -> Self::Output;
+    type Result;
+    fn exec(self) -> Self::Result;
 }
 
 pub trait DataProvider {
@@ -17,6 +17,12 @@ pub trait DataProvider {
 
 pub trait MapProvider<'a, K: Eq + Hash, V> {
     fn get_map(&'a self) -> &'a DashMap<K, V>;
+}
+
+pub trait LogicProvider<'a> {
+    type Output;
+
+    fn execute(&'a mut self) -> Self::Output;
 }
 
 // -- Query
@@ -77,6 +83,53 @@ impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V>, T> DataProvider for QueryDat
 
     fn get_data(&mut self) -> Self::Data {
         self.data.take().unwrap()
+    }
+}
+
+// --
+
+// -- QueryInsert
+
+pub struct QueryInsert<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V> + DataProvider<Data = (K, V)>> {
+    inner: Q,
+    _phantom: PhantomData<&'a ()>,
+}
+
+impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V> + DataProvider<Data = (K, V)>> QueryInsert<'a, K, V, Q> {
+    pub fn new(inner: Q) -> Self {
+        Self {
+            inner,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V> + DataProvider<Data = (K, V)>> MapProvider<'a, K, V> for QueryInsert<'a, K, V, Q> {
+    fn get_map(&'a self) -> &'a DashMap<K, V> {
+        self.inner.get_map()
+    }
+}
+
+impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V> + DataProvider<Data = (K, V)>> DataProvider for QueryInsert<'a, K, V, Q> {
+    type Data = (K, V);
+
+    fn get_data(&mut self) -> Self::Data {
+        self.inner.get_data()
+    }
+}
+
+impl<'a, K: Eq + Hash, V, Q: MapProvider<'a, K, V> + DataProvider<Data = (K, V)>> LogicProvider<'a> for QueryInsert<'a, K, V, Q> {
+    type Output = Option<(V)>;
+
+    fn execute(&'a mut self) -> Self::Output {
+        let (key, value) = self.get_data();
+        let map = self.get_map();
+
+        let shard_id = map.determine_map(&key);
+        let shards = map.shards();
+        let mut shard = shards[shard_id].write();
+
+        shard.insert(key, value)
     }
 }
 
