@@ -24,3 +24,4 @@ parking_lot = { version = "0.9.0", features = ["owning_ref"] }
 num_cpus = "1.10.1"
 ahash = "0.2.13"
 owning_ref = "0.4.0"
+fxhash = "0.2.1"

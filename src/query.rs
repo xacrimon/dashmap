@@ -20,6 +20,7 @@ pub struct DashMapQuery<'a, K: Eq + Hash, V> {
 
 impl<'a, K: Eq + Hash, V> DashMapQuery<'a, K, V> {
     pub fn new(map: &'a DashMap<K, V>) -> Self {
+        map.transaction_lock().acquire_shared();
         Self { map }
     }
 
@@ -32,6 +33,12 @@ impl<'a, K: Eq + Hash, V> DashMapQuery<'a, K, V> {
         K: Borrow<Q>,
     {
         DashMapQueryGet::new(self, key)
+    }
+}
+
+impl<'a, K: Eq + Hash, V> Drop for DashMapQuery<'a, K, V> {
+    fn drop(&mut self) {
+        unsafe { self.map.transaction_lock().release_shared(); }
     }
 }
 

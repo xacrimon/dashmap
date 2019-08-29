@@ -1,7 +1,6 @@
-#![forbid(unsafe_code)]
-
 pub mod mapref;
 pub mod query;
+mod tlock;
 mod util;
 
 #[cfg(test)]
@@ -13,6 +12,7 @@ use parking_lot::RwLock;
 use query::DashMapQuery;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
+use tlock::TransactionLock;
 pub use query::DashMapExecutableQuery;
 
 pub struct DashMap<K, V>
@@ -22,11 +22,16 @@ where
     ncb: usize,
     shards: Box<[RwLock<HashMap<K, V>>]>,
     hash_builder: ABuildHasher,
+    transaction_lock: TransactionLock,
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     pub(crate) fn shards(&'a self) -> &'a Box<[RwLock<HashMap<K, V>>]> {
         &self.shards
+    }
+
+    pub(crate) fn transaction_lock(&'a self) -> &'a TransactionLock {
+        &self.transaction_lock
     }
 
     pub(crate) fn determine_map<Q>(&self, key: &Q) -> usize
@@ -55,6 +60,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
             ncb: shift,
             shards,
             hash_builder: ABuildHasher::new(),
+            transaction_lock: TransactionLock::new(),
         }
     }
 
@@ -62,23 +68,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         DashMapQuery::new(&self)
     }
 
-    #[test]
-    fn match_debug() {
-        let map = DashMap::default();
-        map.insert(1i32, 2i32);
-        map.insert(3i32, 6i32);
-
-        let choices = [
-            "{1: 2, 3: 6}",
-            "{3: 6, 1: 2}",
-        ];
-
-        let map_debug = format!("{:?}", map);
-
-        for choice in &choices {
-            if map_debug == *choice { return }
-        }
-
-        panic!("no match\n{}", map_debug);
+    pub fn transaction<R>(&'a self, f: impl FnOnce(&DashMap<K, V>) -> R) -> R {
+        self.transaction_lock.acquire_unique();
+        let r = f(&self);
+        unsafe { self.transaction_lock.release_unique() }
+        r
     }
 }
