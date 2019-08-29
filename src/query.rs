@@ -6,7 +6,7 @@ use std::hash::Hash;
 use crate::DashMap;
 use std::borrow::Borrow;
 use std::marker::PhantomData;
-use crate::mapref::one::DashMapRef;
+use crate::mapref::one::{DashMapRef, DashMapRefMut};
 
 pub trait DashMapExecutableQuery {
     type Output;
@@ -55,6 +55,30 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapQueryGet<'a, 'k, 
     pub fn sync(self) -> DashMapQueryGetSync<'a, 'k, Q, K, V> {
         DashMapQueryGetSync::new(self)
     }
+
+    pub fn mutable(self) -> DashMapQueryGetMut<'a, 'k, Q, K, V> {
+        DashMapQueryGetMut::new(self)
+    }
+}
+
+// --
+
+// -- QueryGetMut
+
+pub struct DashMapQueryGetMut<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: DashMapQueryGet<'a, 'k, Q, K, V>,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapQueryGetMut<'a, 'k, Q, K, V> {
+    pub fn new(inner: DashMapQueryGet<'a, 'k, Q, K, V>) -> Self {
+        Self {
+            inner
+        }
+    }
+
+    pub fn sync(self) -> DashMapQueryGetMutSync<'a, 'k, Q, K, V> {
+        DashMapQueryGetMutSync::new(self)
+    }
 }
 
 // --
@@ -85,6 +109,40 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapExecutableQuery f
             let or = OwningRef::new(shard);
             let or = or.map(|shard| shard.get(self.inner.key).unwrap());
             Some(DashMapRef::new(or))
+        } else {
+            None
+        }
+    }
+}
+
+// --
+
+// -- QueryGetMutSync
+
+pub struct DashMapQueryGetMutSync<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: DashMapQueryGetMut<'a, 'k, Q, K, V>,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapQueryGetMutSync<'a, 'k, Q, K, V> {
+    pub fn new(inner: DashMapQueryGetMut<'a, 'k, Q, K, V>) -> Self {
+        Self {
+            inner
+        }
+    }
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapExecutableQuery for DashMapQueryGetMutSync<'a, 'k, Q, K, V> {
+    type Output = Option<DashMapRefMut<'a, K, V>>;
+
+    fn exec(self) -> Self::Output {
+        let shard_id = self.inner.inner.inner.map.determine_map(&self.inner.inner.key);
+        let shards = self.inner.inner.inner.map.shards();
+        let shard = shards[shard_id].write();
+
+        if shard.contains_key(&self.inner.inner.key) {
+            let or = OwningRefMut::new(shard);
+            let or = or.map_mut(|shard| shard.get_mut(self.inner.inner.key).unwrap());
+            Some(DashMapRefMut::new(or))
         } else {
             None
         }

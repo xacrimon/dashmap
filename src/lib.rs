@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 mod util;
 pub mod mapref;
 pub mod query;
