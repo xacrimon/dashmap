@@ -1,10 +1,8 @@
-use owning_ref::{OwningRef, OwningRefMut};
-
+use crate::mapref::one::{DashMapRef, DashMapRefMut};
 use crate::DashMap;
+use owning_ref::{OwningRef, OwningRefMut};
 use std::borrow::Borrow;
 use std::hash::Hash;
-
-use crate::mapref::one::{DashMapRef, DashMapRefMut};
 
 pub trait DashMapExecutableQuery {
     type Output;
@@ -34,11 +32,66 @@ impl<'a, K: Eq + Hash, V> DashMapQuery<'a, K, V> {
     {
         DashMapQueryGet::new(self, key)
     }
+
+    pub fn remove<'k, Q: Eq + Hash>(self, key: &'k Q) -> DashMapQueryRemove<'a, 'k, Q, K, V>
+    where
+        K: Borrow<Q>,
+    {
+        DashMapQueryRemove::new(self, key)
+    }
 }
 
 impl<'a, K: Eq + Hash, V> Drop for DashMapQuery<'a, K, V> {
     fn drop(&mut self) {
-        unsafe { self.map.transaction_lock().release_shared(); }
+        unsafe {
+            self.map.transaction_lock().release_shared();
+        }
+    }
+}
+
+// --
+
+// -- QueryRemove
+
+pub struct DashMapQueryRemove<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: DashMapQuery<'a, K, V>,
+    key: &'k Q,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapQueryRemove<'a, 'k, Q, K, V> {
+    pub fn new(inner: DashMapQuery<'a, K, V>, key: &'k Q) -> Self {
+        Self { inner, key }
+    }
+
+    pub fn sync(self) -> DashMapQueryRemoveSync<'a, 'k, Q, K, V> {
+        DashMapQueryRemoveSync::new(self)
+    }
+}
+
+// --
+
+// -- QueryRemoveSync
+
+pub struct DashMapQueryRemoveSync<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: DashMapQueryRemove<'a, 'k, Q, K, V>,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapQueryRemoveSync<'a, 'k, Q, K, V> {
+    pub fn new(inner: DashMapQueryRemove<'a, 'k, Q, K, V>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> DashMapExecutableQuery
+    for DashMapQueryRemoveSync<'a, 'k, Q, K, V>
+{
+    type Output = Option<(K, V)>;
+
+    fn exec(self) -> Self::Output {
+        let shard_id = self.inner.inner.map.determine_map(&self.inner.key);
+        let shards = self.inner.inner.map.shards();
+        let mut shard = shards[shard_id].write();
+        shard.remove_entry(&self.inner.key)
     }
 }
 

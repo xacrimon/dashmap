@@ -9,11 +9,11 @@ mod tests;
 use ahash::ABuildHasher;
 use hashbrown::HashMap;
 use parking_lot::RwLock;
+pub use query::DashMapExecutableQuery;
 use query::DashMapQuery;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
 use tlock::TransactionLock;
-pub use query::DashMapExecutableQuery;
 
 pub struct DashMap<K, V>
 where

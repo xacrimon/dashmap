@@ -1,6 +1,6 @@
-use std::mem;
-use std::sync::atomic::{Ordering, AtomicU32};
 use parking_lot::RwLock;
+use std::mem;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 fn thread_id() -> u32 {
     let id = std::thread::current().id();
