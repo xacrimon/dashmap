@@ -1,6 +1,6 @@
 [package]
 name = "dashmap"
-version = "1.0.3"
+version = "1.0.4"
 authors = ["acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -23,4 +23,4 @@ ahash = "0.2.12"
 owning_ref = "0.4.0"
 slab = "0.4.2"
 stable_deref_trait = "1.1.1"
-futures-preview = "=0.3.0-alpha.17"
+futures-preview = "=0.3.0-alpha.18"
