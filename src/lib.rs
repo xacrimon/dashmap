@@ -5,18 +5,11 @@ pub mod mapref;
 pub mod query;
 
 use ahash::ABuildHasher;
-use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use futures::future::{Future, FutureExt};
+use parking_lot::RwLock;
 use hashbrown::HashMap;
-use owning_ref::{OwningRef, OwningRefMut};
-use std::borrow::Borrow;
-use std::convert::TryInto;
 use std::hash::{BuildHasher, Hash, Hasher};
-use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
-use std::time::Duration;
 use query::DashMapQuery;
+use std::borrow::Borrow;
 
 pub struct DashMap<K, V>
 where
