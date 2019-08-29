@@ -9,8 +9,8 @@ mod tests;
 use ahash::ABuildHasher;
 use hashbrown::HashMap;
 use parking_lot::RwLock;
-pub use query::DashMapExecutableQuery;
-use query::DashMapQuery;
+pub use query::ExecutableQuery;
+use query::Query;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
 use tlock::TransactionLock;
@@ -64,8 +64,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
-    pub fn query(&'a self) -> DashMapQuery<'a, K, V> {
-        DashMapQuery::new(&self)
+    pub fn query(&'a self) -> Query<'a, K, V> {
+        Query::new(&self)
     }
 
     pub fn transaction<R>(&'a self, f: impl FnOnce(&DashMap<K, V>) -> R) -> R {
