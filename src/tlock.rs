@@ -2,6 +2,8 @@ use parking_lot::RwLock;
 use std::mem;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+// TO-DO: fix persisent consistency with proper locking and maintaining them for things like iterators and refs
+
 fn thread_id() -> u32 {
     let id = std::thread::current().id();
     fxhash::hash32(&id)
