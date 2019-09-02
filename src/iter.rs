@@ -10,6 +10,7 @@ use std::cell::UnsafeCell;
 use hashbrown::hash_map;
 
 type GuardIter<'a, K, V> = (Arc<RwLockReadGuard<'a, HashMap<K, V>>>, hash_map::Iter<'a, K, V>);
+type GuardIterMut<'a, K, V> = (Arc<RwLockWriteGuard<'a, HashMap<K, V>>>, hash_map::IterMut<'a, K, V>);
 
 pub struct Iter<'a, K: Eq + Hash, V> {
     map: &'a DashMap<K, V>,
@@ -40,6 +41,42 @@ impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
             &*p
         };
         let iter = sref.iter();
+        self.current = Some((Arc::new(guard), iter));
+
+        self.next()
+    }
+}
+
+pub struct IterMut<'a, K: Eq + Hash, V> {
+    map: &'a DashMap<K, V>,
+    shard_i: usize,
+    current: Option<GuardIterMut<'a, K, V>>,
+}
+
+impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
+    type Item = DashMapRefMutMulti<'a, K, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(current) = self.current.as_mut() {
+            if let Some(v) = current.1.next() {
+                let guard = current.0.clone();
+                let r = unsafe { &mut *(v.1 as *mut V) };
+                return Some(DashMapRefMutMulti::new(guard, r));
+            }
+        }
+
+        if self.shard_i == self.map.shards().len() - 1 {
+            return None;
+        }
+
+        self.shard_i += 1;
+        let shards = self.map.shards();
+        let mut guard = shards[self.shard_i].write();
+        let sref: &mut HashMap<K, V> = unsafe {
+            let p = &mut *guard as *mut HashMap<K, V>;
+            &mut *p
+        };
+        let iter = sref.iter_mut();
         self.current = Some((Arc::new(guard), iter));
 
         self.next()
