@@ -18,6 +18,16 @@ pub struct Iter<'a, K: Eq + Hash, V> {
     current: Option<GuardIter<'a, K, V>>,
 }
 
+impl<'a, K: Eq + Hash, V> Iter<'a, K, V> {
+    pub(crate) fn new(map: &'a DashMap<K, V>) -> Self {
+        Self {
+            map,
+            shard_i: 0,
+            current: None,
+        }
+    }
+}
+
 impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
     type Item = DashMapRefMulti<'a, K, V>;
 
@@ -33,7 +43,6 @@ impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
             return None;
         }
 
-        self.shard_i += 1;
         let shards = self.map.shards();
         let guard = shards[self.shard_i].read();
         let sref: &HashMap<K, V> = unsafe {
@@ -42,6 +51,7 @@ impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
         };
         let iter = sref.iter();
         self.current = Some((Arc::new(guard), iter));
+        self.shard_i += 1;
 
         self.next()
     }
@@ -51,6 +61,16 @@ pub struct IterMut<'a, K: Eq + Hash, V> {
     map: &'a DashMap<K, V>,
     shard_i: usize,
     current: Option<GuardIterMut<'a, K, V>>,
+}
+
+impl<'a, K: Eq + Hash, V> IterMut<'a, K, V> {
+    pub(crate) fn new(map: &'a DashMap<K, V>) -> Self {
+        Self {
+            map,
+            shard_i: 0,
+            current: None,
+        }
+    }
 }
 
 impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
@@ -69,7 +89,6 @@ impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
             return None;
         }
 
-        self.shard_i += 1;
         let shards = self.map.shards();
         let mut guard = shards[self.shard_i].write();
         let sref: &mut HashMap<K, V> = unsafe {
@@ -78,6 +97,7 @@ impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
         };
         let iter = sref.iter_mut();
         self.current = Some((Arc::new(guard), iter));
+        self.shard_i += 1;
 
         self.next()
     }
