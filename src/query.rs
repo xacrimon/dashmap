@@ -1,9 +1,9 @@
+use super::iter::{Iter, IterMut};
 use super::mapref::one::{DashMapRef, DashMapRefMut};
 use super::DashMap;
 use owning_ref::{OwningRef, OwningRefMut};
 use std::borrow::Borrow;
 use std::hash::Hash;
-use super::iter::{Iter, IterMut};
 
 pub trait ExecutableQuery {
     type Output;

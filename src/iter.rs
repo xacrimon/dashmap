@@ -1,16 +1,21 @@
-use super::DashMap;
 use super::mapref::multiple::{DashMapRefMulti, DashMapRefMutMulti};
-use std::sync::Arc;
+use super::DashMap;
 use hashbrown::HashMap;
+use std::sync::Arc;
 
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
 
-
 use hashbrown::hash_map;
 
-type GuardIter<'a, K, V> = (Arc<RwLockReadGuard<'a, HashMap<K, V>>>, hash_map::Iter<'a, K, V>);
-type GuardIterMut<'a, K, V> = (Arc<RwLockWriteGuard<'a, HashMap<K, V>>>, hash_map::IterMut<'a, K, V>);
+type GuardIter<'a, K, V> = (
+    Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
+    hash_map::Iter<'a, K, V>,
+);
+type GuardIterMut<'a, K, V> = (
+    Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
+    hash_map::IterMut<'a, K, V>,
+);
 
 pub struct Iter<'a, K: Eq + Hash, V> {
     map: &'a DashMap<K, V>,

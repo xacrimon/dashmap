@@ -11,9 +11,9 @@
 //        docs
 //        WHEN STABLE ASYNC AWAIT: async apis
 
+pub mod iter;
 pub mod mapref;
 pub mod query;
-pub mod iter;
 mod util;
 
 #[cfg(test)]
