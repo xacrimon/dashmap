@@ -18,7 +18,6 @@ pub struct Query<'a, K: Eq + Hash, V> {
 
 impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
     pub fn new(map: &'a DashMap<K, V>) -> Self {
-        map.transaction_lock().acquire_shared();
         Self { map }
     }
 
@@ -50,14 +49,6 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
 
     pub fn is_empty(self) -> QueryIsEmpty<'a, K, V> {
         QueryIsEmpty::new(self)
-    }
-}
-
-impl<'a, K: Eq + Hash, V> Drop for Query<'a, K, V> {
-    fn drop(&mut self) {
-        unsafe {
-            self.map.transaction_lock().release_shared();
-        }
     }
 }
 

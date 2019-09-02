@@ -1,11 +1,12 @@
 // TO-DO: iterators
 //        query api
-//        fix persisent consistency with proper locking and maintaining them for things like iterators and refs
+//        coarse transactions
 //        shortcuts api
 //        fix deadlock
 //        optimizations
 //        fine grained transactions
 //        optimizations
+//        useful traits
 //        tests
 //        docs
 //        WHEN STABLE ASYNC AWAIT: async apis
@@ -13,7 +14,6 @@
 pub mod mapref;
 pub mod query;
 pub mod iter;
-mod tlock;
 mod util;
 
 #[cfg(test)]
@@ -26,7 +26,6 @@ pub use query::ExecutableQuery;
 use query::Query;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
-use tlock::TransactionLock;
 
 pub struct DashMap<K, V>
 where
@@ -35,16 +34,11 @@ where
     ncb: usize,
     shards: Box<[RwLock<HashMap<K, V>>]>,
     hash_builder: ABuildHasher,
-    transaction_lock: TransactionLock,
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     pub(crate) fn shards(&'a self) -> &'a Box<[RwLock<HashMap<K, V>>]> {
         &self.shards
-    }
-
-    pub(crate) fn transaction_lock(&'a self) -> &'a TransactionLock {
-        &self.transaction_lock
     }
 
     pub(crate) fn determine_map<Q>(&self, key: &Q) -> usize
@@ -73,18 +67,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
             ncb: shift,
             shards,
             hash_builder: ABuildHasher::new(),
-            transaction_lock: TransactionLock::new(),
         }
     }
 
     pub fn query(&'a self) -> Query<'a, K, V> {
         Query::new(&self)
-    }
-
-    pub fn transaction<R>(&'a self, f: impl FnOnce(&DashMap<K, V>) -> R) -> R {
-        self.transaction_lock.acquire_unique();
-        let r = f(&self);
-        unsafe { self.transaction_lock.release_unique() }
-        r
     }
 }
