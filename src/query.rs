@@ -1,8 +1,9 @@
-use crate::mapref::one::{DashMapRef, DashMapRefMut};
-use crate::DashMap;
+use super::mapref::one::{DashMapRef, DashMapRefMut};
+use super::DashMap;
 use owning_ref::{OwningRef, OwningRefMut};
 use std::borrow::Borrow;
 use std::hash::Hash;
+use super::iter::{Iter, IterMut};
 
 pub trait ExecutableQuery {
     type Output;
@@ -50,6 +51,14 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
     pub fn is_empty(self) -> QueryIsEmpty<'a, K, V> {
         QueryIsEmpty::new(self)
     }
+
+    pub fn iter(self) -> QueryIter<'a, K, V> {
+        QueryIter::new(self)
+    }
+
+    pub fn iter_mut(self) -> QueryIterMut<'a, K, V> {
+        QueryIterMut::new(self)
+    }
 }
 
 // --
@@ -67,6 +76,50 @@ impl<'a, K: Eq + Hash, V> QueryClear<'a, K, V> {
 
     pub fn sync(self) -> QueryClearSync<'a, K, V> {
         QueryClearSync::new(self)
+    }
+}
+
+// --
+
+// -- QueryIter
+
+pub struct QueryIter<'a, K: Eq + Hash, V> {
+    inner: Query<'a, K, V>,
+}
+
+impl<'a, K: Eq + Hash, V> QueryIter<'a, K, V> {
+    pub fn new(inner: Query<'a, K, V>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryIter<'a, K, V> {
+    type Output = Iter<'a, K, V>;
+
+    fn exec(self) -> Self::Output {
+        Iter::new(self.inner.map)
+    }
+}
+
+// --
+
+// -- QueryIterMut
+
+pub struct QueryIterMut<'a, K: Eq + Hash, V> {
+    inner: Query<'a, K, V>,
+}
+
+impl<'a, K: Eq + Hash, V> QueryIterMut<'a, K, V> {
+    pub fn new(inner: Query<'a, K, V>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryIterMut<'a, K, V> {
+    type Output = IterMut<'a, K, V>;
+
+    fn exec(self) -> Self::Output {
+        IterMut::new(self.inner.map)
     }
 }
 

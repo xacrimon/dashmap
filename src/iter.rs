@@ -2,11 +2,11 @@ use super::DashMap;
 use super::mapref::multiple::{DashMapRefMulti, DashMapRefMutMulti};
 use std::sync::Arc;
 use hashbrown::HashMap;
-use owning_ref::{OwningRef, OwningRefMut};
+
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
-use std::ops::{Deref, DerefMut};
-use std::cell::UnsafeCell;
+
+
 use hashbrown::hash_map;
 
 type GuardIter<'a, K, V> = (Arc<RwLockReadGuard<'a, HashMap<K, V>>>, hash_map::Iter<'a, K, V>);
