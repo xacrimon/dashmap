@@ -47,6 +47,10 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
     pub fn clear(self) -> QueryClear<'a, K, V> {
         QueryClear::new(self)
     }
+
+    pub fn is_empty(self) -> QueryIsEmpty<'a, K, V> {
+        QueryIsEmpty::new(self)
+    }
 }
 
 impl<'a, K: Eq + Hash, V> Drop for Query<'a, K, V> {
@@ -97,6 +101,46 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryClearSync<'a, K, V> {
         for shard in &**shards {
             shard.write().clear();
         }
+    }
+}
+
+// --
+
+// -- QueryIsEmpty
+
+pub struct QueryIsEmpty<'a, K: Eq + Hash, V> {
+    inner: Query<'a, K, V>,
+}
+
+impl<'a, K: Eq + Hash, V> QueryIsEmpty<'a, K, V> {
+    pub fn new(inner: Query<'a, K, V>) -> Self {
+        Self { inner }
+    }
+
+    pub fn sync(self) -> QueryIsEmptySync<'a, K, V> {
+        QueryIsEmptySync::new(self)
+    }
+}
+
+// --
+
+// -- QueryIsEmptySync
+
+pub struct QueryIsEmptySync<'a, K: Eq + Hash, V> {
+    inner: QueryIsEmpty<'a, K, V>,
+}
+
+impl<'a, K: Eq + Hash, V> QueryIsEmptySync<'a, K, V> {
+    pub fn new(inner: QueryIsEmpty<'a, K, V>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryIsEmptySync<'a, K, V> {
+    type Output = bool;
+
+    fn exec(self) -> Self::Output {
+        self.inner.inner.map.query().len().sync().exec() == 0
     }
 }
 
