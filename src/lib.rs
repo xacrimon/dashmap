@@ -1,5 +1,4 @@
-// TO-DO: iterators
-//        query api
+// TO-DO: query api
 //        coarse transactions
 //        shortcuts api
 //        fix deadlock
