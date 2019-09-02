@@ -44,6 +44,8 @@ impl TransactionLock {
     }
 
     pub unsafe fn release_shared(&self) {
-        self.lock.force_unlock_read();
+        if thread_id() != self.unique_accessor.load(Ordering::SeqCst) {
+            self.lock.force_unlock_read();
+        }
     }
 }

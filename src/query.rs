@@ -43,12 +43,59 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
     pub fn len(self) -> QueryLength<'a, K, V> {
         QueryLength::new(self)
     }
+
+    pub fn clear(self) -> QueryClear<'a, K, V> {
+        QueryClear::new(self)
+    }
 }
 
 impl<'a, K: Eq + Hash, V> Drop for Query<'a, K, V> {
     fn drop(&mut self) {
         unsafe {
             self.map.transaction_lock().release_shared();
+        }
+    }
+}
+
+// --
+
+// -- QueryClear
+
+pub struct QueryClear<'a, K: Eq + Hash, V> {
+    inner: Query<'a, K, V>,
+}
+
+impl<'a, K: Eq + Hash, V> QueryClear<'a, K, V> {
+    pub fn new(inner: Query<'a, K, V>) -> Self {
+        Self { inner }
+    }
+
+    pub fn sync(self) -> QueryClearSync<'a, K, V> {
+        QueryClearSync::new(self)
+    }
+}
+
+// --
+
+// -- QueryClearSync
+
+pub struct QueryClearSync<'a, K: Eq + Hash, V> {
+    inner: QueryClear<'a, K, V>,
+}
+
+impl<'a, K: Eq + Hash, V> QueryClearSync<'a, K, V> {
+    pub fn new(inner: QueryClear<'a, K, V>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryClearSync<'a, K, V> {
+    type Output = ();
+
+    fn exec(self) -> Self::Output {
+        let shards = self.inner.inner.map.shards();
+        for shard in &**shards {
+            shard.write().clear();
         }
     }
 }
