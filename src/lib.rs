@@ -1,3 +1,12 @@
+// TO-DO: iterators
+//        query api
+//        fix persisent consistency with proper locking and maintaining them for things like iterators and refs
+//        query async api
+//        shortcuts api
+//        optimizations
+//        tests
+//        docs
+
 pub mod mapref;
 pub mod query;
 pub mod iter;
