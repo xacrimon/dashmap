@@ -1,5 +1,6 @@
 pub mod mapref;
 pub mod query;
+pub mod iter;
 mod tlock;
 mod util;
 
