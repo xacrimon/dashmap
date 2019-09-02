@@ -1,11 +1,14 @@
 // TO-DO: iterators
 //        query api
 //        fix persisent consistency with proper locking and maintaining them for things like iterators and refs
-//        query async api
 //        shortcuts api
+//        fix deadlock
+//        optimizations
+//        fine grained transactions
 //        optimizations
 //        tests
 //        docs
+//        WHEN STABLE ASYNC AWAIT: async apis
 
 pub mod mapref;
 pub mod query;
