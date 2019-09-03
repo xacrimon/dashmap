@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use dashmap_shard::HashMap;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};

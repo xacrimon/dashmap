@@ -1,14 +1,12 @@
 use super::mapref::multiple::{DashMapRefMulti, DashMapRefMutMulti};
 use super::DashMap;
-use hashbrown::HashMap;
+use dashmap_shard::HashMap;
 use std::sync::Arc;
 use super::util;
 use fxhash::FxBuildHasher;
-
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
-
-use hashbrown::hash_map;
+use dashmap_shard::hash_map;
 
 type GuardIter<'a, K, V> = (
     Arc<RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>>,

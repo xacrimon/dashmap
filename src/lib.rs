@@ -19,7 +19,7 @@ mod util;
 mod tests;
 
 use fxhash::FxBuildHasher;
-use hashbrown::HashMap;
+use dashmap_shard::HashMap;
 use parking_lot::RwLock;
 pub use query::ExecutableQuery;
 use query::Query;
