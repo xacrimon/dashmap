@@ -1,4 +1,4 @@
-// TO-DO: entry api && contains
+// TO-DO: entry api
 //        api results instead
 //        coarse transactions
 //        shortcuts api
