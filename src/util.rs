@@ -5,7 +5,9 @@ pub const fn ptr_size_bits() -> usize {
 }
 
 pub fn map_in_place_2<T, U, F: FnOnce(U, T) -> T>(a: (U, &mut T), f: F) {
-    unsafe { ptr::write(a.1, f(a.0, ptr::read(a.1))); }
+    unsafe {
+        ptr::write(a.1, f(a.0, ptr::read(a.1)));
+    }
 }
 
 pub unsafe fn change_lifetime_const<'a, 'b, T>(x: &'a T) -> &'b T {

@@ -1,9 +1,9 @@
 use super::iter::{Iter, IterMut};
 use super::mapref::one::{DashMapRef, DashMapRefMut};
+use super::util;
 use super::DashMap;
 use std::borrow::Borrow;
 use std::hash::Hash;
-use super::util;
 use std::mem;
 
 pub trait ExecutableQuery {
@@ -65,7 +65,11 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
         QueryAlterAll::new(self, f)
     }
 
-    pub fn swap<'k1, 'k2, Q: Eq + Hash, X: Eq + Hash>(self, key1: &'k1 Q, key2: &'k2 X) -> QuerySwap<'a, 'k1, 'k2, Q, X, K, V>
+    pub fn swap<'k1, 'k2, Q: Eq + Hash, X: Eq + Hash>(
+        self,
+        key1: &'k1 Q,
+        key2: &'k2 X,
+    ) -> QuerySwap<'a, 'k1, 'k2, Q, X, K, V>
     where
         K: Borrow<Q> + Borrow<X>,
     {
@@ -95,9 +99,7 @@ pub struct QueryRetain<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> {
 
 impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> QueryRetain<'a, K, V, F> {
     pub fn new(inner: Query<'a, K, V>, f: F) -> Self {
-        Self {
-            inner, f
-        }
+        Self { inner, f }
     }
 
     pub fn collect_discarded(self) -> QueryRetainCollect<'a, K, V, F> {
@@ -119,9 +121,7 @@ pub struct QueryRetainCollect<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool>
 
 impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> QueryRetainCollect<'a, K, V, F> {
     pub fn new(inner: QueryRetain<'a, K, V, F>) -> Self {
-        Self {
-            inner
-        }
+        Self { inner }
     }
 
     pub fn sync(self) -> QueryRetainCollectSync<'a, K, V, F> {
@@ -139,13 +139,13 @@ pub struct QueryRetainSync<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> {
 
 impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> QueryRetainSync<'a, K, V, F> {
     pub fn new(inner: QueryRetain<'a, K, V, F>) -> Self {
-        Self {
-            inner
-        }
+        Self { inner }
     }
 }
 
-impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery for QueryRetainSync<'a, K, V, F> {
+impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery
+    for QueryRetainSync<'a, K, V, F>
+{
     type Output = ();
 
     fn exec(mut self) -> Self::Output {
@@ -167,13 +167,13 @@ pub struct QueryRetainCollectSync<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> b
 
 impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> QueryRetainCollectSync<'a, K, V, F> {
     pub fn new(inner: QueryRetainCollect<'a, K, V, F>) -> Self {
-        Self {
-            inner
-        }
+        Self { inner }
     }
 }
 
-impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery for QueryRetainCollectSync<'a, K, V, F> {
+impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery
+    for QueryRetainCollectSync<'a, K, V, F>
+{
     type Output = Vec<(K, V)>;
 
     fn exec(mut self) -> Self::Output {
@@ -208,13 +208,23 @@ impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery for Quer
 
 // -- QuerySwap
 
-pub struct QuerySwap<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V> {
+pub struct QuerySwap<
+    'a,
+    'k1,
+    'k2,
+    Q: Eq + Hash,
+    X: Eq + Hash,
+    K: Eq + Hash + Borrow<Q> + Borrow<X>,
+    V,
+> {
     inner: Query<'a, K, V>,
     key1: &'k1 Q,
     key2: &'k2 X,
 }
 
-impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V> QuerySwap<'a, 'k1, 'k2, Q, X, K, V> {
+impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V>
+    QuerySwap<'a, 'k1, 'k2, Q, X, K, V>
+{
     pub fn new(inner: Query<'a, K, V>, key1: &'k1 Q, key2: &'k2 X) -> Self {
         Self { inner, key1, key2 }
     }
@@ -228,22 +238,50 @@ impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow
 
 // -- QuerySwapSync
 
-pub struct QuerySwapSync<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V> {
+pub struct QuerySwapSync<
+    'a,
+    'k1,
+    'k2,
+    Q: Eq + Hash,
+    X: Eq + Hash,
+    K: Eq + Hash + Borrow<Q> + Borrow<X>,
+    V,
+> {
     inner: QuerySwap<'a, 'k1, 'k2, Q, X, K, V>,
 }
 
-impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V> QuerySwapSync<'a, 'k1, 'k2, Q, X, K, V> {
+impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V>
+    QuerySwapSync<'a, 'k1, 'k2, Q, X, K, V>
+{
     pub fn new(inner: QuerySwap<'a, 'k1, 'k2, Q, X, K, V>) -> Self {
         Self { inner }
     }
 }
 
-impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V> ExecutableQuery for QuerySwapSync<'a, 'k1, 'k2, Q, X, K, V> {
+impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V>
+    ExecutableQuery for QuerySwapSync<'a, 'k1, 'k2, Q, X, K, V>
+{
     type Output = Option<()>;
 
     fn exec(self) -> Self::Output {
-        let mut r1 = self.inner.inner.map.query().get(self.inner.key1).mutable().sync().exec()?;
-        let mut r2 = self.inner.inner.map.query().get(self.inner.key2).mutable().sync().exec()?;
+        let mut r1 = self
+            .inner
+            .inner
+            .map
+            .query()
+            .get(self.inner.key1)
+            .mutable()
+            .sync()
+            .exec()?;
+        let mut r2 = self
+            .inner
+            .inner
+            .map
+            .query()
+            .get(self.inner.key2)
+            .mutable()
+            .sync()
+            .exec()?;
         mem::swap(r1.value_mut(), r2.value_mut());
         Some(())
     }
@@ -286,7 +324,13 @@ impl<'a, K: Eq + Hash, V, F: FnMut(&K, V) -> V> ExecutableQuery for QueryAlterAl
     type Output = ();
 
     fn exec(mut self) -> Self::Output {
-        self.inner.inner.map.query().iter_mut().exec().for_each(|mut r| util::map_in_place_2(r.pair_mut(), &mut self.inner.f));
+        self.inner
+            .inner
+            .map
+            .query()
+            .iter_mut()
+            .exec()
+            .for_each(|mut r| util::map_in_place_2(r.pair_mut(), &mut self.inner.f));
     }
 }
 
@@ -587,11 +631,20 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryContainsSync<'a, 'k
     }
 }
 
-impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery for QueryContainsSync<'a, 'k, Q, K, V> {
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
+    for QueryContainsSync<'a, 'k, Q, K, V>
+{
     type Output = bool;
 
     fn exec(self) -> Self::Output {
-        self.inner.inner.map.query().get(self.inner.key).sync().exec().is_some()
+        self.inner
+            .inner
+            .map
+            .query()
+            .get(self.inner.key)
+            .sync()
+            .exec()
+            .is_some()
     }
 }
 
@@ -696,7 +749,8 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
             .inner
             .inner
             .map
-            .determine_map(&self.inner.inner.key).0;
+            .determine_map(&self.inner.inner.key)
+            .0;
         let shards = self.inner.inner.inner.map.shards();
         let shard = shards[shard_id].write();
 

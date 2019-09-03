@@ -1,12 +1,12 @@
 use super::mapref::multiple::{DashMapRefMulti, DashMapRefMutMulti};
-use super::DashMap;
-use dashmap_shard::HashMap;
-use std::sync::Arc;
 use super::util;
+use super::DashMap;
+use dashmap_shard::hash_map;
+use dashmap_shard::HashMap;
 use fxhash::FxBuildHasher;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
-use dashmap_shard::hash_map;
+use std::sync::Arc;
 
 type GuardIter<'a, K, V> = (
     Arc<RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>>,
@@ -94,7 +94,8 @@ impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
 
         let shards = self.map.shards();
         let mut guard = shards[self.shard_i].write();
-        let sref: &mut HashMap<K, V, FxBuildHasher> = unsafe { util::change_lifetime_mut(&mut *guard) };
+        let sref: &mut HashMap<K, V, FxBuildHasher> =
+            unsafe { util::change_lifetime_mut(&mut *guard) };
         let iter = sref.iter_mut();
         self.current = Some((Arc::new(guard), iter));
         self.shard_i += 1;

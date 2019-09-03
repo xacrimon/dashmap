@@ -18,8 +18,8 @@ mod util;
 #[cfg(test)]
 mod tests;
 
-use fxhash::FxBuildHasher;
 use dashmap_shard::HashMap;
+use fxhash::FxBuildHasher;
 use parking_lot::RwLock;
 pub use query::ExecutableQuery;
 use query::Query;

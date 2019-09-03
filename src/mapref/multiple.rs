@@ -1,9 +1,9 @@
 use dashmap_shard::HashMap;
-use std::sync::Arc;
+use fxhash::FxBuildHasher;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
-use fxhash::FxBuildHasher;
+use std::sync::Arc;
 
 // -- Shared
 
@@ -14,8 +14,16 @@ pub struct DashMapRefMulti<'a, K: Eq + Hash, V> {
 }
 
 impl<'a, K: Eq + Hash, V> DashMapRefMulti<'a, K, V> {
-    pub(crate) fn new(guard: Arc<RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>>, k: &'a K, v: &'a V) -> Self {
-        Self { _guard: guard, k, v }
+    pub(crate) fn new(
+        guard: Arc<RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>>,
+        k: &'a K,
+        v: &'a V,
+    ) -> Self {
+        Self {
+            _guard: guard,
+            k,
+            v,
+        }
     }
 
     pub fn key(&self) -> &K {
@@ -50,8 +58,16 @@ pub struct DashMapRefMutMulti<'a, K: Eq + Hash, V> {
 }
 
 impl<'a, K: Eq + Hash, V> DashMapRefMutMulti<'a, K, V> {
-    pub(crate) fn new(guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>>, k: &'a K, v: &'a mut V) -> Self {
-        Self { _guard: guard, k, v }
+    pub(crate) fn new(
+        guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>>,
+        k: &'a K,
+        v: &'a mut V,
+    ) -> Self {
+        Self {
+            _guard: guard,
+            k,
+            v,
+        }
     }
 
     pub fn key(&self) -> &K {
