@@ -1,4 +1,5 @@
 // TO-DO: query api
+//        query api results instead
 //        coarse transactions
 //        shortcuts api
 //        fix deadlock

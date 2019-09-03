@@ -4,6 +4,7 @@ use super::DashMap;
 use std::borrow::Borrow;
 use std::hash::Hash;
 use super::util;
+use std::mem;
 
 pub trait ExecutableQuery {
     type Output;
@@ -62,6 +63,58 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
 
     pub fn alter_all<F: FnMut(&K, V) -> V>(self, f: F) -> QueryAlterAll<'a, K, V, F> {
         QueryAlterAll::new(self, f)
+    }
+
+    pub fn swap<'k1, 'k2, Q: Eq + Hash, X: Eq + Hash>(self, key1: &'k1 Q, key2: &'k2 X) -> QuerySwap<'a, 'k1, 'k2, Q, X, K, V>
+    where
+        K: Borrow<Q> + Borrow<X>,
+    {
+        QuerySwap::new(self, key1, key2)
+    }
+}
+
+// --
+
+// -- QuerySwap
+
+pub struct QuerySwap<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V> {
+    inner: Query<'a, K, V>,
+    key1: &'k1 Q,
+    key2: &'k2 X,
+}
+
+impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V> QuerySwap<'a, 'k1, 'k2, Q, X, K, V> {
+    pub fn new(inner: Query<'a, K, V>, key1: &'k1 Q, key2: &'k2 X) -> Self {
+        Self { inner, key1, key2 }
+    }
+
+    pub fn sync(self) -> QuerySwapSync<'a, 'k1, 'k2, Q, X, K, V> {
+        QuerySwapSync::new(self)
+    }
+}
+
+// --
+
+// -- QuerySwapSync
+
+pub struct QuerySwapSync<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V> {
+    inner: QuerySwap<'a, 'k1, 'k2, Q, X, K, V>,
+}
+
+impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V> QuerySwapSync<'a, 'k1, 'k2, Q, X, K, V> {
+    pub fn new(inner: QuerySwap<'a, 'k1, 'k2, Q, X, K, V>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V> ExecutableQuery for QuerySwapSync<'a, 'k1, 'k2, Q, X, K, V> {
+    type Output = Option<()>;
+
+    fn exec(self) -> Self::Output {
+        let mut r1 = self.inner.inner.map.query().get(self.inner.key1).mutable().sync().exec()?;
+        let mut r2 = self.inner.inner.map.query().get(self.inner.key2).mutable().sync().exec()?;
+        mem::swap(r1.value_mut(), r2.value_mut());
+        Some(())
     }
 }
 
