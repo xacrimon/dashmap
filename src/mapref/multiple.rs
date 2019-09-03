@@ -1,6 +1,5 @@
 use hashbrown::HashMap;
 use std::sync::Arc;
-
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
@@ -9,16 +8,25 @@ use std::ops::{Deref, DerefMut};
 
 pub struct DashMapRefMulti<'a, K: Eq + Hash, V> {
     _guard: Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
+    k: &'a K,
     v: &'a V,
 }
 
 impl<'a, K: Eq + Hash, V> DashMapRefMulti<'a, K, V> {
-    pub(crate) fn new(guard: Arc<RwLockReadGuard<'a, HashMap<K, V>>>, v: &'a V) -> Self {
-        Self { _guard: guard, v }
+    pub(crate) fn new(guard: Arc<RwLockReadGuard<'a, HashMap<K, V>>>, k: &'a K, v: &'a V) -> Self {
+        Self { _guard: guard, k, v }
+    }
+
+    pub fn key(&self) -> &K {
+        self.k
     }
 
     pub fn value(&self) -> &V {
         self.v
+    }
+
+    pub fn pair(&self) -> (&K, &V) {
+        (self.k, self.v)
     }
 }
 
@@ -36,12 +44,17 @@ impl<'a, K: Eq + Hash, V> Deref for DashMapRefMulti<'a, K, V> {
 
 pub struct DashMapRefMutMulti<'a, K: Eq + Hash, V> {
     _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
+    k: &'a K,
     v: &'a mut V,
 }
 
 impl<'a, K: Eq + Hash, V> DashMapRefMutMulti<'a, K, V> {
-    pub(crate) fn new(guard: Arc<RwLockWriteGuard<'a, HashMap<K, V>>>, v: &'a mut V) -> Self {
-        Self { _guard: guard, v }
+    pub(crate) fn new(guard: Arc<RwLockWriteGuard<'a, HashMap<K, V>>>, k: &'a K, v: &'a mut V) -> Self {
+        Self { _guard: guard, k, v }
+    }
+
+    pub fn key(&self) -> &K {
+        self.k
     }
 
     pub fn value(&self) -> &V {
@@ -50,6 +63,14 @@ impl<'a, K: Eq + Hash, V> DashMapRefMutMulti<'a, K, V> {
 
     pub fn value_mut(&mut self) -> &mut V {
         self.v
+    }
+
+    pub fn pair(&self) -> (&K, &V) {
+        (self.k, self.v)
+    }
+
+    pub fn pair_mut(&mut self) -> (&K, &mut V) {
+        (self.k, self.v)
     }
 }
 

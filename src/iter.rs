@@ -40,7 +40,7 @@ impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
         if let Some(current) = self.current.as_mut() {
             if let Some(v) = current.1.next() {
                 let guard = current.0.clone();
-                return Some(DashMapRefMulti::new(guard, v.1));
+                return Some(DashMapRefMulti::new(guard, v.0, v.1));
             }
         }
 
@@ -83,10 +83,11 @@ impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(current) = self.current.as_mut() {
-            if let Some(v) = current.1.next() {
+            if let Some(t) = current.1.next() {
                 let guard = current.0.clone();
-                let r = unsafe { &mut *(v.1 as *mut V) };
-                return Some(DashMapRefMutMulti::new(guard, r));
+                let k = unsafe { &*(t.0 as *const K) };
+                let v = unsafe { &mut *(t.1 as *mut V) };
+                return Some(DashMapRefMutMulti::new(guard, k, v));
             }
         }
 

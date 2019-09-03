@@ -1,5 +1,4 @@
 use hashbrown::HashMap;
-use owning_ref::{OwningRef, OwningRefMut};
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
@@ -7,16 +6,26 @@ use std::ops::{Deref, DerefMut};
 // -- Shared
 
 pub struct DashMapRef<'a, K: Eq + Hash, V> {
-    ptr: OwningRef<RwLockReadGuard<'a, HashMap<K, V>>, V>,
+    _guard: RwLockReadGuard<'a, HashMap<K, V>>,
+    k: &'a K,
+    v: &'a V,
 }
 
 impl<'a, K: Eq + Hash, V> DashMapRef<'a, K, V> {
-    pub(crate) fn new(ptr: OwningRef<RwLockReadGuard<'a, HashMap<K, V>>, V>) -> Self {
-        Self { ptr }
+    pub(crate) fn new(guard: RwLockReadGuard<'a, HashMap<K, V>>, k: &'a K, v: &'a V) -> Self {
+        Self { _guard: guard, k, v }
+    }
+
+    pub fn key(&self) -> &K {
+        self.k
     }
 
     pub fn value(&self) -> &V {
-        &*self.ptr
+        self.v
+    }
+
+    pub fn pair(&self) -> (&K, &V) {
+        (self.k, self.v)
     }
 }
 
@@ -33,20 +42,34 @@ impl<'a, K: Eq + Hash, V> Deref for DashMapRef<'a, K, V> {
 // -- Unique
 
 pub struct DashMapRefMut<'a, K: Eq + Hash, V> {
-    ptr: OwningRefMut<RwLockWriteGuard<'a, HashMap<K, V>>, V>,
+    _guard: RwLockWriteGuard<'a, HashMap<K, V>>,
+    k: &'a K,
+    v: &'a mut V,
 }
 
 impl<'a, K: Eq + Hash, V> DashMapRefMut<'a, K, V> {
-    pub(crate) fn new(ptr: OwningRefMut<RwLockWriteGuard<'a, HashMap<K, V>>, V>) -> Self {
-        Self { ptr }
+    pub(crate) fn new(guard: RwLockWriteGuard<'a, HashMap<K, V>>, k: &'a K, v: &'a mut V) -> Self {
+        Self { _guard: guard, k, v }
+    }
+
+    pub fn key(&self) -> &K {
+        self.k
     }
 
     pub fn value(&self) -> &V {
-        &*self.ptr
+        self.v
     }
 
     pub fn value_mut(&mut self) -> &mut V {
-        &mut *self.ptr
+        self.v
+    }
+
+    pub fn pair(&self) -> (&K, &V) {
+        (self.k, self.v)
+    }
+
+    pub fn pair_mut(&mut self) -> (&K, &mut V) {
+        (self.k, self.v)
     }
 }
 

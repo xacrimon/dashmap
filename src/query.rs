@@ -1,9 +1,9 @@
 use super::iter::{Iter, IterMut};
 use super::mapref::one::{DashMapRef, DashMapRefMut};
 use super::DashMap;
-use owning_ref::{OwningRef, OwningRefMut};
 use std::borrow::Borrow;
 use std::hash::Hash;
+use super::util;
 
 pub trait ExecutableQuery {
     type Output;
@@ -58,6 +58,51 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
 
     pub fn iter_mut(self) -> QueryIterMut<'a, K, V> {
         QueryIterMut::new(self)
+    }
+
+    pub fn alter_all<F: FnMut(&K, V) -> V>(self, f: F) -> QueryAlterAll<'a, K, V, F> {
+        QueryAlterAll::new(self, f)
+    }
+}
+
+// --
+
+// -- QueryAlterAll
+
+pub struct QueryAlterAll<'a, K: Eq + Hash, V, F: FnMut(&K, V) -> V> {
+    inner: Query<'a, K, V>,
+    f: F,
+}
+
+impl<'a, K: Eq + Hash, V, F: FnMut(&K, V) -> V> QueryAlterAll<'a, K, V, F> {
+    pub fn new(inner: Query<'a, K, V>, f: F) -> Self {
+        Self { inner, f }
+    }
+
+    pub fn sync(self) -> QueryAlterAllSync<'a, K, V, F> {
+        QueryAlterAllSync::new(self)
+    }
+}
+
+// --
+
+// -- QueryAlterAllSync
+
+pub struct QueryAlterAllSync<'a, K: Eq + Hash, V, F: FnMut(&K, V) -> V> {
+    inner: QueryAlterAll<'a, K, V, F>,
+}
+
+impl<'a, K: Eq + Hash, V, F: FnMut(&K, V) -> V> QueryAlterAllSync<'a, K, V, F> {
+    pub fn new(inner: QueryAlterAll<'a, K, V, F>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, K: Eq + Hash, V, F: FnMut(&K, V) -> V> ExecutableQuery for QueryAlterAllSync<'a, K, V, F> {
+    type Output = ();
+
+    fn exec(mut self) -> Self::Output {
+        self.inner.inner.map.query().iter_mut().exec().for_each(|mut r| util::map_in_place_2(r.pair_mut(), &mut self.inner.f));
     }
 }
 
@@ -388,14 +433,15 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
         let shard_id = self.inner.inner.map.determine_map(&self.inner.key);
         let shards = self.inner.inner.map.shards();
         let shard = shards[shard_id].read();
-
-        if shard.contains_key(&self.inner.key) {
-            let or = OwningRef::new(shard);
-            let or = or.map(|shard| shard.get(self.inner.key).unwrap());
-            Some(DashMapRef::new(or))
-        } else {
-            None
+        if let Some((k, v)) = shard.get_key_value(&self.inner.key) {
+            unsafe {
+                let k = util::change_lifetime_const(k);
+                let v = util::change_lifetime_const(v);
+                return Some(DashMapRef::new(shard, k, v));
+            }
         }
+
+        None
     }
 }
 
@@ -428,13 +474,15 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
         let shards = self.inner.inner.inner.map.shards();
         let shard = shards[shard_id].write();
 
-        if shard.contains_key(&self.inner.inner.key) {
-            let or = OwningRefMut::new(shard);
-            let or = or.map_mut(|shard| shard.get_mut(self.inner.inner.key).unwrap());
-            Some(DashMapRefMut::new(or))
-        } else {
-            None
+        if let Some((k, v)) = shard.get_key_value(&self.inner.inner.key) {
+            unsafe {
+                let k = util::change_lifetime_const(k);
+                let v = util::change_lifetime_mut(util::to_mut(v));
+                return Some(DashMapRefMut::new(shard, k, v));
+            }
         }
+
+        None
     }
 }
 
