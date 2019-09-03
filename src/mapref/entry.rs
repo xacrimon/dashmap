@@ -7,6 +7,55 @@ use std::mem;
 use std::ptr;
 use crate::util;
 
+pub enum Entry<'a, K: Eq + Hash, V> {
+    Occupied(OccupiedEntry<'a, K, V>),
+    Vacant(VacantEntry<'a, K, V>),
+}
+
+impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
+    pub fn and_modify(self, f: impl FnOnce(&mut V)) -> Self {
+        match self {
+            Entry::Occupied(mut entry) => {
+                f(entry.get_mut());
+                Entry::Occupied(entry)
+            }
+
+            Entry::Vacant(entry) => Entry::Vacant(entry),
+        }
+    }
+
+    pub fn key(&self) -> &K {
+        match *self {
+            Entry::Occupied(ref entry) => entry.key(),
+            Entry::Vacant(ref entry) => entry.key(),
+        }
+    }
+
+    pub fn or_default(self) -> DashMapRefMut<'a, K, V>
+    where
+        V: Default,
+    {
+        match self {
+            Entry::Occupied(entry) => entry.into_ref(),
+            Entry::Vacant(entry) => entry.insert(V::default()),
+        }
+    }
+
+    pub fn or_insert(self, value: V) -> DashMapRefMut<'a, K, V> {
+        match self {
+            Entry::Occupied(entry) => entry.into_ref(),
+            Entry::Vacant(entry) => entry.insert(value),
+        }
+    }
+
+    pub fn or_insert_with(self, value: impl FnOnce() -> V) -> DashMapRefMut<'a, K, V> {
+        match self {
+            Entry::Occupied(entry) => entry.into_ref(),
+            Entry::Vacant(entry) => entry.insert(value()),
+        }
+    }
+}
+
 pub struct VacantEntry<'a, K: Eq + Hash, V> {
     shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>,
     key: K,
