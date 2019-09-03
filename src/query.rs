@@ -71,6 +71,130 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
     {
         QuerySwap::new(self, key1, key2)
     }
+
+    pub fn retain<F: FnMut(&K, &mut V) -> bool>(self, f: F) -> QueryRetain<'a, K, V, F> {
+        QueryRetain::new(self, f)
+    }
+}
+
+// --
+
+// -- QueryRetain
+
+pub struct QueryRetain<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> {
+    inner: Query<'a, K, V>,
+    f: F,
+}
+
+impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> QueryRetain<'a, K, V, F> {
+    pub fn new(inner: Query<'a, K, V>, f: F) -> Self {
+        Self {
+            inner, f
+        }
+    }
+
+    pub fn collect_discarded(self) -> QueryRetainCollect<'a, K, V, F> {
+        QueryRetainCollect::new(self)
+    }
+
+    pub fn sync(self) -> QueryRetainSync<'a, K, V, F> {
+        QueryRetainSync::new(self)
+    }
+}
+
+// --
+
+// -- QueryRetainCollect
+
+pub struct QueryRetainCollect<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> {
+    inner: QueryRetain<'a, K, V, F>,
+}
+
+impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> QueryRetainCollect<'a, K, V, F> {
+    pub fn new(inner: QueryRetain<'a, K, V, F>) -> Self {
+        Self {
+            inner
+        }
+    }
+
+    pub fn sync(self) -> QueryRetainCollectSync<'a, K, V, F> {
+        QueryRetainCollectSync::new(self)
+    }
+}
+
+// --
+
+// -- QueryRetainSync
+
+pub struct QueryRetainSync<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> {
+    inner: QueryRetain<'a, K, V, F>,
+}
+
+impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> QueryRetainSync<'a, K, V, F> {
+    pub fn new(inner: QueryRetain<'a, K, V, F>) -> Self {
+        Self {
+            inner
+        }
+    }
+}
+
+impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery for QueryRetainSync<'a, K, V, F> {
+    type Output = ();
+
+    fn exec(mut self) -> Self::Output {
+        let shards = self.inner.inner.map.shards();
+
+        for shard in &**shards {
+            shard.write().retain(&mut self.inner.f);
+        }
+    }
+}
+
+// --
+
+// -- QueryRetainCollectSync
+
+pub struct QueryRetainCollectSync<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> {
+    inner: QueryRetainCollect<'a, K, V, F>,
+}
+
+impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> QueryRetainCollectSync<'a, K, V, F> {
+    pub fn new(inner: QueryRetainCollect<'a, K, V, F>) -> Self {
+        Self {
+            inner
+        }
+    }
+}
+
+impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery for QueryRetainCollectSync<'a, K, V, F> {
+    type Output = Vec<(K, V)>;
+
+    fn exec(mut self) -> Self::Output {
+        let shards = self.inner.inner.inner.map.shards();
+        let mut discarded = Vec::new();
+
+        for shard in &**shards {
+            let mut shard = shard.write();
+            let mut garbage: Vec<&K> = Vec::new();
+
+            for (k, v) in &mut *shard {
+                let keep = (self.inner.inner.f)(k, v);
+
+                if !keep {
+                    let k = unsafe { util::change_lifetime_const(k) };
+                    garbage.push(k);
+                }
+            }
+
+            for key in garbage {
+                if let Some(e) = shard.remove_entry(key) {
+                    discarded.push(e);
+                }
+            }
+        }
+
+        discarded
+    }
 }
 
 // --

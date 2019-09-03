@@ -1,4 +1,4 @@
-// TO-DO: query api
+// TO-DO: query api && entry api
 //        query api results instead
 //        coarse transactions
 //        shortcuts api
