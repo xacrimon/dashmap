@@ -13,13 +13,10 @@ keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
 [features]
-default = ["async"]
-
-async = ["futures"]
-nightly = ["parking_lot/nightly", "hashbrown/nightly"]
+nightly = ["parking_lot/nightly", "dashmap-shard/nightly"]
 
 [dependencies]
-hashbrown = { path = "hashbrown", features = ["raw"] }
+dashmap-shard = "0.1.0"
 parking_lot = "0.9.0"
 num_cpus = "1.10.1"
 fxhash = "0.2.1"
