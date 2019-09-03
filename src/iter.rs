@@ -2,6 +2,7 @@ use super::mapref::multiple::{DashMapRefMulti, DashMapRefMutMulti};
 use super::DashMap;
 use hashbrown::HashMap;
 use std::sync::Arc;
+use super::util;
 
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
@@ -50,10 +51,7 @@ impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
 
         let shards = self.map.shards();
         let guard = shards[self.shard_i].read();
-        let sref: &HashMap<K, V> = unsafe {
-            let p = &*guard as *const HashMap<K, V>;
-            &*p
-        };
+        let sref: &HashMap<K, V> = unsafe { util::change_lifetime_const(&*guard) };
         let iter = sref.iter();
         self.current = Some((Arc::new(guard), iter));
         self.shard_i += 1;
@@ -97,10 +95,7 @@ impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
 
         let shards = self.map.shards();
         let mut guard = shards[self.shard_i].write();
-        let sref: &mut HashMap<K, V> = unsafe {
-            let p = &mut *guard as *mut HashMap<K, V>;
-            &mut *p
-        };
+        let sref: &mut HashMap<K, V> = unsafe { util::change_lifetime_mut(&mut *guard) };
         let iter = sref.iter_mut();
         self.current = Some((Arc::new(guard), iter));
         self.shard_i += 1;
