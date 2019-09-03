@@ -56,7 +56,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     }
 
     pub fn new() -> Self {
-        let shard_amount = (num_cpus::get() * 4).next_power_of_two();
+        let shard_amount = (num_cpus::get() * 16).next_power_of_two();
         let shift = (shard_amount as f32).log2() as usize;
         let shards = (0..shard_amount)
             .map(|_| RwLock::new(HashMap::new()))
