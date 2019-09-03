@@ -3,12 +3,14 @@
 //        coarse transactions
 //        shortcuts api
 //        fix deadlock
-//        fine grained transactions
 //        optimizations
 //        useful traits
 //        tests
 //        docs
+//        rel 2.0
 //        WHEN STABLE ASYNC AWAIT: async apis
+//        fine grained transactions
+//        new query system
 
 pub mod iter;
 pub mod mapref;
