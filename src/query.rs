@@ -75,6 +75,13 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
     pub fn retain<F: FnMut(&K, &mut V) -> bool>(self, f: F) -> QueryRetain<'a, K, V, F> {
         QueryRetain::new(self, f)
     }
+
+    pub fn contains<'k, Q: Eq + Hash>(self, key: &'k Q) -> QueryContains<'a, 'k, Q, K, V>
+    where
+        K: Borrow<Q>,
+    {
+        QueryContains::new(self, key)
+    }
 }
 
 // --
@@ -544,6 +551,47 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryInsertSync<'a, K, V> {
         let mut shard = shards[shard_id].write();
 
         shard.insert_with_hash_nocheck(self.inner.key, self.inner.value, hash)
+    }
+}
+
+// --
+
+// -- QueryContains
+
+pub struct QueryContains<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: Query<'a, K, V>,
+    key: &'k Q,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryContains<'a, 'k, Q, K, V> {
+    pub fn new(inner: Query<'a, K, V>, key: &'k Q) -> Self {
+        Self { inner, key }
+    }
+
+    pub fn sync(self) -> QueryContainsSync<'a, 'k, Q, K, V> {
+        QueryContainsSync::new(self)
+    }
+}
+
+// --
+
+// -- QueryContainsSync
+
+pub struct QueryContainsSync<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
+    inner: QueryContains<'a, 'k, Q, K, V>,
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryContainsSync<'a, 'k, Q, K, V> {
+    pub fn new(inner: QueryContains<'a, 'k, Q, K, V>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery for QueryContainsSync<'a, 'k, Q, K, V> {
+    type Output = bool;
+
+    fn exec(self) -> Self::Output {
+        self.inner.inner.map.query().get(self.inner.key).sync().exec().is_some()
     }
 }
 
