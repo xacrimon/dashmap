@@ -494,7 +494,7 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
     type Output = Option<(K, V)>;
 
     fn exec(self) -> Self::Output {
-        let shard_id = self.inner.inner.map.determine_map(&self.inner.key);
+        let shard_id = self.inner.inner.map.determine_map(&self.inner.key).0;
         let shards = self.inner.inner.map.shards();
         let mut shard = shards[shard_id].write();
         shard.remove_entry(&self.inner.key)
@@ -539,10 +539,11 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryInsertSync<'a, K, V> {
     type Output = Option<V>;
 
     fn exec(self) -> Self::Output {
-        let shard_id = self.inner.inner.map.determine_map(&self.inner.key);
+        let (shard_id, hash) = self.inner.inner.map.determine_map(&self.inner.key);
         let shards = self.inner.inner.map.shards();
         let mut shard = shards[shard_id].write();
-        shard.insert(self.inner.key, self.inner.value)
+
+        shard.insert_with_hash_nocheck(self.inner.key, self.inner.value, hash)
     }
 }
 
@@ -607,7 +608,7 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
     type Output = Option<DashMapRef<'a, K, V>>;
 
     fn exec(self) -> Self::Output {
-        let shard_id = self.inner.inner.map.determine_map(&self.inner.key);
+        let shard_id = self.inner.inner.map.determine_map(&self.inner.key).0;
         let shards = self.inner.inner.map.shards();
         let shard = shards[shard_id].read();
         if let Some((k, v)) = shard.get_key_value(&self.inner.key) {
@@ -647,7 +648,7 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
             .inner
             .inner
             .map
-            .determine_map(&self.inner.inner.key);
+            .determine_map(&self.inner.inner.key).0;
         let shards = self.inner.inner.inner.map.shards();
         let shard = shards[shard_id].write();
 

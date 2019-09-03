@@ -19,7 +19,7 @@ async = ["futures"]
 nightly = ["parking_lot/nightly", "hashbrown/nightly"]
 
 [dependencies]
-hashbrown = "0.6.0"
+hashbrown = { path = "hashbrown", features = ["raw"] }
 parking_lot = "0.9.0"
 num_cpus = "1.10.1"
-ahash = "0.2.12"
+fxhash = "0.2.1"

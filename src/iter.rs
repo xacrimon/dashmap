@@ -3,6 +3,7 @@ use super::DashMap;
 use hashbrown::HashMap;
 use std::sync::Arc;
 use super::util;
+use fxhash::FxBuildHasher;
 
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
@@ -10,11 +11,11 @@ use std::hash::Hash;
 use hashbrown::hash_map;
 
 type GuardIter<'a, K, V> = (
-    Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
+    Arc<RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>>,
     hash_map::Iter<'a, K, V>,
 );
 type GuardIterMut<'a, K, V> = (
-    Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
+    Arc<RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>>,
     hash_map::IterMut<'a, K, V>,
 );
 
@@ -51,7 +52,7 @@ impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
 
         let shards = self.map.shards();
         let guard = shards[self.shard_i].read();
-        let sref: &HashMap<K, V> = unsafe { util::change_lifetime_const(&*guard) };
+        let sref: &HashMap<K, V, FxBuildHasher> = unsafe { util::change_lifetime_const(&*guard) };
         let iter = sref.iter();
         self.current = Some((Arc::new(guard), iter));
         self.shard_i += 1;
@@ -95,7 +96,7 @@ impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
 
         let shards = self.map.shards();
         let mut guard = shards[self.shard_i].write();
-        let sref: &mut HashMap<K, V> = unsafe { util::change_lifetime_mut(&mut *guard) };
+        let sref: &mut HashMap<K, V, FxBuildHasher> = unsafe { util::change_lifetime_mut(&mut *guard) };
         let iter = sref.iter_mut();
         self.current = Some((Arc::new(guard), iter));
         self.shard_i += 1;
