@@ -21,3 +21,17 @@ pub unsafe fn change_lifetime_mut<'a, 'b, T>(x: &'a mut T) -> &'b mut T {
 pub unsafe fn to_mut<'a, T>(x: &'a T) -> &'a mut T {
     &mut *(x as *const T as *mut T)
 }
+
+pub fn swap_nonoverlapping<T>(x: *mut T, y: *mut T) {
+    let q = mem::size_of::<T>();
+    assert!(x as usize + q < y as usize || x as usize > y as usize + q);
+    let x = x as *mut u8;
+    let y = y as *mut u8;
+    unsafe {
+        for i in 0..q {
+            *((x as usize + i) as *mut u8) ^= *((y as usize + i) as *mut u8);
+            *((y as usize + i) as *mut u8) ^= *((x as usize + i) as *mut u8);
+            *((x as usize + i) as *mut u8) ^= *((y as usize + i) as *mut u8);
+        }
+    }
+}

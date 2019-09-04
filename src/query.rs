@@ -4,7 +4,6 @@ use super::util;
 use super::DashMap;
 use std::borrow::Borrow;
 use std::hash::Hash;
-use std::mem;
 use super::mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 
 pub trait ExecutableQuery {
@@ -287,7 +286,7 @@ impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow
             .mutable()
             .sync()
             .exec()?;
-        mem::swap(r1.value_mut(), r2.value_mut());
+        util::swap_nonoverlapping(r1.value_mut(), r2.value_mut());
         Some(())
     }
 }
