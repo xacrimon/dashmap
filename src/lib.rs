@@ -1,5 +1,4 @@
-// TO-DO: entry api
-//        api results instead
+// TO-DO: api results instead
 //        coarse transactions
 //        shortcuts api
 //        fix deadlock

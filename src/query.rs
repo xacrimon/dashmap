@@ -5,6 +5,7 @@ use super::DashMap;
 use std::borrow::Borrow;
 use std::hash::Hash;
 use std::mem;
+use super::mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 
 pub trait ExecutableQuery {
     type Output;
@@ -85,6 +86,10 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
         K: Borrow<Q>,
     {
         QueryContains::new(self, key)
+    }
+
+    pub fn entry(self, key: K) -> QueryEntry<'a, K, V> {
+        QueryEntry::new(self, key)
     }
 }
 
@@ -645,6 +650,62 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
             .sync()
             .exec()
             .is_some()
+    }
+}
+
+// --
+
+// -- QueryEntry
+
+pub struct QueryEntry<'a, K: Eq + Hash, V> {
+    inner: Query<'a, K, V>,
+    key: K,
+}
+
+impl<'a, K: Eq + Hash, V> QueryEntry<'a, K, V> {
+    pub fn new(inner: Query<'a, K, V>, key: K) -> Self {
+        Self { inner, key }
+    }
+
+    pub fn sync(self) -> QueryEntrySync<'a, K, V> {
+        QueryEntrySync::new(self)
+    }
+}
+
+// --
+
+// -- QueryEntrySync
+
+pub struct QueryEntrySync<'a, K: Eq + Hash, V> {
+    inner: QueryEntry<'a, K, V>,
+}
+
+impl<'a, K: Eq + Hash, V> QueryEntrySync<'a, K, V> {
+    pub fn new(inner: QueryEntry<'a, K, V>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryEntrySync<'a, K, V> {
+    type Output = Entry<'a, K, V>;
+
+    fn exec(self) -> Self::Output {
+        let shard_id = self.inner.inner.map.determine_map(&self.inner.key).0;
+        let shards = self.inner.inner.map.shards();
+        let shard = shards[shard_id].write();
+
+        if shard.contains_key(&self.inner.key) {
+            unsafe {
+                let (k, v) = shard.get_key_value(&self.inner.key).unwrap();
+                let k = util::change_lifetime_const(k);
+                let v = util::change_lifetime_mut(util::to_mut(v));
+                return Entry::Occupied(OccupiedEntry::new(shard, Some(self.inner.key), (k, v)))
+            }
+        } else {
+            return Entry::Vacant(VacantEntry::new(shard, self.inner.key));
+        }
+
+        //unimplemented!()
     }
 }
 
