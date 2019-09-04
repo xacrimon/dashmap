@@ -23,8 +23,8 @@ pub unsafe fn to_mut<'a, T>(x: &'a T) -> &'a mut T {
 }
 
 pub unsafe fn swap_nonoverlapping<T>(x: *mut T, y: *mut T) {
-    let (x, y) = (x as usize, y as usize);
     let item_size = mem::size_of::<T>();
+    let (x, y) = (x as usize, y as usize);
     let mut i = 0;
     while i + 4 <= item_size {
         let x = (x + i) as *mut u32;
