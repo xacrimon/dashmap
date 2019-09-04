@@ -2,8 +2,8 @@
 //        coarse transactions
 //        shortcuts api
 //        fix deadlock
-//        optimizations
 //        useful traits
+//        optimizations
 //        tests
 //        docs
 //        rel 2.0
