@@ -8,7 +8,7 @@ Blazingly fast concurrent map in Rust.
 
 [![downloads](https://shields.io/d/dashmap)](https://crates.io/crates/dashmap)
 
-[![Development](https://img.shields.io/static/v1?label=development&message=active&color=brightgreen)](https://shields.io/)
+[![development](https://img.shields.io/static/v1?label=development&message=active&color=brightgreen)](https://shields.io/)
 
 ## Performance
 
