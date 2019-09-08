@@ -68,7 +68,7 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
 
     pub fn insert(mut self, value: V) -> DashMapRefMut<'a, K, V> {
         unsafe {
-            let c: K = ptr::read(&mut self.key);
+            let c: K = ptr::read(&self.key);
             self.shard.insert(self.key, value);
             let (k, v) = self.shard.get_key_value(&c).unwrap();
             let k = util::change_lifetime_const(k);

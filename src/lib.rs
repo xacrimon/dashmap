@@ -3,6 +3,7 @@
 //        fix deadlock
 //        useful traits
 //        optimizations
+//        fix ub
 //        tests
 //        docs
 //        rel 2.0
@@ -26,6 +27,7 @@ use query::Query;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
 
+#[derive(Default)]
 pub struct DashMap<K, V>
 where
     K: Eq + Hash,
@@ -36,7 +38,7 @@ where
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
-    pub(crate) fn shards(&'a self) -> &'a Box<[RwLock<HashMap<K, V, FxBuildHasher>>]> {
+    pub(crate) fn shards(&'a self) -> &'a [RwLock<HashMap<K, V, FxBuildHasher>>] {
         &self.shards
     }
 

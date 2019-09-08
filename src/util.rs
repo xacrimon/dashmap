@@ -18,6 +18,9 @@ pub unsafe fn change_lifetime_mut<'a, 'b, T>(x: &'a mut T) -> &'b mut T {
     &mut *(x as *mut T)
 }
 
+#[allow(clippy::cast_ref_to_mut)]
+#[allow(clippy::mut_from_ref)]
+#[allow(clippy::needless_lifetimes)]
 pub unsafe fn to_mut<'a, T>(x: &'a T) -> &'a mut T {
     &mut *(x as *const T as *mut T)
 }
@@ -28,6 +31,7 @@ pub unsafe fn swap_nonoverlapping<T>(x: &mut T, y: &mut T) {
     swap_nonoverlapping_bytes(x, y, mem::size_of::<T>());
 }
 
+#[allow(clippy::manual_swap)]
 pub unsafe fn swap_nonoverlapping_bytes(x: *mut u8, y: *mut u8, len: usize) {
     let (x, y) = (x as usize, y as usize);
     let mut i = 0;
@@ -43,7 +47,7 @@ pub unsafe fn swap_nonoverlapping_bytes(x: *mut u8, y: *mut u8, len: usize) {
         i += 4;
     }
 
-    while i + 1 <= len {
+    while i < len {
         let x = (x + i) as *mut u8;
         let y = (y + i) as *mut u8;
 

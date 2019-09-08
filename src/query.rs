@@ -51,6 +51,7 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
         QueryClear::new(self)
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn is_empty(self) -> QueryIsEmpty<'a, K, V> {
         QueryIsEmpty::new(self)
     }
@@ -157,7 +158,7 @@ impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery
     fn exec(mut self) -> Self::Output {
         let shards = self.inner.inner.map.shards();
 
-        for shard in &**shards {
+        for shard in &*shards {
             shard.write().retain(&mut self.inner.f);
         }
     }
@@ -186,7 +187,7 @@ impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery
         let shards = self.inner.inner.inner.map.shards();
         let mut discarded = Vec::new();
 
-        for shard in &**shards {
+        for shard in &*shards {
             let mut shard = shard.write();
             let mut garbage: Vec<&K> = Vec::new();
 
@@ -434,7 +435,7 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryClearSync<'a, K, V> {
 
     fn exec(self) -> Self::Output {
         let shards = self.inner.inner.map.shards();
-        for shard in &**shards {
+        for shard in &*shards {
             shard.write().clear();
         }
     }
@@ -518,7 +519,7 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryLengthSync<'a, K, V> {
     fn exec(self) -> Self::Output {
         let shards = self.inner.inner.map.shards();
         let mut total = 0;
-        for shard in &**shards {
+        for shard in &*shards {
             total += shard.read().len();
         }
         total
@@ -726,10 +727,10 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryEntrySync<'a, K, V> {
                 let (k, v) = shard.get_key_value(&self.inner.key).unwrap();
                 let k = util::change_lifetime_const(k);
                 let v = util::change_lifetime_mut(util::to_mut(v));
-                return Entry::Occupied(OccupiedEntry::new(shard, Some(self.inner.key), (k, v)))
+                Entry::Occupied(OccupiedEntry::new(shard, Some(self.inner.key), (k, v)))
             }
         } else {
-            return Entry::Vacant(VacantEntry::new(shard, self.inner.key));
+            Entry::Vacant(VacantEntry::new(shard, self.inner.key))
         }
 
         //unimplemented!()
