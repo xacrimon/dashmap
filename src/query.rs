@@ -5,6 +5,8 @@ use super::DashMap;
 use std::borrow::Borrow;
 use std::hash::Hash;
 use super::mapref::entry::{Entry, OccupiedEntry, VacantEntry};
+use std::fmt;
+use std::error;
 
 pub trait ExecutableQuery {
     type Output;
@@ -212,9 +214,18 @@ impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery
 
 // -- QuerySwap
 
+#[derive(Debug)]
 pub enum QuerySwapError {
     InvalidKey,
 }
+
+impl fmt::Display for QuerySwapError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl error::Error for QuerySwapError {}
 
 pub struct QuerySwap<
     'a,
@@ -518,9 +529,18 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryLengthSync<'a, K, V> {
 
 // -- QueryRemove
 
+#[derive(Debug)]
 pub enum QueryRemoveError {
     InvalidKey,
 }
+
+impl fmt::Display for QueryRemoveError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl error::Error for QueryRemoveError {}
 
 pub struct QueryRemove<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
     inner: Query<'a, K, V>,
@@ -568,9 +588,18 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
 
 // -- QueryInsert
 
+#[derive(Debug)]
 pub enum QueryInsertStatus {
     KeyWasEmpty,
 }
+
+impl fmt::Display for QueryInsertStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl error::Error for QueryInsertStatus {}
 
 pub struct QueryInsert<'a, K: Eq + Hash, V> {
     inner: Query<'a, K, V>,
@@ -724,9 +753,18 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryEntrySync<'a, K, V> {
 
 // -- QueryGet
 
+#[derive(Debug)]
 pub enum QueryGetError {
     InvalidKey,
 }
+
+impl fmt::Display for QueryGetError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl error::Error for QueryGetError {}
 
 pub struct QueryGet<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
     inner: Query<'a, K, V>,
