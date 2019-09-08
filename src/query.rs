@@ -212,6 +212,10 @@ impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery
 
 // -- QuerySwap
 
+pub enum QuerySwapError {
+    InvalidKey,
+}
+
 pub struct QuerySwap<
     'a,
     'k1,
@@ -265,7 +269,7 @@ impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow
 impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow<X>, V>
     ExecutableQuery for QuerySwapSync<'a, 'k1, 'k2, Q, X, K, V>
 {
-    type Output = Option<()>;
+    type Output = Result<(), QuerySwapError>;
 
     fn exec(self) -> Self::Output {
         let mut r1 = self
@@ -276,7 +280,7 @@ impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow
             .get(self.inner.key1)
             .mutable()
             .sync()
-            .exec()?;
+            .exec().ok().ok_or(QuerySwapError::InvalidKey)?;
         let mut r2 = self
             .inner
             .inner
@@ -285,9 +289,9 @@ impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow
             .get(self.inner.key2)
             .mutable()
             .sync()
-            .exec()?;
+            .exec().ok().ok_or(QuerySwapError::InvalidKey)?;
         unsafe { util::swap_nonoverlapping(r1.value_mut(), r2.value_mut()); }
-        Some(())
+        Ok(())
     }
 }
 
@@ -514,6 +518,10 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryLengthSync<'a, K, V> {
 
 // -- QueryRemove
 
+pub enum QueryRemoveError {
+    InvalidKey,
+}
+
 pub struct QueryRemove<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
     inner: Query<'a, K, V>,
     key: &'k Q,
@@ -546,19 +554,23 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryRemoveSync<'a, 'k, 
 impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
     for QueryRemoveSync<'a, 'k, Q, K, V>
 {
-    type Output = Option<(K, V)>;
+    type Output = Result<(K, V), QueryRemoveError>;
 
     fn exec(self) -> Self::Output {
         let shard_id = self.inner.inner.map.determine_map(&self.inner.key).0;
         let shards = self.inner.inner.map.shards();
         let mut shard = shards[shard_id].write();
-        shard.remove_entry(&self.inner.key)
+        shard.remove_entry(&self.inner.key).ok_or(QueryRemoveError::InvalidKey)
     }
 }
 
 // --
 
 // -- QueryInsert
+
+pub enum QueryInsertStatus {
+    KeyWasEmpty,
+}
 
 pub struct QueryInsert<'a, K: Eq + Hash, V> {
     inner: Query<'a, K, V>,
@@ -591,14 +603,14 @@ impl<'a, K: Eq + Hash, V> QueryInsertSync<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryInsertSync<'a, K, V> {
-    type Output = Option<V>;
+    type Output = Result<V, QueryInsertStatus>;
 
     fn exec(self) -> Self::Output {
         let (shard_id, hash) = self.inner.inner.map.determine_map(&self.inner.key);
         let shards = self.inner.inner.map.shards();
         let mut shard = shards[shard_id].write();
 
-        shard.insert_with_hash_nocheck(self.inner.key, self.inner.value, hash)
+        shard.insert_with_hash_nocheck(self.inner.key, self.inner.value, hash).ok_or(QueryInsertStatus::KeyWasEmpty)
     }
 }
 
@@ -648,7 +660,7 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
             .get(self.inner.key)
             .sync()
             .exec()
-            .is_some()
+            .is_ok()
     }
 }
 
@@ -712,6 +724,10 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryEntrySync<'a, K, V> {
 
 // -- QueryGet
 
+pub enum QueryGetError {
+    InvalidKey,
+}
+
 pub struct QueryGet<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> {
     inner: Query<'a, K, V>,
     key: &'k Q,
@@ -766,7 +782,7 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryGetSync<'a, 'k, Q, 
 impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
     for QueryGetSync<'a, 'k, Q, K, V>
 {
-    type Output = Option<DashMapRef<'a, K, V>>;
+    type Output = Result<DashMapRef<'a, K, V>, QueryGetError>;
 
     fn exec(self) -> Self::Output {
         let shard_id = self.inner.inner.map.determine_map(&self.inner.key).0;
@@ -776,11 +792,11 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
             unsafe {
                 let k = util::change_lifetime_const(k);
                 let v = util::change_lifetime_const(v);
-                return Some(DashMapRef::new(shard, k, v));
+                return Ok(DashMapRef::new(shard, k, v));
             }
         }
 
-        None
+        Err(QueryGetError::InvalidKey)
     }
 }
 
@@ -801,7 +817,7 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> QueryGetMutSync<'a, 'k, 
 impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
     for QueryGetMutSync<'a, 'k, Q, K, V>
 {
-    type Output = Option<DashMapRefMut<'a, K, V>>;
+    type Output = Result<DashMapRefMut<'a, K, V>, QueryGetError>;
 
     fn exec(self) -> Self::Output {
         let shard_id = self
@@ -818,11 +834,11 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
             unsafe {
                 let k = util::change_lifetime_const(k);
                 let v = util::change_lifetime_mut(util::to_mut(v));
-                return Some(DashMapRefMut::new(shard, k, v));
+                return Ok(DashMapRefMut::new(shard, k, v));
             }
         }
 
-        None
+        Err(QueryGetError::InvalidKey)
     }
 }
 

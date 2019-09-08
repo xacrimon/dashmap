@@ -1,5 +1,4 @@
-// TO-DO: api results instead
-//        coarse transactions
+// TO-DO: coarse transactions
 //        shortcuts api
 //        fix deadlock
 //        useful traits
