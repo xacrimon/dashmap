@@ -32,17 +32,6 @@ pub unsafe fn swap_nonoverlapping_bytes(x: *mut u8, y: *mut u8, len: usize) {
     let (x, y) = (x as usize, y as usize);
     let mut i = 0;
 
-    while i + 16 <= len {
-        let x = (x + i) as *mut u128;
-        let y = (y + i) as *mut u128;
-
-        let z = *x;
-        *x = *y;
-        *y = z;
-
-        i += 16;
-    }
-
     while i + 4 <= len {
         let x = (x + i) as *mut u32;
         let y = (y + i) as *mut u32;
