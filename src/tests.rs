@@ -11,7 +11,7 @@ fn insert_and_get() {
 fn insert_and_remove() {
     let map: DashMap<i32, i32> = DashMap::new();
     map.query().insert(19, 420).sync().exec();
-    assert_eq!(map.query().remove(&19).sync().exec(), Some((19, 420)));
+    assert_eq!(map.query().remove(&19).sync().exec(), Ok((19, 420)));
 }
 
 #[test]

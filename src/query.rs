@@ -214,7 +214,7 @@ impl<'a, K: Eq + Hash, V, F: FnMut(&K, &mut V) -> bool> ExecutableQuery
 
 // -- QuerySwap
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum QuerySwapError {
     InvalidKey,
 }
@@ -529,7 +529,7 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryLengthSync<'a, K, V> {
 
 // -- QueryRemove
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum QueryRemoveError {
     InvalidKey,
 }
@@ -588,19 +588,6 @@ impl<'a, 'k, Q: Eq + Hash, K: Eq + Hash + Borrow<Q>, V> ExecutableQuery
 
 // -- QueryInsert
 
-#[derive(Debug)]
-pub enum QueryInsertStatus {
-    KeyWasEmpty,
-}
-
-impl fmt::Display for QueryInsertStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl error::Error for QueryInsertStatus {}
-
 pub struct QueryInsert<'a, K: Eq + Hash, V> {
     inner: Query<'a, K, V>,
     key: K,
@@ -632,14 +619,14 @@ impl<'a, K: Eq + Hash, V> QueryInsertSync<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryInsertSync<'a, K, V> {
-    type Output = Result<V, QueryInsertStatus>;
+    type Output = Option<V>;
 
     fn exec(self) -> Self::Output {
         let (shard_id, hash) = self.inner.inner.map.determine_map(&self.inner.key);
         let shards = self.inner.inner.map.shards();
         let mut shard = shards[shard_id].write();
 
-        shard.insert_with_hash_nocheck(self.inner.key, self.inner.value, hash).ok_or(QueryInsertStatus::KeyWasEmpty)
+        shard.insert_with_hash_nocheck(self.inner.key, self.inner.value, hash)
     }
 }
 
@@ -753,7 +740,7 @@ impl<'a, K: Eq + Hash, V> ExecutableQuery for QueryEntrySync<'a, K, V> {
 
 // -- QueryGet
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum QueryGetError {
     InvalidKey,
 }
