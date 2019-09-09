@@ -14,6 +14,7 @@
 pub mod iter;
 pub mod mapref;
 pub mod query;
+pub mod transaction;
 mod util;
 
 #[cfg(test)]
