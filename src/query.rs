@@ -7,6 +7,7 @@ use std::hash::Hash;
 use super::mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use std::fmt;
 use std::error;
+use super::transaction::QueryAccessGuard;
 
 pub trait ExecutableQuery {
     type Output;
@@ -18,11 +19,12 @@ pub trait ExecutableQuery {
 
 pub struct Query<'a, K: Eq + Hash, V> {
     map: &'a DashMap<K, V>,
+    guard: QueryAccessGuard<'a>,
 }
 
 impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
-    pub fn new(map: &'a DashMap<K, V>) -> Self {
-        Self { map }
+    pub fn new(map: &'a DashMap<K, V>, guard: QueryAccessGuard<'a>) -> Self {
+        Self { map, guard }
     }
 
     pub fn insert(self, key: K, value: V) -> QueryInsert<'a, K, V> {
@@ -92,6 +94,12 @@ impl<'a, K: Eq + Hash, V> Query<'a, K, V> {
 
     pub fn entry(self, key: K) -> QueryEntry<'a, K, V> {
         QueryEntry::new(self, key)
+    }
+}
+
+impl<'a, K: Eq + Hash, V> Drop for Query<'a, K, V> {
+    fn drop(&mut self) {
+        self.guard.destroy();
     }
 }
 

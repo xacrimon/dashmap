@@ -14,7 +14,7 @@
 pub mod iter;
 pub mod mapref;
 pub mod query;
-pub mod transaction;
+mod transaction;
 mod util;
 
 #[cfg(test)]
@@ -27,6 +27,7 @@ pub use query::ExecutableQuery;
 use query::Query;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
+use transaction::TransactionLock;
 
 #[derive(Default)]
 pub struct DashMap<K, V>
@@ -36,6 +37,7 @@ where
     ncb: usize,
     shards: Box<[RwLock<HashMap<K, V, FxBuildHasher>>]>,
     hash_builder: FxBuildHasher,
+    tlock: TransactionLock,
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
