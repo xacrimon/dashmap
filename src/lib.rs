@@ -15,6 +15,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::time::Duration;
+use std::fmt::{self, Debug};
 use util::map_in_place;
 
 /// DashMap is a threadsafe, versatile and concurrent hashmap with good performance and is balanced for both reads and writes.
@@ -502,6 +503,18 @@ where
     }
 }
 
+impl<K, V> Debug for DashMap<K, V>
+where
+    K: Eq + Hash + Debug,
+    V: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let entries_iter = self.iter().map(|entry| (entry.ptr_k, entry.ptr_v));
+        f.debug_map().entries(entries_iter).finish()
+    }
+}
+
+
 /// A shared reference into a DashMap created from an iterator.
 pub struct DashMapIterRef<'a, K, V>
 where
@@ -957,5 +970,25 @@ mod tests {
         let map = DashMap::default();
         map.insert("foo".to_string(), 51i32);
         assert_eq!(*map.index("foo"), 51i32);
+    }
+
+    #[test]
+    fn match_debug() {
+        let map = DashMap::default();
+        map.insert(1i32, 2i32);
+        map.insert(3i32, 6i32);
+
+        let choices = [
+            "{1: 2, 3: 6}",
+            "{3: 6, 1: 2}",
+        ];
+
+        let map_debug = format!("{:?}", map);
+
+        for choice in &choices {
+            if map_debug == *choice { return }
+        }
+
+        panic!("no match\n{}", map_debug);
     }
 }
