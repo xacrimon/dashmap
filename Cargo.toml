@@ -1,6 +1,6 @@
 [package]
 name = "dashmap"
-version = "1.0.5"
+version = "1.1.0"
 authors = ["acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 license = "MIT"
