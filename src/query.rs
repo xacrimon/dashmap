@@ -8,6 +8,7 @@ use super::mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use std::fmt;
 use std::error;
 use std::mem;
+use crate::transaction::MapProvider;
 
 pub trait ExecutableQuery {
     type Output;

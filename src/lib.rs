@@ -1,6 +1,7 @@
 pub mod iter;
 pub mod mapref;
 pub mod query;
+pub mod transaction;
 mod util;
 
 #[cfg(test)]
@@ -25,11 +26,11 @@ where
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
-    pub(crate) fn shards(&'a self) -> &'a [RwLock<HashMap<K, V, FxBuildHasher>>] {
+    pub(crate) fn _shards(&'a self) -> &'a [RwLock<HashMap<K, V, FxBuildHasher>>] {
         &self.shards
     }
 
-    pub(crate) fn determine_map<Q>(&self, key: &Q) -> (usize, u64)
+    pub(crate) fn _determine_map<Q>(&self, key: &Q) -> (usize, u64)
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
