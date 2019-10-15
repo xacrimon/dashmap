@@ -7,6 +7,7 @@ use std::hash::Hash;
 use super::mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use std::fmt;
 use std::error;
+use std::mem;
 
 pub trait ExecutableQuery {
     type Output;
@@ -302,7 +303,7 @@ impl<'a, 'k1, 'k2, Q: Eq + Hash, X: Eq + Hash, K: Eq + Hash + Borrow<Q> + Borrow
             .mutable()
             .sync()
             .exec().ok().ok_or(QuerySwapError::InvalidKey)?;
-        unsafe { util::swap_nonoverlapping(r1.value_mut(), r2.value_mut()); }
+        mem::swap(r1.value_mut(), r2.value_mut());
         Ok(())
     }
 }
