@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::fmt::{self, Debug};
 use util::map_in_place;
+use std::iter::FromIterator;
 
 /// DashMap is a threadsafe, versatile and concurrent hashmap with good performance and is balanced for both reads and writes.
 ///
@@ -514,6 +515,15 @@ where
     }
 }
 
+impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V> {
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let map = Self::default();
+        for pair in iter {
+            map.insert(pair.0, pair.1);
+        }
+        map
+    }
+}
 
 /// A shared reference into a DashMap created from an iterator.
 pub struct DashMapIterRef<'a, K, V>
