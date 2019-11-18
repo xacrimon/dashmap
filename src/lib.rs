@@ -10,6 +10,14 @@ use std::hash::{BuildHasher, Hash, Hasher};
 use iter::{Iter, IterMut};
 use mapref::one::{Ref, RefMut};
 
+fn shard_amount() -> usize {
+    (num_cpus::get() * 8).next_power_of_two()
+}
+
+fn ncb(shard_amount: usize) -> usize {
+    (shard_amount as f32).log2() as usize
+}
+
 #[derive(Default)]
 pub struct DashMap<K, V>
 where
@@ -22,15 +30,29 @@ where
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     pub fn new() -> Self {
-        let shard_amount = (num_cpus::get() * 8).next_power_of_two();
-        let shift = (shard_amount as f32).log2() as usize;
+        let shard_amount = shard_amount();
         let shards = (0..shard_amount)
             .map(|_| RwLock::new(HashMap::with_hasher(FxBuildHasher::default())))
             .collect::<Vec<_>>()
             .into_boxed_slice();
 
         Self {
-            ncb: shift,
+            ncb: ncb(shard_amount),
+            shards,
+            hash_builder: FxBuildHasher::default(),
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        let shard_amount = shard_amount();
+        let cps = capacity / shard_amount;
+        let shards = (0..shard_amount)
+            .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, FxBuildHasher::default())))
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+
+        Self {
+            ncb: ncb(shard_amount),
             shards,
             hash_builder: FxBuildHasher::default(),
         }
