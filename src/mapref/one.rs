@@ -6,13 +6,13 @@ use std::ops::{Deref, DerefMut};
 
 // -- Shared
 
-pub struct DashMapRef<'a, K: Eq + Hash, V> {
+pub struct Ref<'a, K: Eq + Hash, V> {
     _guard: RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>,
     k: &'a K,
     v: &'a V,
 }
 
-impl<'a, K: Eq + Hash, V> DashMapRef<'a, K, V> {
+impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
     pub(crate) fn new(
         guard: RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>,
         k: &'a K,
@@ -38,7 +38,7 @@ impl<'a, K: Eq + Hash, V> DashMapRef<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for DashMapRef<'a, K, V> {
+impl<'a, K: Eq + Hash, V> Deref for Ref<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -50,13 +50,13 @@ impl<'a, K: Eq + Hash, V> Deref for DashMapRef<'a, K, V> {
 
 // -- Unique
 
-pub struct DashMapRefMut<'a, K: Eq + Hash, V> {
+pub struct RefMut<'a, K: Eq + Hash, V> {
     _guard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>,
     k: &'a K,
     v: &'a mut V,
 }
 
-impl<'a, K: Eq + Hash, V> DashMapRefMut<'a, K, V> {
+impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
     pub(crate) fn new(
         guard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>,
         k: &'a K,
@@ -90,7 +90,7 @@ impl<'a, K: Eq + Hash, V> DashMapRefMut<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for DashMapRefMut<'a, K, V> {
+impl<'a, K: Eq + Hash, V> Deref for RefMut<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -98,7 +98,7 @@ impl<'a, K: Eq + Hash, V> Deref for DashMapRefMut<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> DerefMut for DashMapRefMut<'a, K, V> {
+impl<'a, K: Eq + Hash, V> DerefMut for RefMut<'a, K, V> {
     fn deref_mut(&mut self) -> &mut V {
         self.value_mut()
     }

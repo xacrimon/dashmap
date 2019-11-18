@@ -8,6 +8,7 @@ use parking_lot::RwLock;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
 use iter::{Iter, IterMut};
+use mapref::one::{Ref, RefMut};
 
 #[derive(Default)]
 pub struct DashMap<K, V>
@@ -75,5 +76,41 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
 
     pub fn iter_mut(&'a self) -> IterMut<'a, K, V> {
         IterMut::new(self)
+    }
+
+    pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V>>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        let (shard, _) = self.determine_map(key);
+        let shard = self.shards[shard].read();
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
+            unsafe {
+                let kptr = util::change_lifetime_const(kptr);
+                let vptr = util::change_lifetime_const(vptr);
+                Some(Ref::new(shard, kptr, vptr))
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V>>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        let (shard, _) = self.determine_map(key);
+        let shard = self.shards[shard].write();
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
+            unsafe {
+                let kptr = util::change_lifetime_const(kptr);
+                let vptr = util::change_lifetime_mut(util::to_mut(vptr));
+                Some(RefMut::new(shard, kptr, vptr))
+            }
+        } else {
+            None
+        }
     }
 }

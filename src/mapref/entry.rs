@@ -1,4 +1,4 @@
-use super::one::DashMapRefMut;
+use super::one::RefMut;
 use parking_lot::RwLockWriteGuard;
 use dashmap_shard::HashMap;
 use fxhash::FxBuildHasher;
@@ -31,7 +31,7 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         }
     }
 
-    pub fn or_default(self) -> DashMapRefMut<'a, K, V>
+    pub fn or_default(self) -> RefMut<'a, K, V>
     where
         V: Default,
     {
@@ -41,14 +41,14 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         }
     }
 
-    pub fn or_insert(self, value: V) -> DashMapRefMut<'a, K, V> {
+    pub fn or_insert(self, value: V) -> RefMut<'a, K, V> {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
             Entry::Vacant(entry) => entry.insert(value),
         }
     }
 
-    pub fn or_insert_with(self, value: impl FnOnce() -> V) -> DashMapRefMut<'a, K, V> {
+    pub fn or_insert_with(self, value: impl FnOnce() -> V) -> RefMut<'a, K, V> {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
             Entry::Vacant(entry) => entry.insert(value()),
@@ -66,14 +66,14 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
         Self { shard, key }
     }
 
-    pub fn insert(mut self, value: V) -> DashMapRefMut<'a, K, V> {
+    pub fn insert(mut self, value: V) -> RefMut<'a, K, V> {
         unsafe {
             let c: K = ptr::read(&self.key);
             self.shard.insert(self.key, value);
             let (k, v) = self.shard.get_key_value(&c).unwrap();
             let k = util::change_lifetime_const(k);
             let v = util::change_lifetime_mut(util::to_mut(v));
-            let r = DashMapRefMut::new(self.shard, k, v);
+            let r = RefMut::new(self.shard, k, v);
             mem::forget(c);
             r
         }
@@ -111,8 +111,8 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
         mem::replace(self.elem.1, value)
     }
 
-    pub fn into_ref(self) -> DashMapRefMut<'a, K, V> {
-        DashMapRefMut::new(self.shard, self.elem.0, self.elem.1)
+    pub fn into_ref(self) -> RefMut<'a, K, V> {
+        RefMut::new(self.shard, self.elem.0, self.elem.1)
     }
 
     pub fn key(&self) -> &K {
