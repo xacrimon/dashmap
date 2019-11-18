@@ -135,4 +135,52 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
             None
         }
     }
+
+    pub fn shrink_to_fit(&self) {
+        self.shards.iter().for_each(|s| s.write().shrink_to_fit());
+    }
+
+    pub fn retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
+        self.shards.iter().for_each(|s| s.write().retain(&mut f));
+    }
+
+    pub fn len(&self) -> usize {
+        self.shards.iter().map(|s| s.read().len()).sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn clear(&self) {
+        self.shards.iter().for_each(|s| s.write().clear());
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.shards.iter().map(|s| s.read().capacity()).sum()
+    }
+
+    pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        if let Some(mut r) = self.get_mut(key) {
+            util::map_in_place_2(r.pair_mut(), f);
+        }
+    }
+
+    pub fn alter_all(&self, mut f: impl FnMut(&K, V) -> V) {
+        self.shards.iter().for_each(|s| {
+            s.write().iter_mut().for_each(|pair| util::map_in_place_2(pair, &mut f));
+        });
+    }
+
+    pub fn contains_key<Q>(&self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.get(key).is_some()
+    }
 }
