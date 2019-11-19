@@ -11,9 +11,14 @@ use std::hash::Hash;
 
 pub trait Map<'a, K: 'a + Eq + Hash, V: 'a> {
     fn _shard_count(&self) -> usize;
-    unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>;
-    unsafe fn _yield_write_shard(&'a self, i: usize)
-        -> RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>;
+    unsafe fn _yield_read_shard(
+        &'a self,
+        i: usize,
+    ) -> RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>;
+    unsafe fn _yield_write_shard(
+        &'a self,
+        i: usize,
+    ) -> RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>;
     fn _insert(&self, key: K, value: V) -> Option<V>;
     fn _remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where

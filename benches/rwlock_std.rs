@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -19,10 +19,17 @@ fn insert_rwlock_std_u64_u64(c: &mut Criterion) {
     let max = num_cpus::get();
 
     for threads in 1..=max {
-        group.bench_with_input(BenchmarkId::from_parameter(threads), &threads, |b, &threads| {
-            let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
-            pool.install(|| b.iter(|| task_insert_rwlock_std_u64_u64()));
-        });
+        group.bench_with_input(
+            BenchmarkId::from_parameter(threads),
+            &threads,
+            |b, &threads| {
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(threads)
+                    .build()
+                    .unwrap();
+                pool.install(|| b.iter(|| task_insert_rwlock_std_u64_u64()));
+            },
+        );
     }
 
     group.finish();

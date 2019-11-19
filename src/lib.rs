@@ -5,6 +5,7 @@ pub mod mapref;
 mod t;
 mod util;
 
+use crossbeam_utils::CachePadded;
 use dashmap_shard::HashMap;
 use fxhash::FxBuildHasher;
 use iter::{Iter, IterMut};
@@ -13,9 +14,8 @@ use mapref::one::{Ref, RefMut};
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
+use std::ops::{BitAnd, Shl, Shr, Sub};
 use t::Map;
-use crossbeam_utils::CachePadded;
-use std::ops::{Shl, Shr};
 
 fn shard_amount() -> usize {
     (num_cpus::get() * 4).next_power_of_two()
@@ -288,7 +288,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
     }
 
     #[inline]
-    unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>> {
+    unsafe fn _yield_read_shard(
+        &'a self,
+        i: usize,
+    ) -> RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>> {
         self.shards.get_unchecked(i).read()
     }
 
@@ -426,8 +429,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Shl<(K, V)> for &'a DashMap<K, V> {
     type Output = Option<V>;
 
     #[inline]
-    fn shl(self, rhs: (K, V)) -> Self::Output {
-        self.insert(rhs.0, rhs.1)
+    fn shl(self, pair: (K, V)) -> Self::Output {
+        self.insert(pair.0, pair.1)
     }
 }
 
@@ -439,7 +442,33 @@ where
     type Output = Option<Ref<'a, K, V>>;
 
     #[inline]
-    fn shr(self, rhs: &Q) -> Self::Output {
-        self.get(rhs)
+    fn shr(self, key: &Q) -> Self::Output {
+        self.get(key)
+    }
+}
+
+impl<'a, K: 'a + Eq + Hash, V: 'a, Q> Sub<&Q> for &'a DashMap<K, V>
+where
+    K: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+{
+    type Output = Option<(K, V)>;
+
+    #[inline]
+    fn sub(self, key: &Q) -> Self::Output {
+        self.remove(key)
+    }
+}
+
+impl<'a, K: 'a + Eq + Hash, V: 'a, Q> BitAnd<&Q> for &'a DashMap<K, V>
+where
+    K: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+{
+    type Output = bool;
+
+    #[inline]
+    fn bitand(self, key: &Q) -> Self::Output {
+        self.contains_key(key)
     }
 }
