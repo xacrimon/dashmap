@@ -19,6 +19,7 @@ nightly = ["parking_lot/nightly", "dashmap-shard/nightly"]
 criterion = "0.3"
 rayon = "1.2.0"
 chashmap = "2.2.2"
+contrie = "0.1.4"
 
 [[bench]]
 name = "rwlock_std"
@@ -30,6 +31,10 @@ harness = false
 
 [[bench]]
 name = "chashmap"
+harness = false
+
+[[bench]]
+name = "contrie"
 harness = false
 
 [dependencies]
