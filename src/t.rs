@@ -7,7 +7,7 @@ use crate::iter::{Iter, IterMut};
 use crate::mapref::one::{Ref, RefMut};
 use crate::mapref::entry::Entry;
 
-pub trait Map<'a, K: Eq + Hash, V> {
+pub trait Map<'a, K: 'a + Eq + Hash, V: 'a> {
     fn shards(&'a self) -> &'a [RwLock<HashMap<K, V, FxBuildHasher>>];
     fn insert(&self, key: K, value: V) -> Option<V>;
     fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
@@ -27,13 +27,29 @@ pub trait Map<'a, K: Eq + Hash, V> {
     fn shrink_to_fit(&self);
     fn retain(&self, f: impl FnMut(&K, &mut V) -> bool);
     fn len(&self) -> usize;
-    fn clear(&self);
     fn capacity(&self) -> usize;
     fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized;
     fn alter_all(&self, f: impl FnMut(&K, V) -> V);
-    fn contains_key<Q>(&self, key: &Q) -> bool;
     fn entry(&'a self, key: K) -> Entry<'a, K, V>;
+
+    // provided
+
+    fn clear(&self) {
+        self.retain(|_, _| false)
+    }
+
+    fn contains_key<Q>(&'a self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized
+    {
+        self.get(key).is_some()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
