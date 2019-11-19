@@ -82,10 +82,19 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         ((hash >> shift) as usize, hash)
     }
 
+    pub(crate) fn fetch_shard<Q>(&self, key: &Q) -> (&RwLock<HashMap<K, V, FxBuildHasher>>, u64)
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        let (i, hash) = self.determine_map(key);
+        let shard = unsafe { self.shards().get_unchecked(i) };
+        (shard, hash)
+    }
+
     pub fn insert(&self, key: K, value: V) -> Option<V> {
-        let (shard, hash) = self.determine_map(&key);
-        let mut shard = self.shards[shard].write();
-        shard.insert_with_hash_nocheck(key, value, hash)
+        let (shard, hash) = self.fetch_shard(&key);
+        shard.write().insert_with_hash_nocheck(key, value, hash)
     }
 
     pub fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
@@ -93,9 +102,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let (shard, _) = self.determine_map(key);
-        let mut shard = self.shards[shard].write();
-        shard.remove_entry(key)
+        let (shard, _) = self.fetch_shard(key);
+        shard.write().remove_entry(key)
     }
 
     pub fn iter(&'a self) -> Iter<'a, K, V> {
@@ -111,8 +119,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let (shard, hash) = self.determine_map(key);
-        let shard = self.shards[shard].read();
+        let (shard, hash) = self.fetch_shard(key);
+        let shard = shard.read();
         if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
@@ -129,8 +137,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let (shard, hash) = self.determine_map(key);
-        let shard = self.shards[shard].write();
+        let (shard, hash) = self.fetch_shard(key);
+        let shard = shard.write();
         if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
@@ -193,8 +201,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     }
 
     pub fn entry(&'a self, key: K) -> Entry<'a, K, V> {
-        let (shard, hash) = self.determine_map(&key);
-        let shard = self.shards[shard].write();
+        let (shard, hash) = self.fetch_shard(&key);
+        let shard = shard.write();
         if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, &key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
