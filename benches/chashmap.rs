@@ -6,7 +6,7 @@ use std::cmp;
 const ITER: u64 = 8 * 1024;
 
 fn task_insert_chashmap_u64_u64() -> CHashMap<u64, u64> {
-    let map = CHashMap::new();
+    let map = CHashMap::with_capacity(ITER as usize);
     (0..ITER).into_par_iter().for_each(|i| {
         map.insert(i, i + 7);
     });

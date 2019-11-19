@@ -5,7 +5,7 @@ use cht::HashMap;
 const ITER: u64 = 8 * 1024;
 
 fn task_insert_cht_u64_u64() -> HashMap<u64, u64> {
-    let map = HashMap::new();
+    let map = HashMap::with_capacity(ITER as usize);
     (0..ITER).into_par_iter().for_each(|i| {
         map.insert(i, i + 7);
     });

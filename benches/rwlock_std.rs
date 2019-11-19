@@ -6,7 +6,7 @@ use std::sync::RwLock;
 const ITER: u64 = 2 * 1024;
 
 fn task_insert_rwlock_std_u64_u64() -> RwLock<HashMap<u64, u64>> {
-    let map = RwLock::new(HashMap::new());
+    let map = RwLock::new(HashMap::with_capacity(ITER as usize));
     (0..ITER).into_par_iter().for_each(|i| {
         map.write().unwrap().insert(i, i + 7);
     });

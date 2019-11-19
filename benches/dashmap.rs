@@ -5,7 +5,7 @@ use dashmap::DashMap;
 const ITER: u64 = 32 * 1024;
 
 fn task_insert_dashmap_u64_u64() -> DashMap<u64, u64> {
-    let map = DashMap::new();
+    let map = DashMap::with_capacity(ITER as usize);
     (0..ITER).into_par_iter().for_each(|i| {
         map.insert(i, i + 7);
     });
