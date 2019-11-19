@@ -167,14 +167,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
+    #[inline(always)]
     fn _shard_count(&self) -> usize {
         self.shards.len()
     }
 
+    #[inline(always)]
     fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>> {
         self.shards[i].read()
     }
 
+    #[inline(always)]
     unsafe fn _yield_write_shard(
         &'a self,
         i: usize,
@@ -182,12 +185,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         self.shards[i].write()
     }
 
+    #[inline(always)]
     fn _insert(&self, key: K, value: V) -> Option<V> {
         let (shard, hash) = self.determine_map(&key);
         let mut shard = unsafe { self._yield_write_shard(shard) };
         shard.insert_with_hash_nocheck(key, value, hash)
     }
 
+    #[inline(always)]
     fn _remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
         K: Borrow<Q>,
@@ -198,14 +203,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         shard.remove_entry(key)
     }
 
+    #[inline(always)]
     fn _iter(&'a self) -> Iter<'a, K, V, DashMap<K, V>> {
         Iter::new(self)
     }
 
+    #[inline(always)]
     fn _iter_mut(&'a self) -> IterMut<'a, K, V, DashMap<K, V>> {
         IterMut::new(self)
     }
 
+    #[inline(always)]
     fn _get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V>>
     where
         K: Borrow<Q>,
@@ -224,6 +232,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         }
     }
 
+    #[inline(always)]
     fn _get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V>>
     where
         K: Borrow<Q>,
@@ -242,22 +251,27 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         }
     }
 
+    #[inline(always)]
     fn _shrink_to_fit(&self) {
         self.shards.iter().for_each(|s| s.write().shrink_to_fit());
     }
 
+    #[inline(always)]
     fn _retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
         self.shards.iter().for_each(|s| s.write().retain(&mut f));
     }
 
+    #[inline(always)]
     fn _len(&self) -> usize {
         self.shards.iter().map(|s| s.read().len()).sum()
     }
 
+    #[inline(always)]
     fn _capacity(&self) -> usize {
         self.shards.iter().map(|s| s.read().capacity()).sum()
     }
 
+    #[inline(always)]
     fn _alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
         K: Borrow<Q>,
@@ -268,6 +282,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         }
     }
 
+    #[inline(always)]
     fn _alter_all(&self, mut f: impl FnMut(&K, V) -> V) {
         self.shards.iter().for_each(|s| {
             s.write()
@@ -276,6 +291,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         });
     }
 
+    #[inline(always)]
     fn _entry(&'a self, key: K) -> Entry<'a, K, V> {
         let (shard, hash) = self.determine_map(&key);
         let shard = unsafe { self._yield_write_shard(shard) };
