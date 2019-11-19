@@ -183,4 +183,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     {
         self.get(key).is_some()
     }
+
+    pub fn upsert(&'a self, key: K, insert: impl FnOnce() -> V, update: impl FnOnce(&K, V) -> V) {
+        if let Some(mut r) = self.get_mut(&key) {
+            util::map_in_place_2(r.pair_mut(), update);
+        } else {
+            self.insert(key, insert());
+        }
+    }
 }
