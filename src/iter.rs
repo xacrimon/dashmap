@@ -49,7 +49,7 @@ impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
         }
 
         let shards = self.map.shards();
-        let guard = shards[self.shard_i].read();
+        let guard = unsafe { shards.get_unchecked(self.shard_i).read() };
         let sref: &HashMap<K, V, FxBuildHasher> = unsafe { util::change_lifetime_const(&*guard) };
         let iter = sref.iter();
         self.current = Some((Arc::new(guard), iter));
@@ -93,7 +93,7 @@ impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
         }
 
         let shards = self.map.shards();
-        let mut guard = shards[self.shard_i].write();
+        let mut guard = unsafe { shards.get_unchecked(self.shard_i).write() };
         let sref: &mut HashMap<K, V, FxBuildHasher> =
             unsafe { util::change_lifetime_mut(&mut *guard) };
         let iter = sref.iter_mut();
