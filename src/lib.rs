@@ -14,7 +14,7 @@ use mapref::one::{Ref, RefMut};
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
-use std::ops::{BitAnd, Shl, Shr, Sub};
+use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use t::Map;
 
 fn shard_amount() -> usize {
@@ -444,6 +444,19 @@ where
     #[inline]
     fn shr(self, key: &Q) -> Self::Output {
         self.get(key)
+    }
+}
+
+impl<'a, K: 'a + Eq + Hash, V: 'a, Q> BitOr<&Q> for &'a DashMap<K, V>
+where
+    K: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+{
+    type Output = Option<RefMut<'a, K, V>>;
+
+    #[inline]
+    fn bitor(self, key: &Q) -> Self::Output {
+        self.get_mut(key)
     }
 }
 
