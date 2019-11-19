@@ -16,7 +16,7 @@ fn task_insert_chashmap_u64_u64() -> CHashMap<u64, u64> {
 fn insert_chashmap_u64_u64(c: &mut Criterion) {
     let mut group = c.benchmark_group("insert_chashmap_u64_u64");
     group.throughput(Throughput::Elements(ITER as u64));
-    let max = cmp::max(num_cpus::get(), 24);
+    let max = cmp::min(num_cpus::get(), 24);
 
     for threads in 1..=max {
         group.bench_with_input(BenchmarkId::from_parameter(threads), &threads, |b, &threads| {

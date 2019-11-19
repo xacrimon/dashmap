@@ -12,6 +12,7 @@ use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
 use t::Map;
+use crossbeam_utils::CachePadded;
 
 fn shard_amount() -> usize {
     (num_cpus::get() * 32).next_power_of_two()
@@ -27,7 +28,7 @@ where
     K: Eq + Hash,
 {
     ncb: usize,
-    shards: Box<[RwLock<HashMap<K, V, FxBuildHasher>>]>,
+    shards: Box<[CachePadded<RwLock<HashMap<K, V, FxBuildHasher>>>]>,
     hash_builder: FxBuildHasher,
 }
 
@@ -35,7 +36,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     pub fn new() -> Self {
         let shard_amount = shard_amount();
         let shards = (0..shard_amount)
-            .map(|_| RwLock::new(HashMap::with_hasher(FxBuildHasher::default())))
+            .map(|_| CachePadded::new(RwLock::new(HashMap::with_hasher(FxBuildHasher::default()))))
             .collect::<Vec<_>>()
             .into_boxed_slice();
 
@@ -51,10 +52,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         let cps = capacity / shard_amount;
         let shards = (0..shard_amount)
             .map(|_| {
-                RwLock::new(HashMap::with_capacity_and_hasher(
+                CachePadded::new(RwLock::new(HashMap::with_capacity_and_hasher(
                     cps,
                     FxBuildHasher::default(),
-                ))
+                )))
             })
             .collect::<Vec<_>>()
             .into_boxed_slice();
