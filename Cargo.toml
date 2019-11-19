@@ -20,6 +20,7 @@ criterion = "0.3"
 rayon = "1.2.0"
 chashmap = "2.2.2"
 contrie = "0.1.4"
+cht = "0.1.2"
 
 [[bench]]
 name = "rwlock_std"
@@ -35,6 +36,10 @@ harness = false
 
 [[bench]]
 name = "contrie"
+harness = false
+
+[[bench]]
+name = "cht"
 harness = false
 
 [dependencies]
