@@ -43,8 +43,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// ```
     /// use dashmap::DashMap;
     ///
-    /// let map = DashMap::new();
-    /// map.insert("Veloren", "Is a fantastic game!");
+    /// let reviews = DashMap::new();
+    /// reviews.insert("Veloren", "What a fantastic game!");
     /// ```
     #[inline]
     pub fn new() -> Self {
@@ -68,9 +68,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// ```
     /// use dashmap::DashMap;
     ///
-    /// let map = DashMap::with_capacity(2);
-    /// map.insert(2, 4);
-    /// map.insert(8, 16);
+    /// let mappings = DashMap::with_capacity(2);
+    /// mappings.insert(2, 4);
+    /// mappings.insert(8, 16);
     /// ```
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
@@ -158,9 +158,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// ```
     /// use dashmap::DashMap;
     ///
-    /// let map = DashMap::with_capacity(2);
-    /// map.insert("Jack", "Goalie");
-    /// assert_eq!(map.remove("Jack").unwrap().1, "Goalie");
+    /// let soccer_team = DashMap::with_capacity(2);
+    /// soccer_team.insert("Jack", "Goalie");
+    /// assert_eq!(soccer_team.remove("Jack").unwrap().1, "Goalie");
     /// ```
     #[inline]
     pub fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
@@ -178,9 +178,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// ```
     /// use dashmap::DashMap;
     ///
-    /// let map = DashMap::new();
-    /// map.insert("hello", "world");
-    /// assert_eq!(map.iter().count(), 1);
+    /// let words = DashMap::new();
+    /// words.insert("hello", "world");
+    /// assert_eq!(words.iter().count(), 1);
     /// ```
     #[inline]
     pub fn iter(&'a self) -> Iter<'a, K, V, DashMap<K, V>> {
@@ -194,16 +194,27 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// ```
     /// use dashmap::DashMap;
     ///
-    /// let map = DashMap::new();
-    /// map.insert("Johnny", 21);
-    /// map.iter_mut().for_each(|mut r| *r += 1);
-    /// assert_eq!(*map.get("Johnny").unwrap(), 22);
+    /// let grade = DashMap::new();
+    /// grade.insert("Johnny", 21);
+    /// grade.iter_mut().for_each(|mut r| *r += 1);
+    /// assert_eq!(*grade.get("Johnny").unwrap(), 22);
     /// ```
     #[inline]
     pub fn iter_mut(&'a self) -> IterMut<'a, K, V, DashMap<K, V>> {
         self._iter_mut()
     }
 
+    /// Get a immutable reference to an entry in the map
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let youtubers = DashMap::new();
+    /// youtubers.insert("Bosnian Bill", 457000);
+    /// assert_eq!(*youtubers.get("Bosnian Bill").unwrap(), 457000);
+    /// ```
     #[inline]
     pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V>>
     where
@@ -213,6 +224,18 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self._get(key)
     }
 
+    /// Get a mutable reference to an entry in the map
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let class = DashMap::new();
+    /// class.insert("Albin", 15);
+    /// *class.get_mut("Albin").unwrap() -= 1;
+    /// assert_eq!(*class.get("Albin").unwrap(), 14);
+    /// ```
     #[inline]
     pub fn get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V>>
     where
@@ -222,36 +245,101 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self._get_mut(key)
     }
 
+    /// Remove excess capacity to reduce memory usage.
     #[inline]
     pub fn shrink_to_fit(&self) {
         self._shrink_to_fit();
     }
 
+    /// Retain elements that whose predicates return true
+    /// and discard elements whose predicates return false.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let people = DashMap::new();
+    /// people.insert("Albin", 15);
+    /// people.insert("Jones", 22);
+    /// people.insert("Charlie", 27);
+    /// people.retain(|_, v| *v > 20);
+    /// assert_eq!(people.len(), 2);
+    /// ```
     #[inline]
     pub fn retain(&self, f: impl FnMut(&K, &mut V) -> bool) {
         self._retain(f);
     }
 
+    /// Fetches the total amount of key-value pairs stored in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let people = DashMap::new();
+    /// people.insert("Albin", 15);
+    /// people.insert("Jones", 22);
+    /// people.insert("Charlie", 27);
+    /// assert_eq!(people.len(), 3);
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self._len()
     }
 
+    /// Checks if the map is empty or not.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::<(), ()>::new();
+    /// assert!(map.is_empty());
+    /// ```
     #[inline]
     pub fn is_empty(&self) -> bool {
         self._is_empty()
     }
 
+    /// Removes all key-value pairs in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let stats = DashMap::new();
+    /// stats.insert("Goals", 4);
+    /// assert!(!stats.is_empty());
+    /// stats.clear();
+    /// assert!(stats.is_empty());
+    /// ```
     #[inline]
     pub fn clear(&self) {
         self._clear();
     }
 
+    /// Returns how many key-value pairs the map can store without reallocating.
     #[inline]
     pub fn capacity(&self) -> usize {
         self._capacity()
     }
 
+    /// Modify a specific value according to a function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let stats = DashMap::new();
+    /// stats.insert("Goals", 4);
+    /// stats.alter("Goals", |_, v| v * 2);
+    /// assert_eq!(*stats.get("Goals").unwrap(), 8);
+    /// ```
     #[inline]
     pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
@@ -261,11 +349,36 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self._alter(key, f);
     }
 
+    /// Modify every value in the map according to a function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let stats = DashMap::new();
+    /// stats.insert("Wins", 4);
+    /// stats.insert("Losses", 2);
+    /// stats.alter_all(|_, v| v + 1);
+    /// assert_eq!(*stats.get("Wins").unwrap(), 5);
+    /// assert_eq!(*stats.get("Losses").unwrap(), 3);
+    /// ```
     #[inline]
     pub fn alter_all(&self, f: impl FnMut(&K, V) -> V) {
         self._alter_all(f);
     }
 
+    /// Checks if the map contains a specific key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let team_sizes = DashMap::new();
+    /// team_sizes.insert("Dakota Cherries", 23);
+    /// assert!(team_sizes.contains_key("Dakota Cherries"));
+    /// ```
     #[inline]
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
@@ -275,6 +388,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self._contains_key(key)
     }
 
+    /// Advanced entry API that tries to mimic `std::collections::HashMap`.
+    /// See the documentation on `dashmap::mapref::entry` for more details.
     #[inline]
     pub fn entry(&'a self, key: K) -> Entry<'a, K, V> {
         self._entry(key)
@@ -439,11 +554,11 @@ where
     K: Borrow<Q>,
     Q: Hash + Eq + ?Sized,
 {
-    type Output = Option<Ref<'a, K, V>>;
+    type Output = Ref<'a, K, V>;
 
     #[inline]
     fn shr(self, key: &Q) -> Self::Output {
-        self.get(key)
+        self.get(key).unwrap()
     }
 }
 
@@ -452,11 +567,11 @@ where
     K: Borrow<Q>,
     Q: Hash + Eq + ?Sized,
 {
-    type Output = Option<RefMut<'a, K, V>>;
+    type Output = RefMut<'a, K, V>;
 
     #[inline]
     fn bitor(self, key: &Q) -> Self::Output {
-        self.get_mut(key)
+        self.get_mut(key).unwrap()
     }
 }
 
