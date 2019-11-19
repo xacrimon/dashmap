@@ -17,6 +17,17 @@ type GuardIterMut<'a, K, V> = (
     hash_map::IterMut<'a, K, V>,
 );
 
+/// Iterator over a DashMap yielding immutable references.
+///
+/// # Examples
+///
+/// ```
+/// use dashmap::DashMap;
+///
+/// let map = DashMap::new();
+/// map.insert("hello", "world");
+/// assert_eq!(map.iter().count(), 1);
+/// ```
 pub struct Iter<'a, K: Eq + Hash, V, M: Map<'a, K, V>> {
     map: &'a M,
     shard_i: usize,
@@ -59,6 +70,18 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for Iter<'a, K, V, M> {
     }
 }
 
+/// Iterator over a DashMap yielding mutable references.
+///
+/// # Examples
+///
+/// ```
+/// use dashmap::DashMap;
+///
+/// let map = DashMap::new();
+/// map.insert("Johnny", 21);
+/// map.iter_mut().for_each(|mut r| *r += 1);
+/// assert_eq!(*map.get("Johnny").unwrap(), 22);
+/// ```
 pub struct IterMut<'a, K: Eq + Hash, V, M: Map<'a, K, V>> {
     map: &'a M,
     shard_i: usize,
