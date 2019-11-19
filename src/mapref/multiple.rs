@@ -7,13 +7,13 @@ use std::sync::Arc;
 
 // -- Shared
 
-pub struct DashMapRefMulti<'a, K: Eq + Hash, V> {
+pub struct RefMulti<'a, K: Eq + Hash, V> {
     _guard: Arc<RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>>,
     k: &'a K,
     v: &'a V,
 }
 
-impl<'a, K: Eq + Hash, V> DashMapRefMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     pub(crate) fn new(
         guard: Arc<RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>>,
         k: &'a K,
@@ -39,7 +39,7 @@ impl<'a, K: Eq + Hash, V> DashMapRefMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for DashMapRefMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -51,13 +51,13 @@ impl<'a, K: Eq + Hash, V> Deref for DashMapRefMulti<'a, K, V> {
 
 // -- Unique
 
-pub struct DashMapRefMutMulti<'a, K: Eq + Hash, V> {
+pub struct RefMutMulti<'a, K: Eq + Hash, V> {
     _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>>,
     k: &'a K,
     v: &'a mut V,
 }
 
-impl<'a, K: Eq + Hash, V> DashMapRefMutMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     pub(crate) fn new(
         guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>>,
         k: &'a K,
@@ -91,7 +91,7 @@ impl<'a, K: Eq + Hash, V> DashMapRefMutMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for DashMapRefMutMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V> Deref for RefMutMulti<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -99,7 +99,7 @@ impl<'a, K: Eq + Hash, V> Deref for DashMapRefMutMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> DerefMut for DashMapRefMutMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V> DerefMut for RefMutMulti<'a, K, V> {
     fn deref_mut(&mut self) -> &mut V {
         self.value_mut()
     }

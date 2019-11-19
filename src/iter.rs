@@ -1,4 +1,4 @@
-use super::mapref::multiple::{DashMapRefMulti, DashMapRefMutMulti};
+use super::mapref::multiple::{RefMulti, RefMutMulti};
 use super::util;
 use super::DashMap;
 use dashmap_shard::hash_map;
@@ -34,13 +34,13 @@ impl<'a, K: Eq + Hash, V> Iter<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
-    type Item = DashMapRefMulti<'a, K, V>;
+    type Item = RefMulti<'a, K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(current) = self.current.as_mut() {
             if let Some(v) = current.1.next() {
                 let guard = current.0.clone();
-                return Some(DashMapRefMulti::new(guard, v.0, v.1));
+                return Some(RefMulti::new(guard, v.0, v.1));
             }
         }
 
@@ -76,7 +76,7 @@ impl<'a, K: Eq + Hash, V> IterMut<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
-    type Item = DashMapRefMutMulti<'a, K, V>;
+    type Item = RefMutMulti<'a, K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(current) = self.current.as_mut() {
@@ -84,7 +84,7 @@ impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
                 let guard = current.0.clone();
                 let k = unsafe { &*(t.0 as *const K) };
                 let v = unsafe { &mut *(t.1 as *mut V) };
-                return Some(DashMapRefMutMulti::new(guard, k, v));
+                return Some(RefMutMulti::new(guard, k, v));
             }
         }
 
