@@ -758,6 +758,20 @@ where
             })
     }
 
+    #[inline]
+    pub fn get_hash_nocheck_key_value<Q: ?Sized>(&self, hash: u64, k: &Q) -> Option<(&K, &V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.table
+            .find(hash, |x| k.eq(x.0.borrow()))
+            .map(|item| unsafe {
+                let &(ref key, ref value) = item.as_ref();
+                (key, value)
+            })
+    }
+
     /// Returns `true` if the map contains a value for the specified key.
     ///
     /// The key may be any borrowed form of the map's key type, but
