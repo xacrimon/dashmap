@@ -13,6 +13,7 @@ pub struct Ref<'a, K: Eq + Hash, V> {
 }
 
 impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
+    #[inline(always)]
     pub(crate) fn new(
         guard: RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>,
         k: &'a K,
@@ -25,14 +26,17 @@ impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
         }
     }
 
+    #[inline(always)]
     pub fn key(&self) -> &K {
         self.k
     }
 
+    #[inline(always)]
     pub fn value(&self) -> &V {
         self.v
     }
 
+    #[inline(always)]
     pub fn pair(&self) -> (&K, &V) {
         (self.k, self.v)
     }
@@ -41,6 +45,7 @@ impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
 impl<'a, K: Eq + Hash, V> Deref for Ref<'a, K, V> {
     type Target = V;
 
+    #[inline(always)]
     fn deref(&self) -> &V {
         self.value()
     }
@@ -57,6 +62,7 @@ pub struct RefMut<'a, K: Eq + Hash, V> {
 }
 
 impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
+    #[inline(always)]
     pub(crate) fn new(
         guard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>,
         k: &'a K,
@@ -69,22 +75,27 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
         }
     }
 
+    #[inline(always)]
     pub fn key(&self) -> &K {
         self.k
     }
 
+    #[inline(always)]
     pub fn value(&self) -> &V {
         self.v
     }
 
+    #[inline(always)]
     pub fn value_mut(&mut self) -> &mut V {
         self.v
     }
 
+    #[inline(always)]
     pub fn pair(&self) -> (&K, &V) {
         (self.k, self.v)
     }
 
+    #[inline(always)]
     pub fn pair_mut(&mut self) -> (&K, &mut V) {
         (self.k, self.v)
     }
@@ -93,12 +104,14 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
 impl<'a, K: Eq + Hash, V> Deref for RefMut<'a, K, V> {
     type Target = V;
 
+    #[inline(always)]
     fn deref(&self) -> &V {
         self.value()
     }
 }
 
 impl<'a, K: Eq + Hash, V> DerefMut for RefMut<'a, K, V> {
+    #[inline(always)]
     fn deref_mut(&mut self) -> &mut V {
         self.value_mut()
     }

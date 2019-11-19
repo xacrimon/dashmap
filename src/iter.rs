@@ -36,6 +36,7 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iter<'a, K, V, M> {
 impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for Iter<'a, K, V, M> {
     type Item = RefMulti<'a, K, V>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(current) = self.current.as_mut() {
             if let Some(v) = current.1.next() {
@@ -48,7 +49,7 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for Iter<'a, K, V, M> {
             return None;
         }
 
-        let guard = self.map._yield_read_shard(self.shard_i);
+        let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
         let sref: &HashMap<K, V, FxBuildHasher> = unsafe { util::change_lifetime_const(&*guard) };
         let iter = sref.iter();
         self.current = Some((Arc::new(guard), iter));
@@ -77,6 +78,7 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> IterMut<'a, K, V, M> {
 impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for IterMut<'a, K, V, M> {
     type Item = RefMutMulti<'a, K, V>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(current) = self.current.as_mut() {
             if let Some(t) = current.1.next() {

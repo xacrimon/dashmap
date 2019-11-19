@@ -33,6 +33,7 @@ where
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
+    #[inline]
     pub fn new() -> Self {
         let shard_amount = shard_amount();
         let shards = (0..shard_amount)
@@ -47,6 +48,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
+    #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         let shard_amount = shard_amount();
         let cps = capacity / shard_amount;
@@ -67,6 +69,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
+    #[inline]
     pub(crate) fn determine_map<Q>(&self, key: &Q) -> (usize, u64)
     where
         K: Borrow<Q>,
@@ -81,10 +84,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         ((hash >> shift) as usize, hash)
     }
 
+    #[inline]
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         self._insert(key, value)
     }
 
+    #[inline]
     pub fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
         K: Borrow<Q>,
@@ -93,14 +98,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self._remove(key)
     }
 
+    #[inline]
     pub fn iter(&'a self) -> Iter<'a, K, V, DashMap<K, V>> {
         self._iter()
     }
 
+    #[inline]
     pub fn iter_mut(&'a self) -> IterMut<'a, K, V, DashMap<K, V>> {
         self._iter_mut()
     }
 
+    #[inline]
     pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V>>
     where
         K: Borrow<Q>,
@@ -109,6 +117,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self._get(key)
     }
 
+    #[inline]
     pub fn get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V>>
     where
         K: Borrow<Q>,
@@ -117,30 +126,37 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self._get_mut(key)
     }
 
+    #[inline]
     pub fn shrink_to_fit(&self) {
         self._shrink_to_fit();
     }
 
+    #[inline]
     pub fn retain(&self, f: impl FnMut(&K, &mut V) -> bool) {
         self._retain(f);
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self._len()
     }
 
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self._is_empty()
     }
 
+    #[inline]
     pub fn clear(&self) {
         self._clear();
     }
 
+    #[inline]
     pub fn capacity(&self) -> usize {
         self._capacity()
     }
 
+    #[inline]
     pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
         K: Borrow<Q>,
@@ -149,10 +165,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self._alter(key, f);
     }
 
+    #[inline]
     pub fn alter_all(&self, f: impl FnMut(&K, V) -> V) {
         self._alter_all(f);
     }
 
+    #[inline]
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
@@ -161,6 +179,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self._contains_key(key)
     }
 
+    #[inline]
     pub fn entry(&'a self, key: K) -> Entry<'a, K, V> {
         self._entry(key)
     }
@@ -173,8 +192,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
     }
 
     #[inline(always)]
-    fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>> {
-        self.shards[i].read()
+    unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>> {
+        self.shards.get_unchecked(i).read()
     }
 
     #[inline(always)]
@@ -182,7 +201,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         &'a self,
         i: usize,
     ) -> RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>> {
-        self.shards[i].write()
+        self.shards.get_unchecked(i).write()
     }
 
     #[inline(always)]
@@ -220,7 +239,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         Q: Hash + Eq + ?Sized,
     {
         let (shard, hash) = self.determine_map(&key);
-        let shard = self._yield_read_shard(shard);
+        let shard = unsafe { self._yield_read_shard(shard) };
         if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
