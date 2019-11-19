@@ -91,7 +91,7 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for IterMut<'a, K, V, M> {
             return None;
         }
 
-        let mut guard = self.map._yield_write_shard(self.shard_i);
+        let mut guard = unsafe { self.map._yield_write_shard(self.shard_i) };
         let sref: &mut HashMap<K, V, FxBuildHasher> =
             unsafe { util::change_lifetime_mut(&mut *guard) };
         let iter = sref.iter_mut();

@@ -175,7 +175,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         self.shards[i].read()
     }
 
-    fn _yield_write_shard(
+    unsafe fn _yield_write_shard(
         &'a self,
         i: usize,
     ) -> RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>> {
@@ -184,7 +184,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
 
     fn _insert(&self, key: K, value: V) -> Option<V> {
         let (shard, hash) = self.determine_map(&key);
-        let mut shard = self._yield_write_shard(shard);
+        let mut shard = unsafe { self._yield_write_shard(shard) };
         shard.insert_with_hash_nocheck(key, value, hash)
     }
 
@@ -194,7 +194,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         Q: Hash + Eq + ?Sized,
     {
         let (shard, _) = self.determine_map(&key);
-        let mut shard = self._yield_write_shard(shard);
+        let mut shard = unsafe { self._yield_write_shard(shard) };
         shard.remove_entry(key)
     }
 
@@ -230,7 +230,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         Q: Hash + Eq + ?Sized,
     {
         let (shard, hash) = self.determine_map(&key);
-        let shard = self._yield_write_shard(shard);
+        let shard = unsafe { self._yield_write_shard(shard) };
         if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
@@ -278,7 +278,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
 
     fn _entry(&'a self, key: K) -> Entry<'a, K, V> {
         let (shard, hash) = self.determine_map(&key);
-        let shard = self._yield_write_shard(shard);
+        let shard = unsafe { self._yield_write_shard(shard) };
         if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, &key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
