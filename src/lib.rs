@@ -64,7 +64,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
-    pub fn shards(&'a self) -> &'a [RwLock<HashMap<K, V, FxBuildHasher>>] {
+    pub(crate) fn shards(&'a self) -> &'a [RwLock<HashMap<K, V, FxBuildHasher>>] {
         &self.shards
     }
 
