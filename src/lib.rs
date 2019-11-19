@@ -35,6 +35,16 @@ where
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
+    /// Creates a new DashMap with a capacity of 0.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::new();
+    /// map.insert("Veloren", "Is a fantastic game!");
+    /// ```
     #[inline]
     pub fn new() -> Self {
         let shard_amount = shard_amount();
@@ -50,6 +60,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
+    /// Creates a new DashMap with a specified starting capacity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::with_capacity(2);
+    /// map.insert(2, 4);
+    /// map.insert(8, 16);
+    /// ```
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         let shard_amount = shard_amount();
@@ -71,11 +92,34 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
+    /// Allows you to peek at the inner shards that store your data.
+    /// You should probably not use this.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::<(), ()>::new();
+    /// println!("Amount of shards: {}", map.shards().len());
+    /// ```
     #[inline]
     pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V, FxBuildHasher>>>] {
         &self.shards
     }
 
+    /// Finds which shard a certain key is stored in.
+    /// You should probably not use this.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::new();
+    /// map.insert("coca-cola", 1.4);
+    /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola").0);
+    /// ```
     #[inline]
     pub fn determine_map<Q>(&self, key: &Q) -> (usize, u64)
     where
@@ -91,11 +135,32 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         ((hash >> shift) as usize, hash)
     }
 
+    /// Inserts a key and a value into the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::with_capacity(2);
+    /// map.insert("I am the key!", "And I am the value!");
+    /// ```
     #[inline]
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         self._insert(key, value)
     }
 
+    /// Removes an entry from the map, returning the key and value if they existed in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::with_capacity(2);
+    /// map.insert("Jack", "Goalie");
+    /// assert_eq!(map.remove("Jack").unwrap().1, "Goalie");
+    /// ```
     #[inline]
     pub fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
@@ -105,11 +170,34 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self._remove(key)
     }
 
+    /// Creates an iterator over a DashMap yielding immutable references.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::new();
+    /// map.insert("hello", "world");
+    /// assert_eq!(map.iter().count(), 1);
+    /// ```
     #[inline]
     pub fn iter(&'a self) -> Iter<'a, K, V, DashMap<K, V>> {
         self._iter()
     }
 
+    /// Creates an iterator over a DashMap yielding mutable references.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::new();
+    /// map.insert("Johnny", 21);
+    /// map.iter_mut().for_each(|mut r| *r += 1);
+    /// assert_eq!(*map.get("Johnny").unwrap(), 22);
+    /// ```
     #[inline]
     pub fn iter_mut(&'a self) -> IterMut<'a, K, V, DashMap<K, V>> {
         self._iter_mut()
