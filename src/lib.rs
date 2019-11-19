@@ -15,6 +15,7 @@ use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
 use t::Map;
 use crossbeam_utils::CachePadded;
+use std::ops::{Shl, Shr};
 
 fn shard_amount() -> usize {
     (num_cpus::get() * 4).next_power_of_two()
@@ -281,17 +282,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
-    #[inline(always)]
+    #[inline]
     fn _shard_count(&self) -> usize {
         self.shards.len()
     }
 
-    #[inline(always)]
+    #[inline]
     unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>> {
         self.shards.get_unchecked(i).read()
     }
 
-    #[inline(always)]
+    #[inline]
     unsafe fn _yield_write_shard(
         &'a self,
         i: usize,
@@ -299,14 +300,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         self.shards.get_unchecked(i).write()
     }
 
-    #[inline(always)]
+    #[inline]
     fn _insert(&self, key: K, value: V) -> Option<V> {
         let (shard, hash) = self.determine_map(&key);
         let mut shard = unsafe { self._yield_write_shard(shard) };
         shard.insert_with_hash_nocheck(key, value, hash)
     }
 
-    #[inline(always)]
+    #[inline]
     fn _remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
         K: Borrow<Q>,
@@ -317,17 +318,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         shard.remove_entry(key)
     }
 
-    #[inline(always)]
+    #[inline]
     fn _iter(&'a self) -> Iter<'a, K, V, DashMap<K, V>> {
         Iter::new(self)
     }
 
-    #[inline(always)]
+    #[inline]
     fn _iter_mut(&'a self) -> IterMut<'a, K, V, DashMap<K, V>> {
         IterMut::new(self)
     }
 
-    #[inline(always)]
+    #[inline]
     fn _get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V>>
     where
         K: Borrow<Q>,
@@ -346,7 +347,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn _get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V>>
     where
         K: Borrow<Q>,
@@ -365,27 +366,27 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn _shrink_to_fit(&self) {
         self.shards.iter().for_each(|s| s.write().shrink_to_fit());
     }
 
-    #[inline(always)]
+    #[inline]
     fn _retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
         self.shards.iter().for_each(|s| s.write().retain(&mut f));
     }
 
-    #[inline(always)]
+    #[inline]
     fn _len(&self) -> usize {
         self.shards.iter().map(|s| s.read().len()).sum()
     }
 
-    #[inline(always)]
+    #[inline]
     fn _capacity(&self) -> usize {
         self.shards.iter().map(|s| s.read().capacity()).sum()
     }
 
-    #[inline(always)]
+    #[inline]
     fn _alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
         K: Borrow<Q>,
@@ -396,7 +397,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn _alter_all(&self, mut f: impl FnMut(&K, V) -> V) {
         self.shards.iter().for_each(|s| {
             s.write()
@@ -405,7 +406,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         });
     }
 
-    #[inline(always)]
+    #[inline]
     fn _entry(&'a self, key: K) -> Entry<'a, K, V> {
         let (shard, hash) = self.determine_map(&key);
         let shard = unsafe { self._yield_write_shard(shard) };
@@ -418,5 +419,27 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         } else {
             Entry::Vacant(VacantEntry::new(shard, key))
         }
+    }
+}
+
+impl<'a, K: 'a + Eq + Hash, V: 'a> Shl<(K, V)> for &'a DashMap<K, V> {
+    type Output = Option<V>;
+
+    #[inline]
+    fn shl(self, rhs: (K, V)) -> Self::Output {
+        self.insert(rhs.0, rhs.1)
+    }
+}
+
+impl<'a, K: 'a + Eq + Hash, V: 'a, Q> Shr<&Q> for &'a DashMap<K, V>
+where
+    K: Borrow<Q>,
+    Q: Hash + Eq + ?Sized,
+{
+    type Output = Option<Ref<'a, K, V>>;
+
+    #[inline]
+    fn shr(self, rhs: &Q) -> Self::Output {
+        self.get(rhs)
     }
 }

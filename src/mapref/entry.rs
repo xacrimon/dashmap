@@ -13,7 +13,7 @@ pub enum Entry<'a, K: Eq + Hash, V> {
 }
 
 impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
-    #[inline(always)]
+    #[inline]
     pub fn and_modify(self, f: impl FnOnce(&mut V)) -> Self {
         match self {
             Entry::Occupied(mut entry) => {
@@ -25,7 +25,7 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn key(&self) -> &K {
         match *self {
             Entry::Occupied(ref entry) => entry.key(),
@@ -33,7 +33,7 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn or_default(self) -> RefMut<'a, K, V>
     where
         V: Default,
@@ -44,7 +44,7 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn or_insert(self, value: V) -> RefMut<'a, K, V> {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
@@ -52,7 +52,7 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn or_insert_with(self, value: impl FnOnce() -> V) -> RefMut<'a, K, V> {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
@@ -67,12 +67,12 @@ pub struct VacantEntry<'a, K: Eq + Hash, V> {
 }
 
 impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
-    #[inline(always)]
+    #[inline]
     pub fn new(shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>, key: K) -> Self {
         Self { shard, key }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn insert(mut self, value: V) -> RefMut<'a, K, V> {
         unsafe {
             let c: K = ptr::read(&self.key);
@@ -86,12 +86,12 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn into_key(self) -> K {
         self.key
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn key(&self) -> &K {
         &self.key
     }
@@ -104,7 +104,7 @@ pub struct OccupiedEntry<'a, K: Eq + Hash, V> {
 }
 
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
-    #[inline(always)]
+    #[inline]
     pub fn new(
         shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>,
         key: Option<K>,
@@ -113,42 +113,42 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
         Self { shard, elem, key }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn get(&self) -> &V {
         self.elem.1
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn get_mut(&mut self) -> &mut V {
         self.elem.1
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn insert(&mut self, value: V) -> V {
         mem::replace(self.elem.1, value)
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn into_ref(self) -> RefMut<'a, K, V> {
         RefMut::new(self.shard, self.elem.0, self.elem.1)
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn key(&self) -> &K {
         self.elem.0
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn remove(mut self) -> V {
         self.shard.remove(self.elem.0).unwrap()
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn remove_entry(mut self) -> (K, V) {
         self.shard.remove_entry(self.elem.0).unwrap()
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn replace_entry(mut self, value: V) -> (K, V) {
         let nk = self.key.unwrap();
         let p = self.shard.remove_entry(self.elem.0).unwrap();
@@ -156,7 +156,7 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
         p
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn replace_key(self) -> K {
         let r = unsafe { util::to_mut(self.elem.0) };
         mem::replace(r, self.key.unwrap())
