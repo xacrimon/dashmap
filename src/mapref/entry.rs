@@ -1,11 +1,11 @@
 use super::one::RefMut;
-use parking_lot::RwLockWriteGuard;
+use crate::util;
 use dashmap_shard::HashMap;
 use fxhash::FxBuildHasher;
+use parking_lot::RwLockWriteGuard;
 use std::hash::Hash;
 use std::mem;
 use std::ptr;
-use crate::util;
 
 pub enum Entry<'a, K: Eq + Hash, V> {
     Occupied(OccupiedEntry<'a, K, V>),
@@ -95,7 +95,11 @@ pub struct OccupiedEntry<'a, K: Eq + Hash, V> {
 }
 
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
-    pub fn new(shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>, key: Option<K>, elem: (&'a K, &'a mut V)) -> Self {
+    pub fn new(
+        shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>,
+        key: Option<K>,
+        elem: (&'a K, &'a mut V),
+    ) -> Self {
         Self { shard, elem, key }
     }
 

@@ -4,11 +4,12 @@ mod util;
 
 use dashmap_shard::HashMap;
 use fxhash::FxBuildHasher;
+use iter::{Iter, IterMut};
+use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
+use mapref::one::{Ref, RefMut};
 use parking_lot::RwLock;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
-use iter::{Iter, IterMut};
-use mapref::one::{Ref, RefMut};
 
 fn shard_amount() -> usize {
     (num_cpus::get() * 8).next_power_of_two()
@@ -47,7 +48,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         let shard_amount = shard_amount();
         let cps = capacity / shard_amount;
         let shards = (0..shard_amount)
-            .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, FxBuildHasher::default())))
+            .map(|_| {
+                RwLock::new(HashMap::with_capacity_and_hasher(
+                    cps,
+                    FxBuildHasher::default(),
+                ))
+            })
             .collect::<Vec<_>>()
             .into_boxed_slice();
 
@@ -172,7 +178,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
 
     pub fn alter_all(&self, mut f: impl FnMut(&K, V) -> V) {
         self.shards.iter().for_each(|s| {
-            s.write().iter_mut().for_each(|pair| util::map_in_place_2(pair, &mut f));
+            s.write()
+                .iter_mut()
+                .for_each(|pair| util::map_in_place_2(pair, &mut f));
         });
     }
 
@@ -184,11 +192,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self.get(key).is_some()
     }
 
-    pub fn upsert(&'a self, key: K, insert: impl FnOnce() -> V, update: impl FnOnce(&K, V) -> V) {
-        if let Some(mut r) = self.get_mut(&key) {
-            util::map_in_place_2(r.pair_mut(), update);
+    pub fn entry(&'a self, key: K) -> Entry<'a, K, V> {
+        let (shard, _) = self.determine_map(&key);
+        let shard = self.shards[shard].write();
+        if let Some((kptr, vptr)) = shard.get_key_value(&key) {
+            unsafe {
+                let kptr = util::change_lifetime_const(kptr);
+                let vptr = util::change_lifetime_mut(util::to_mut(vptr));
+                Entry::Occupied(OccupiedEntry::new(shard, Some(key), (kptr, vptr)))
+            }
         } else {
-            self.insert(key, insert());
+            Entry::Vacant(VacantEntry::new(shard, key))
         }
     }
 }
