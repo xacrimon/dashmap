@@ -70,7 +70,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     }
 
     #[inline]
-    pub(crate) fn determine_map<Q>(&self, key: &Q) -> (usize, u64)
+    pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V, FxBuildHasher>>>] {
+        &self.shards
+    }
+
+    #[inline]
+    pub fn determine_map<Q>(&self, key: &Q) -> (usize, u64)
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
