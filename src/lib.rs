@@ -8,7 +8,7 @@ use fxhash::FxBuildHasher;
 use iter::{Iter, IterMut};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::one::{Ref, RefMut};
-use parking_lot::RwLock;
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
 use t::Map;
@@ -78,16 +78,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         let shift = util::ptr_size_bits() - self.ncb;
 
         ((hash >> shift) as usize, hash)
-    }
-
-    pub(crate) fn fetch_shard<Q>(&self, key: &Q) -> (&RwLock<HashMap<K, V, FxBuildHasher>>, u64)
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        let (i, hash) = self.determine_map(key);
-        let shard = unsafe { self._shards().get_unchecked(i) };
-        (shard, hash)
     }
 
     pub fn insert(&self, key: K, value: V) -> Option<V> {
@@ -176,13 +166,25 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
-    fn _shards(&'a self) -> &'a [RwLock<HashMap<K, V, FxBuildHasher>>] {
-        &self.shards
+    fn _shard_count(&self) -> usize {
+        self.shards.len()
+    }
+
+    fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>> {
+        self.shards[i].read()
+    }
+
+    fn _yield_write_shard(
+        &'a self,
+        i: usize,
+    ) -> RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>> {
+        self.shards[i].write()
     }
 
     fn _insert(&self, key: K, value: V) -> Option<V> {
-        let (shard, hash) = self.fetch_shard(&key);
-        shard.write().insert_with_hash_nocheck(key, value, hash)
+        let (shard, hash) = self.determine_map(&key);
+        let mut shard = self._yield_write_shard(shard);
+        shard.insert_with_hash_nocheck(key, value, hash)
     }
 
     fn _remove<Q>(&self, key: &Q) -> Option<(K, V)>
@@ -190,8 +192,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let (shard, _) = self.fetch_shard(key);
-        shard.write().remove_entry(key)
+        let (shard, _) = self.determine_map(&key);
+        let mut shard = self._yield_write_shard(shard);
+        shard.remove_entry(key)
     }
 
     fn _iter(&'a self) -> Iter<'a, K, V, DashMap<K, V>> {
@@ -207,8 +210,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let (shard, hash) = self.fetch_shard(key);
-        let shard = shard.read();
+        let (shard, hash) = self.determine_map(&key);
+        let shard = self._yield_read_shard(shard);
         if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
@@ -225,8 +228,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let (shard, hash) = self.fetch_shard(key);
-        let shard = shard.write();
+        let (shard, hash) = self.determine_map(&key);
+        let shard = self._yield_write_shard(shard);
         if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
@@ -273,8 +276,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
     }
 
     fn _entry(&'a self, key: K) -> Entry<'a, K, V> {
-        let (shard, hash) = self.fetch_shard(&key);
-        let shard = shard.write();
+        let (shard, hash) = self.determine_map(&key);
+        let shard = self._yield_write_shard(shard);
         if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, &key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
