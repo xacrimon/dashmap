@@ -14,7 +14,7 @@ use std::hash::{BuildHasher, Hash, Hasher};
 use t::Map;
 
 fn shard_amount() -> usize {
-    (num_cpus::get() * 4).next_power_of_two()
+    (num_cpus::get() * 32).next_power_of_two()
 }
 
 fn ncb(shard_amount: usize) -> usize {
