@@ -129,9 +129,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let (shard, _) = self.determine_map(key);
+        let (shard, hash) = self.determine_map(key);
         let shard = self.shards[shard].write();
-        if let Some((kptr, vptr)) = shard.get_key_value(key) {
+        if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
                 let vptr = util::change_lifetime_mut(util::to_mut(vptr));
@@ -193,9 +193,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     }
 
     pub fn entry(&'a self, key: K) -> Entry<'a, K, V> {
-        let (shard, _) = self.determine_map(&key);
+        let (shard, hash) = self.determine_map(&key);
         let shard = self.shards[shard].write();
-        if let Some((kptr, vptr)) = shard.get_key_value(&key) {
+        if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, &key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
                 let vptr = util::change_lifetime_mut(util::to_mut(vptr));
