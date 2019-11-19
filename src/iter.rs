@@ -1,12 +1,12 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use super::util;
-use super::DashMap;
 use dashmap_shard::hash_map;
 use dashmap_shard::HashMap;
 use fxhash::FxBuildHasher;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
 use std::sync::Arc;
+use crate::t::Map;
 
 type GuardIter<'a, K, V> = (
     Arc<RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>>,
@@ -17,14 +17,14 @@ type GuardIterMut<'a, K, V> = (
     hash_map::IterMut<'a, K, V>,
 );
 
-pub struct Iter<'a, K: Eq + Hash, V> {
-    map: &'a DashMap<K, V>,
+pub struct Iter<'a, K: Eq + Hash, V, M: Map<'a, K, V>> {
+    map: &'a M,
     shard_i: usize,
     current: Option<GuardIter<'a, K, V>>,
 }
 
-impl<'a, K: Eq + Hash, V> Iter<'a, K, V> {
-    pub(crate) fn new(map: &'a DashMap<K, V>) -> Self {
+impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iter<'a, K, V, M> {
+    pub(crate) fn new(map: &'a M) -> Self {
         Self {
             map,
             shard_i: 0,
@@ -33,7 +33,7 @@ impl<'a, K: Eq + Hash, V> Iter<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
+impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for Iter<'a, K, V, M> {
     type Item = RefMulti<'a, K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -44,11 +44,11 @@ impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
             }
         }
 
-        if self.shard_i == self.map.shards().len() - 1 {
+        if self.shard_i == self.map._shards().len() - 1 {
             return None;
         }
 
-        let shards = self.map.shards();
+        let shards = self.map._shards();
         let guard = unsafe { shards.get_unchecked(self.shard_i).read() };
         let sref: &HashMap<K, V, FxBuildHasher> = unsafe { util::change_lifetime_const(&*guard) };
         let iter = sref.iter();
@@ -59,14 +59,14 @@ impl<'a, K: Eq + Hash, V> Iterator for Iter<'a, K, V> {
     }
 }
 
-pub struct IterMut<'a, K: Eq + Hash, V> {
-    map: &'a DashMap<K, V>,
+pub struct IterMut<'a, K: Eq + Hash, V, M: Map<'a, K, V>> {
+    map: &'a M,
     shard_i: usize,
     current: Option<GuardIterMut<'a, K, V>>,
 }
 
-impl<'a, K: Eq + Hash, V> IterMut<'a, K, V> {
-    pub(crate) fn new(map: &'a DashMap<K, V>) -> Self {
+impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> IterMut<'a, K, V, M> {
+    pub(crate) fn new(map: &'a M) -> Self {
         Self {
             map,
             shard_i: 0,
@@ -75,7 +75,7 @@ impl<'a, K: Eq + Hash, V> IterMut<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
+impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for IterMut<'a, K, V, M> {
     type Item = RefMutMulti<'a, K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -88,11 +88,11 @@ impl<'a, K: Eq + Hash, V> Iterator for IterMut<'a, K, V> {
             }
         }
 
-        if self.shard_i == self.map.shards().len() - 1 {
+        if self.shard_i == self.map._shards().len() - 1 {
             return None;
         }
 
-        let shards = self.map.shards();
+        let shards = self.map._shards();
         let mut guard = unsafe { shards.get_unchecked(self.shard_i).write() };
         let sref: &mut HashMap<K, V, FxBuildHasher> =
             unsafe { util::change_lifetime_mut(&mut *guard) };

@@ -11,6 +11,7 @@ use mapref::one::{Ref, RefMut};
 use parking_lot::RwLock;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
+use t::Map;
 
 fn shard_amount() -> usize {
     (num_cpus::get() * 4).next_power_of_two()
@@ -65,10 +66,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
-    pub(crate) fn shards(&'a self) -> &'a [RwLock<HashMap<K, V, FxBuildHasher>>] {
-        &self.shards
-    }
-
     pub(crate) fn determine_map<Q>(&self, key: &Q) -> (usize, u64)
     where
         K: Borrow<Q>,
@@ -89,16 +86,106 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         Q: Hash + Eq + ?Sized,
     {
         let (i, hash) = self.determine_map(key);
-        let shard = unsafe { self.shards().get_unchecked(i) };
+        let shard = unsafe { self._shards().get_unchecked(i) };
         (shard, hash)
     }
 
     pub fn insert(&self, key: K, value: V) -> Option<V> {
+        self._insert(key, value)
+    }
+
+    pub fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self._remove(key)
+    }
+
+    pub fn iter(&'a self) -> Iter<'a, K, V, DashMap<K, V>> {
+        self._iter()
+    }
+
+    pub fn iter_mut(&'a self) -> IterMut<'a, K, V, DashMap<K, V>> {
+        self._iter_mut()
+    }
+
+    pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V>>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self._get(key)
+    }
+
+    pub fn get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V>>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self._get_mut(key)
+    }
+
+    pub fn shrink_to_fit(&self) {
+        self._shrink_to_fit();
+    }
+
+    pub fn retain(&self, f: impl FnMut(&K, &mut V) -> bool) {
+        self._retain(f);
+    }
+
+    pub fn len(&self) -> usize {
+        self._len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self._is_empty()
+    }
+
+    pub fn clear(&self) {
+        self._clear();
+    }
+
+    pub fn capacity(&self) -> usize {
+        self._capacity()
+    }
+
+    pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self._alter(key, f);
+    }
+
+    pub fn alter_all(&self, f: impl FnMut(&K, V) -> V) {
+        self._alter_all(f);
+    }
+
+    pub fn contains_key<Q>(&self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self._contains_key(key)
+    }
+
+    pub fn entry(&'a self, key: K) -> Entry<'a, K, V> {
+        self._entry(key)
+    }
+}
+
+impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
+    fn _shards(&'a self) -> &'a [RwLock<HashMap<K, V, FxBuildHasher>>] {
+        &self.shards
+    }
+
+    fn _insert(&self, key: K, value: V) -> Option<V> {
         let (shard, hash) = self.fetch_shard(&key);
         shard.write().insert_with_hash_nocheck(key, value, hash)
     }
 
-    pub fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
+    fn _remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
@@ -107,15 +194,15 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         shard.write().remove_entry(key)
     }
 
-    pub fn iter(&'a self) -> Iter<'a, K, V> {
+    fn _iter(&'a self) -> Iter<'a, K, V, DashMap<K, V>> {
         Iter::new(self)
     }
 
-    pub fn iter_mut(&'a self) -> IterMut<'a, K, V> {
+    fn _iter_mut(&'a self) -> IterMut<'a, K, V, DashMap<K, V>> {
         IterMut::new(self)
     }
 
-    pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V>>
+    fn _get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V>>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
@@ -133,7 +220,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
-    pub fn get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V>>
+    fn _get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V>>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
@@ -151,31 +238,23 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
-    pub fn shrink_to_fit(&self) {
+    fn _shrink_to_fit(&self) {
         self.shards.iter().for_each(|s| s.write().shrink_to_fit());
     }
 
-    pub fn retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
+    fn _retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
         self.shards.iter().for_each(|s| s.write().retain(&mut f));
     }
 
-    pub fn len(&self) -> usize {
+    fn _len(&self) -> usize {
         self.shards.iter().map(|s| s.read().len()).sum()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn clear(&self) {
-        self.shards.iter().for_each(|s| s.write().clear());
-    }
-
-    pub fn capacity(&self) -> usize {
+    fn _capacity(&self) -> usize {
         self.shards.iter().map(|s| s.read().capacity()).sum()
     }
 
-    pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
+    fn _alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
@@ -185,7 +264,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
-    pub fn alter_all(&self, mut f: impl FnMut(&K, V) -> V) {
+    fn _alter_all(&self, mut f: impl FnMut(&K, V) -> V) {
         self.shards.iter().for_each(|s| {
             s.write()
                 .iter_mut()
@@ -193,15 +272,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         });
     }
 
-    pub fn contains_key<Q>(&self, key: &Q) -> bool
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        self.get(key).is_some()
-    }
-
-    pub fn entry(&'a self, key: K) -> Entry<'a, K, V> {
+    fn _entry(&'a self, key: K) -> Entry<'a, K, V> {
         let (shard, hash) = self.fetch_shard(&key);
         let shard = shard.write();
         if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, &key) {
