@@ -1,11 +1,11 @@
+use crate::iter::{Iter, IterMut};
+use crate::mapref::entry::Entry;
+use crate::mapref::one::{Ref, RefMut};
 use dashmap_shard::HashMap;
 use fxhash::FxBuildHasher;
 use parking_lot::RwLock;
 use std::borrow::Borrow;
 use std::hash::Hash;
-use crate::iter::{Iter, IterMut};
-use crate::mapref::one::{Ref, RefMut};
-use crate::mapref::entry::Entry;
 
 pub trait Map<'a, K: 'a + Eq + Hash, V: 'a> {
     fn _shards(&'a self) -> &'a [RwLock<HashMap<K, V, FxBuildHasher>>];
@@ -48,7 +48,7 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a> {
     fn _contains_key<Q>(&'a self, key: &Q) -> bool
     where
         K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized
+        Q: Hash + Eq + ?Sized,
     {
         self._get(key).is_some()
     }

@@ -1,7 +1,7 @@
 pub mod iter;
 pub mod mapref;
-mod util;
 mod t;
+mod util;
 
 use dashmap_shard::HashMap;
 use fxhash::FxBuildHasher;
