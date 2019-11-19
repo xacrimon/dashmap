@@ -15,7 +15,7 @@ use t::Map;
 use crossbeam_utils::CachePadded;
 
 fn shard_amount() -> usize {
-    (num_cpus::get() * 8).next_power_of_two()
+    (num_cpus::get() * 4).next_power_of_two()
 }
 
 fn ncb(shard_amount: usize) -> usize {
