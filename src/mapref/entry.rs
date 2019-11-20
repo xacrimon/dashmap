@@ -13,6 +13,7 @@ pub enum Entry<'a, K: Eq + Hash, V> {
 }
 
 impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
+    /// Apply a function to the stored value if it exists.
     #[inline]
     pub fn and_modify(self, f: impl FnOnce(&mut V)) -> Self {
         match self {
@@ -25,6 +26,7 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         }
     }
 
+    /// Get the key of the entry.
     #[inline]
     pub fn key(&self) -> &K {
         match *self {
@@ -33,6 +35,8 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         }
     }
 
+    /// Return a mutable reference to the element if it exists,
+    /// otherwise insert the default and return a mutable reference to that.
     #[inline]
     pub fn or_default(self) -> RefMut<'a, K, V>
     where
@@ -44,6 +48,8 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         }
     }
 
+    /// Return a mutable reference to the element if it exists,
+    /// otherwise a provided value and return a mutable reference to that.
     #[inline]
     pub fn or_insert(self, value: V) -> RefMut<'a, K, V> {
         match self {
@@ -52,6 +58,8 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         }
     }
 
+    /// Return a mutable reference to the element if it exists,
+    /// otherwise insert the result of a provided function and return a mutable reference to that.
     #[inline]
     pub fn or_insert_with(self, value: impl FnOnce() -> V) -> RefMut<'a, K, V> {
         match self {
@@ -68,7 +76,7 @@ pub struct VacantEntry<'a, K: Eq + Hash, V> {
 
 impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     #[inline]
-    pub fn new(shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>, key: K) -> Self {
+    pub(crate) fn new(shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>, key: K) -> Self {
         Self { shard, key }
     }
 
@@ -105,7 +113,7 @@ pub struct OccupiedEntry<'a, K: Eq + Hash, V> {
 
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     #[inline]
-    pub fn new(
+    pub(crate) fn new(
         shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>,
         key: Option<K>,
         elem: (&'a K, &'a mut V),
@@ -154,11 +162,5 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
         let p = self.shard.remove_entry(self.elem.0).unwrap();
         self.shard.insert(nk, value);
         p
-    }
-
-    #[inline]
-    pub fn replace_key(self) -> K {
-        let r = unsafe { util::to_mut(self.elem.0) };
-        mem::replace(r, self.key.unwrap())
     }
 }
