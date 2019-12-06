@@ -16,8 +16,8 @@ categories = ["concurrency", "algorithms", "data-structures"]
 nightly = ["parking_lot/nightly", "dashmap-shard/nightly"]
 
 [dev-dependencies]
-criterion = "0.3"
-rayon = "1.2.0"
+criterion = "0.3.0"
+rayon = "1.2.1"
 chashmap = "2.2.2"
 contrie = "0.1.4"
 cht = "0.1.2"
@@ -44,7 +44,7 @@ harness = false
 
 [dependencies]
 dashmap-shard = { version = "0.1.1", default-features = false }
-parking_lot = "0.9.0"
+parking_lot = "0.10.0"
 num_cpus = "1.11.1"
 fxhash = "0.2.1"
 crossbeam-utils = "0.7.0"
