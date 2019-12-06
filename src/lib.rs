@@ -14,6 +14,7 @@ use mapref::one::{Ref, RefMut};
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash, Hasher};
+use std::iter::FromIterator;
 use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use t::Map;
 
@@ -606,5 +607,21 @@ where
     #[inline]
     fn bitand(self, key: &Q) -> Self::Output {
         self.contains_key(key)
+    }
+}
+
+impl<K: Eq + Hash, V> Extend<(K, V)> for DashMap<K, V> {
+    fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, intoiter: I) {
+        for pair in intoiter.into_iter() {
+            self.insert(pair.0, pair.1);
+        }
+    }
+}
+
+impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V> {
+    fn from_iter<I: IntoIterator<Item = (K, V)>>(intoiter: I) -> Self {
+        let mut map = DashMap::new();
+        map.extend(intoiter);
+        map
     }
 }
