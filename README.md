@@ -10,6 +10,12 @@ Blazingly fast concurrent map in Rust.
 
 [![development](https://img.shields.io/static/v1?label=development&message=active&color=brightgreen)](https://shields.io/)
 
+## Features
+
+`nightly` -> Enables nightly optimizations. Default: Disabled.
+
+`async` -> Async methods. Default: Enabled.
+
 ## Performance
 
 TODO

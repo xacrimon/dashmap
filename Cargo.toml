@@ -15,7 +15,7 @@ categories = ["concurrency", "algorithms", "data-structures"]
 [features]
 default = ["async"]
 
-async = ["futures-preview"]
+async = ["futures"]
 nightly = ["parking_lot/nightly", "hashbrown/nightly"]
 
 [dependencies]
@@ -26,4 +26,4 @@ ahash = "0.2.13"
 owning_ref = "0.4.0"
 slab = "0.4.2"
 stable_deref_trait = "1.1.1"
-futures-preview = { version = "=0.3.0-alpha.19", optional = true }
+futures = { version = "0.3.1", optional = true }
