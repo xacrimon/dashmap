@@ -1,29 +1,50 @@
 [package]
 name = "dashmap"
-version = "1.2.1"
-authors = ["acrimon <joel.wejdenstal@gmail.com>"]
+version = "2.0.0"
+authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 license = "MIT"
-repository = "https://gitlab.nebulanet.cc/xacrimon/dashmap"
-homepage = "https://gitlab.nebulanet.cc/xacrimon/dashmap"
-description = "Extremely fast concurrent map."
+repository = "https://github.com/xacrimon/dashmap"
+homepage = "https://github.com/xacrimon/dashmap"
+description = "Blazing fast concurrent HashMap for Rust."
 readme = "README.md"
 documentation = "https://docs.rs/dashmap"
 keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
 [features]
-default = ["async"]
+nightly = ["parking_lot/nightly", "dashmap-shard/nightly"]
 
-async = ["futures"]
-nightly = ["parking_lot/nightly", "hashbrown/nightly"]
+[dev-dependencies]
+criterion = "0.3.0"
+rayon = "1.2.1"
+chashmap = "2.2.2"
+contrie = "0.1.4"
+cht = "0.1.2"
+
+[[bench]]
+name = "rwlock_std"
+harness = false
+
+[[bench]]
+name = "dashmap"
+harness = false
+
+[[bench]]
+name = "chashmap"
+harness = false
+
+[[bench]]
+name = "contrie"
+harness = false
+
+[[bench]]
+name = "cht"
+harness = false
 
 [dependencies]
-hashbrown = "0.6.0"
-parking_lot = { version = "0.9.0", features = ["owning_ref"] }
-num_cpus = "1.10.1"
-ahash = "0.2.13"
-owning_ref = "0.4.0"
-slab = "0.4.2"
-stable_deref_trait = "1.1.1"
-futures = { version = "0.3.1", optional = true }
+dashmap-shard = { version = "0.1.1", default-features = false }
+parking_lot = "0.10.0"
+num_cpus = "1.11.1"
+fxhash = "0.2.1"
+crossbeam-utils = "0.7.0"
