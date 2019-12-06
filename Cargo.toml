@@ -1,12 +1,12 @@
 [package]
 name = "dashmap"
 version = "2.0.0"
-authors = ["acrimon <joel.wejdenstal@gmail.com>"]
+authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 license = "MIT"
-repository = "https://gitlab.nebulanet.cc/xacrimon/dashmap"
-homepage = "https://gitlab.nebulanet.cc/xacrimon/dashmap"
-description = "Extremely fast concurrent map."
+repository = "https://github.com/xacrimon/dashmap"
+homepage = "https://github.com/xacrimon/dashmap"
+description = "Blazing fast concurrent HashMap for Rust."
 readme = "README.md"
 documentation = "https://docs.rs/dashmap"
 keywords = ["atomic", "concurrent", "hashmap"]
