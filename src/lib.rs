@@ -5,6 +5,8 @@ mod util;
 
 use ahash::ABuildHasher;
 use fut_rwlock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+
+#[cfg(feature = "async")]
 use futures::future::{Future, FutureExt};
 use hashbrown::HashMap;
 use owning_ref::{OwningRef, OwningRefMut};
@@ -200,6 +202,7 @@ where
         }
     }
 
+    #[cfg(feature = "async")]
     #[inline]
     pub fn async_get<Q>(&'a self, key: Q) -> impl Future<Output = Option<DashMapRef<'a, K, V>>>
     where
@@ -293,6 +296,7 @@ where
         }
     }
 
+    #[cfg(feature = "async")]
     #[inline]
     pub fn async_get_mut<Q>(
         &'a self,
