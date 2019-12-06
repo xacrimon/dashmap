@@ -25,6 +25,14 @@ fn ncb(shard_amount: usize) -> usize {
     (shard_amount as f32).log2() as usize
 }
 
+/// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
+///
+/// DashMap tries to implement an easy to use API similar to `std::collections::HashMap`
+/// with some slight changes to handle concurrency.
+///
+/// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V>>`.
+/// To accomplish these all methods take `&self` instead modifying methods taking `&mut self`.
+/// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
 #[derive(Default)]
 pub struct DashMap<K, V>
 where
