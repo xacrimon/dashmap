@@ -176,6 +176,7 @@ impl<T> RwLock<T> {
         }
     }
 
+    #[cfg(feature = "async")]
     #[inline]
     pub fn async_read(&self) -> RwLockReadFuture<'_, T> {
         RwLockReadFuture {
@@ -184,6 +185,7 @@ impl<T> RwLock<T> {
         }
     }
 
+    #[cfg(feature = "async")]
     #[inline]
     pub fn async_write(&self) -> RwLockWriteFuture<'_, T> {
         RwLockWriteFuture {
