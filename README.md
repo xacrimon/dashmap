@@ -29,7 +29,11 @@ I will take a look as soon as I have time for it.
 
 ## Performance
 
-TODO
+![Insert Benchmark](https://gitlab.nebulanet.cc/xacrimon/dashmap/tree/master/assets/bench-insert.svg "Insert Benchmark")
+
+![Get Benchmark](https://gitlab.nebulanet.cc/xacrimon/dashmap/tree/master/assets/bench-get.svg "Get Benchmark")
+
+[Google Doc](https://docs.google.com/spreadsheets/d/1q2VR_rMZRzG7YO0ef6V0jMA6hAdkafh_wI8xvY_51fk/edit?usp=sharing)
 
 ## Special thanks
 
