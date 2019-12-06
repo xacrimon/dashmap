@@ -34,5 +34,35 @@ fn insert_contrie_u64_u64(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, insert_contrie_u64_u64);
+fn task_get_contrie_u64_u64(map: &ConMap<u64, u64>) {
+    (0..ITER).into_par_iter().for_each(|i| {
+        assert_eq!(*map.get(&i).unwrap().value(), i + 7);
+    });
+}
+
+fn get_contrie_u64_u64(c: &mut Criterion) {
+    let mut group = c.benchmark_group("get_contrie_u64_u64");
+    group.throughput(Throughput::Elements(ITER as u64));
+    let max = num_cpus::get();
+
+    for threads in 1..=max {
+        let map = task_insert_contrie_u64_u64();
+
+        group.bench_with_input(
+            BenchmarkId::from_parameter(threads),
+            &threads,
+            |b, &threads| {
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(threads)
+                    .build()
+                    .unwrap();
+                pool.install(|| b.iter(|| task_get_contrie_u64_u64(&map)));
+            },
+        );
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, insert_contrie_u64_u64, get_contrie_u64_u64);
 criterion_main!(benches);
