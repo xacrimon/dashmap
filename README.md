@@ -29,9 +29,12 @@ I will take a look as soon as I have time for it.
 
 ## Performance
 
-![Insert Benchmark](https://raw.githubusercontent.com/xacrimon/dashmap/master/assets/bench-insert.svg "Insert Benchmark")
+Benchmarks are currently not fantastic and can be improved and more can be created.
+Help is welcomed with open arms.
 
-![Get Benchmark](https://raw.githubusercontent.com/xacrimon/dashmap/master/assets/bench-get.svg "Get Benchmark")
+<img src="https://raw.githubusercontent.com/xacrimon/dashmap/master/assets/bench-insert.svg" alt="Insert Benchmark">
+
+<img src="https://raw.githubusercontent.com/xacrimon/dashmap/master/assets/bench-get.svg" alt="Get Benchmark">
 
 [Google Doc](https://docs.google.com/spreadsheets/d/1q2VR_rMZRzG7YO0ef6V0jMA6hAdkafh_wI8xvY_51fk/edit?usp=sharing)
 
