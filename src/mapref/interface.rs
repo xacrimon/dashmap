@@ -8,14 +8,8 @@ pub struct RefInterface<'a, K: Eq + Hash, V> {
 
 impl<'a, K: Eq + Hash, V> RefInterface<'a, K, V> {
     #[inline(always)]
-    pub(crate) fn new(
-        k: &'a K,
-        v: &'a V,
-    ) -> Self {
-        Self {
-            k,
-            v,
-        }
+    pub(crate) fn new(k: &'a K, v: &'a V) -> Self {
+        Self { k, v }
     }
 
     #[inline(always)]
@@ -50,14 +44,8 @@ pub struct RefMutInterface<'a, K: Eq + Hash, V> {
 
 impl<'a, K: Eq + Hash, V> RefMutInterface<'a, K, V> {
     #[inline(always)]
-    pub(crate) fn new(
-        k: &'a K,
-        v: &'a mut V,
-    ) -> Self {
-        Self {
-            k,
-            v,
-        }
+    pub(crate) fn new(k: &'a K, v: &'a mut V) -> Self {
+        Self { k, v }
     }
 
     #[inline(always)]

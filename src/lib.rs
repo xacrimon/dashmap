@@ -1,5 +1,6 @@
 #![allow(clippy::type_complexity)]
 
+pub mod interface;
 pub mod iter;
 pub mod mapref;
 mod t;
