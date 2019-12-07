@@ -34,6 +34,12 @@ pub struct Iter<'a, K: Eq + Hash, V, M: Map<'a, K, V>> {
     current: Option<GuardIter<'a, K, V>>,
 }
 
+unsafe impl<'a, K: Eq + Hash + Send, V: Send, M: Map<'a, K, V>> Send for Iter<'a, K, V, M> {}
+unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, M: Map<'a, K, V>> Sync
+    for Iter<'a, K, V, M>
+{
+}
+
 impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iter<'a, K, V, M> {
     pub(crate) fn new(map: &'a M) -> Self {
         Self {
@@ -86,6 +92,12 @@ pub struct IterMut<'a, K: Eq + Hash, V, M: Map<'a, K, V>> {
     map: &'a M,
     shard_i: usize,
     current: Option<GuardIterMut<'a, K, V>>,
+}
+
+unsafe impl<'a, K: Eq + Hash + Send, V: Send, M: Map<'a, K, V>> Send for IterMut<'a, K, V, M> {}
+unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, M: Map<'a, K, V>> Sync
+    for IterMut<'a, K, V, M>
+{
 }
 
 impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> IterMut<'a, K, V, M> {
