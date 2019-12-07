@@ -403,18 +403,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     pub fn entry(&'a self, key: K) -> Entry<'a, K, V> {
         self._entry(key)
     }
-
-    /// Modify an entry if it exists and inserts a default value if it doesn't.
-    #[inline]
-    pub fn upsert(&self, key: K, insert: impl FnOnce() -> V, update: impl FnOnce(&K, &mut V)) {
-        self._upsert(key, insert, update);
-    }
-
-    /// Inserts a key and a value and returns a mutable reference to the entry.
-    #[inline]
-    pub fn insert_and_get_mut(&'a self, key: K, value: V) -> RefMut<'a, K, V> {
-        self._insert_and_get_mut(key, value)
-    }
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
@@ -557,28 +545,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
             }
         } else {
             Entry::Vacant(VacantEntry::new(shard, key))
-        }
-    }
-
-    #[inline]
-    fn _upsert(&self, key: K, insert: impl FnOnce() -> V, update: impl FnOnce(&K, &mut V)) {
-        let (shard, hash) = self.determine_map(&key);
-        let mut shard = unsafe { self._yield_write_shard(shard) };
-        if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, &key) {
-            update(kptr, unsafe { util::to_mut(vptr) });
-        } else {
-            shard.insert_with_hash_nocheck(key, insert(), hash);
-        }
-    }
-
-    #[inline]
-    fn _insert_and_get_mut(&'a self, key: K, value: V) -> RefMut<'a, K, V> {
-        match self.entry(key) {
-            Entry::Vacant(entry) => entry.insert(value),
-            Entry::Occupied(mut entry) => {
-                entry.insert(value);
-                entry.into_ref()
-            }
         }
     }
 }
