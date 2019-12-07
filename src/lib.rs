@@ -9,6 +9,7 @@ mod util;
 use crossbeam_utils::CachePadded;
 use dashmap_shard::HashMap;
 use fxhash::FxBuildHasher;
+use interface::Interface;
 use iter::{Iter, IterMut};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::one::{Ref, RefMut};
@@ -403,6 +404,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     #[inline]
     pub fn entry(&'a self, key: K) -> Entry<'a, K, V> {
         self._entry(key)
+    }
+
+    /// Experimental single-thread guard manager feature.
+    #[inline]
+    pub fn interface(&'a self) -> Interface<'a, K, V> {
+        Interface::new(self)
     }
 }
 

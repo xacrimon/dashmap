@@ -26,6 +26,26 @@ fn tt_aq_shared(map: &RefCell<HashMap<u64, BorrowStatus>>, hash: u64) -> bool {
     }
 }
 
+pub(crate) fn tt_rl_shared(map: &RefCell<HashMap<u64, BorrowStatus>>, hash: u64) {
+    let mut map = map.borrow_mut();
+    if let Some(status) = map.get_mut(&hash) {
+        match status {
+            BorrowStatus::Shared(c) => {
+                *c -= 1;
+                if *c == 0 {
+                    map.remove(&hash);
+                }
+            }
+            BorrowStatus::Exclusive => unreachable!(),
+        }
+    }
+}
+
+pub(crate) fn tt_rl_exclusive(map: &RefCell<HashMap<u64, BorrowStatus>>, hash: u64) {
+    let mut map = map.borrow_mut();
+    map.remove(&hash);
+}
+
 fn tt_aq_exclusive(map: &RefCell<HashMap<u64, BorrowStatus>>, hash: u64) -> bool {
     let mut map = map.borrow_mut();
     if let Some(_) = map.get(&hash) {
@@ -36,7 +56,7 @@ fn tt_aq_exclusive(map: &RefCell<HashMap<u64, BorrowStatus>>, hash: u64) -> bool
     }
 }
 
-enum BorrowStatus {
+pub(crate) enum BorrowStatus {
     Shared(usize),
     Exclusive,
 }
@@ -48,6 +68,14 @@ pub struct Interface<'a, K: Eq + Hash, V> {
 }
 
 impl<'a, K: Eq + Hash, V> Interface<'a, K, V> {
+    pub(crate) fn new(base: &'a DashMap<K, V>) -> Self {
+        Self {
+            base,
+            iic: RefCell::new(HashMap::new()),
+            borrows: RefCell::new(HashMap::new()),
+        }
+    }
+
     fn ensure_has(&self, i: usize) {
         let mut iic = self.iic.borrow_mut();
         if !iic.contains_key(&i) {
@@ -56,6 +84,7 @@ impl<'a, K: Eq + Hash, V> Interface<'a, K, V> {
         }
     }
 
+    #[inline]
     pub fn get<Q>(&'a self, key: &Q) -> Option<RefInterface<'a, K, V>>
     where
         K: Borrow<Q>,
@@ -70,7 +99,7 @@ impl<'a, K: Eq + Hash, V> Interface<'a, K, V> {
                 unsafe {
                     let kptr = util::change_lifetime_const(kptr);
                     let vptr = util::change_lifetime_const(vptr);
-                    Some(RefInterface::new(kptr, vptr))
+                    Some(RefInterface::new(hash, &self.borrows, kptr, vptr))
                 }
             } else {
                 None
@@ -80,6 +109,7 @@ impl<'a, K: Eq + Hash, V> Interface<'a, K, V> {
         }
     }
 
+    #[inline]
     pub fn get_mut<Q>(&'a self, key: &Q) -> Option<RefMutInterface<'a, K, V>>
     where
         K: Borrow<Q>,
@@ -94,7 +124,7 @@ impl<'a, K: Eq + Hash, V> Interface<'a, K, V> {
                 unsafe {
                     let kptr = util::change_lifetime_const(kptr);
                     let vptr = util::change_lifetime_mut(util::to_mut(vptr));
-                    Some(RefMutInterface::new(kptr, vptr))
+                    Some(RefMutInterface::new(hash, &self.borrows, kptr, vptr))
                 }
             } else {
                 None
