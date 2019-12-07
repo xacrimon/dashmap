@@ -403,6 +403,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     pub fn entry(&'a self, key: K) -> Entry<'a, K, V> {
         self._entry(key)
     }
+
+    /// Modify an entry if it exists and inserts a default value if it doesn't.
+    #[inline]
+    pub fn upsert(&self, key: K, insert: impl FnOnce() -> V, update: impl FnOnce(&K, &mut V)) {
+        self._upsert(key, insert, update);
+    }
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
@@ -545,6 +551,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
             }
         } else {
             Entry::Vacant(VacantEntry::new(shard, key))
+        }
+    }
+
+    #[inline]
+    fn _upsert(&self, key: K, insert: impl FnOnce() -> V, update: impl FnOnce(&K, &mut V)) {
+        let (shard, hash) = self.determine_map(&key);
+        let mut shard = unsafe { self._yield_write_shard(shard) };
+        if let Some((kptr, vptr)) = shard.get_hash_nocheck_key_value(hash, &key) {
+            update(kptr, unsafe { util::to_mut(vptr) });
+        } else {
+            shard.insert_with_hash_nocheck(key, insert(), hash);
         }
     }
 }

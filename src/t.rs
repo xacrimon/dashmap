@@ -48,6 +48,7 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a> {
         Q: Hash + Eq + ?Sized;
     fn _alter_all(&self, f: impl FnMut(&K, V) -> V);
     fn _entry(&'a self, key: K) -> Entry<'a, K, V>;
+    fn _upsert(&self, key: K, insert: impl FnOnce() -> V, update: impl FnOnce(&K, &mut V));
 
     // provided
 
