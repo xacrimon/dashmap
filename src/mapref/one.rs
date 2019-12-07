@@ -12,6 +12,9 @@ pub struct Ref<'a, K: Eq + Hash, V> {
     v: &'a V,
 }
 
+unsafe impl<'a, K: Eq + Hash + Send, V: Send> Send for Ref<'a, K, V> {}
+unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync> Sync for Ref<'a, K, V> {}
+
 impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
     #[inline(always)]
     pub(crate) fn new(
@@ -60,6 +63,9 @@ pub struct RefMut<'a, K: Eq + Hash, V> {
     k: &'a K,
     v: &'a mut V,
 }
+
+unsafe impl<'a, K: Eq + Hash + Send, V: Send> Send for RefMut<'a, K, V> {}
+unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync> Sync for RefMut<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
     #[inline(always)]

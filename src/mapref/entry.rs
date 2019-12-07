@@ -74,6 +74,9 @@ pub struct VacantEntry<'a, K: Eq + Hash, V> {
     key: K,
 }
 
+unsafe impl<'a, K: Eq + Hash + Send, V: Send> Send for VacantEntry<'a, K, V> {}
+unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync> Sync for VacantEntry<'a, K, V> {}
+
 impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     #[inline]
     pub(crate) fn new(shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>, key: K) -> Self {
@@ -110,6 +113,9 @@ pub struct OccupiedEntry<'a, K: Eq + Hash, V> {
     elem: (&'a K, &'a mut V),
     key: Option<K>,
 }
+
+unsafe impl<'a, K: Eq + Hash + Send, V: Send> Send for OccupiedEntry<'a, K, V> {}
+unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync> Sync for OccupiedEntry<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     #[inline]
