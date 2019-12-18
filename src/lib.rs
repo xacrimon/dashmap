@@ -429,6 +429,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         &'a self,
         i: usize,
     ) -> RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>> {
+        debug_assert!(i < self.shards.len());
         self.shards.get_unchecked(i).read()
     }
 
@@ -437,6 +438,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         &'a self,
         i: usize,
     ) -> RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>> {
+        debug_assert!(i < self.shards.len());
         self.shards.get_unchecked(i).write()
     }
 
