@@ -138,3 +138,36 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for IterMut<'a, K, V, M> {
         self.next()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::DashMap;
+
+    #[test]
+    fn iter_mut_manual_count() {
+        let map = DashMap::new();
+        map.insert("Johnny", 21);
+        assert_eq!(map.len(), 1);
+        let mut c = 0;
+        for shard in map.shards() {
+            c += shard.write().iter_mut().count();
+        }
+        assert_eq!(c, 1);
+    }
+
+    #[test]
+    fn iter_mut_count() {
+        let map = DashMap::new();
+        map.insert("Johnny", 21);
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.iter_mut().count(), 1);
+    }
+
+    #[test]
+    fn iter_count() {
+        let map = DashMap::new();
+        map.insert("Johnny", 21);
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.iter().count(), 1);
+    }
+}

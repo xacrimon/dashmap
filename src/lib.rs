@@ -142,7 +142,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         key.hash(&mut hash_state);
 
         let hash = hash_state.finish();
-        let shift = util::ptr_size_bits() - self.ncb;
+        let ncb = match self.ncb {
+            0 => 16,
+            x => x,
+        };
+        let shift = util::ptr_size_bits() - ncb;
 
         ((hash >> shift) as usize, hash)
     }
@@ -198,17 +202,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         self._iter()
     }
 
-    /// Creates an iterator over a DashMap yielding mutable references.
+    /// Iterator over a DashMap yielding mutable references.
     ///
     /// # Examples
     ///
     /// ```
     /// use dashmap::DashMap;
     ///
-    /// let grade = DashMap::new();
-    /// grade.insert("Johnny", 21);
-    /// grade.iter_mut().for_each(|mut r| *r += 1);
-    /// assert_eq!(*grade.get("Johnny").unwrap(), 22);
+    /// let map = DashMap::new();
+    /// map.insert("Johnny", 21);
+    /// map.iter_mut().for_each(|mut r| *r += 1);
+    /// assert_eq!(*map.get("Johnny").unwrap(), 22);
     /// ```
     #[inline]
     pub fn iter_mut(&'a self) -> IterMut<'a, K, V, DashMap<K, V>> {
@@ -424,6 +428,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         &'a self,
         i: usize,
     ) -> RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>> {
+        debug_assert!(i < self.shards.len());
         self.shards.get_unchecked(i).read()
     }
 
@@ -432,6 +437,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         &'a self,
         i: usize,
     ) -> RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>> {
+        debug_assert!(i < self.shards.len());
         self.shards.get_unchecked(i).write()
     }
 
