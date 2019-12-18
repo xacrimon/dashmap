@@ -85,8 +85,6 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for Iter<'a, K, V, M> {
 ///
 /// let map = DashMap::new();
 /// map.insert("Johnny", 21);
-/// assert_eq!(map.len(), 1);
-/// assert_eq!(map.iter_mut().count(), 1);
 /// map.iter_mut().for_each(|mut r| *r += 1);
 /// assert_eq!(*map.get("Johnny").unwrap(), 22);
 /// ```
@@ -138,5 +136,20 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for IterMut<'a, K, V, M> {
         self.shard_i += 1;
 
         self.next()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::DashMap;
+
+    #[test]
+    fn iter_mut_basic() {
+        let map = DashMap::new();
+        map.insert("Johnny", 21);
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.iter_mut().count(), 1);
+        map.iter_mut().for_each(|mut r| *r += 1);
+        assert_eq!(*map.get("Johnny").unwrap(), 22);
     }
 }
