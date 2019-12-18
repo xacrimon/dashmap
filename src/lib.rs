@@ -212,6 +212,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// let map = DashMap::new();
     /// map.insert("Johnny", 21);
     /// assert_eq!(map.len(), 1);
+    /// assert_eq!(map.iter_mut().count(), 1);
     /// map.iter_mut().for_each(|mut r| *r += 1);
     /// assert_eq!(*map.get("Johnny").unwrap(), 22);
     /// ```
