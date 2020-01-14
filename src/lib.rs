@@ -8,7 +8,6 @@ mod util;
 #[cfg(feature = "serde")]
 mod serde;
 
-use crossbeam_utils::CachePadded;
 use fxhash::FxBuildHasher;
 use iter::{Iter, IterMut};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
@@ -44,7 +43,7 @@ where
     K: Eq + Hash,
 {
     ncb: usize,
-    shards: Box<[CachePadded<RwLock<HashMap<K, V>>>]>,
+    shards: Box<[RwLock<HashMap<K, V>>]>,
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
@@ -62,7 +61,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     pub fn new() -> Self {
         let shard_amount = shard_amount();
         let shards = (0..shard_amount)
-            .map(|_| CachePadded::new(RwLock::new(HashMap::with_hasher(FxBuildHasher::default()))))
+            .map(|_| RwLock::new(HashMap::with_hasher(FxBuildHasher::default())))
             .collect::<Vec<_>>()
             .into_boxed_slice();
 
@@ -89,10 +88,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         let cps = capacity / shard_amount;
         let shards = (0..shard_amount)
             .map(|_| {
-                CachePadded::new(RwLock::new(HashMap::with_capacity_and_hasher(
+                RwLock::new(HashMap::with_capacity_and_hasher(
                     cps,
                     FxBuildHasher::default(),
-                )))
+                ))
             })
             .collect::<Vec<_>>()
             .into_boxed_slice();
@@ -115,7 +114,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// println!("Amount of shards: {}", map.shards().len());
     /// ```
     #[inline]
-    pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
+    pub fn shards(&self) -> &[RwLock<HashMap<K, V>>] {
         &self.shards
     }
 

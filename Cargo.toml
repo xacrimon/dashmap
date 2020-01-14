@@ -46,5 +46,4 @@ harness = false
 parking_lot = "0.10.0"
 num_cpus = "1.11.1"
 fxhash = "0.2.1"
-crossbeam-utils = "0.7.0"
 serde = { version = "~1.0.24", optional = true, features = ["derive"] }
