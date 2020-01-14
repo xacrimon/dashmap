@@ -5,6 +5,9 @@ pub mod mapref;
 mod t;
 mod util;
 
+#[cfg(feature = "serde")]
+mod serde;
+
 use crossbeam_utils::CachePadded;
 use fxhash::FxBuildHasher;
 use iter::{Iter, IterMut};

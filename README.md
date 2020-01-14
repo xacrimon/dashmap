@@ -18,6 +18,12 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 [![downloads](https://img.shields.io/crates/d/dashmap)](https://crates.io/crates/dashmap)
 
+## Cargo features
+
+- `nightly` - Enables experimental nightly optimizations.
+
+- `serde` - Enables serde support.
+
 ## Contributing
 
 DashMap is gladly accepts contributions!
