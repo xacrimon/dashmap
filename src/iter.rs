@@ -61,7 +61,7 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for Iter<'a, K, V, M> {
             }
         }
 
-        if self.shard_i == self.map._shard_count() - 1 {
+        if self.shard_i == self.map._shard_count() {
             return None;
         }
 
@@ -123,7 +123,7 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for IterMut<'a, K, V, M> {
             }
         }
 
-        if self.shard_i == self.map._shard_count() - 1 {
+        if self.shard_i == self.map._shard_count() {
             return None;
         }
 
