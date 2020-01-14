@@ -1,7 +1,6 @@
 use super::one::RefMut;
 use crate::util;
-use dashmap_shard::HashMap;
-use fxhash::FxBuildHasher;
+use crate::HashMap;
 use parking_lot::RwLockWriteGuard;
 use std::hash::Hash;
 use std::mem;
@@ -70,7 +69,7 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
 }
 
 pub struct VacantEntry<'a, K: Eq + Hash, V> {
-    shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>,
+    shard: RwLockWriteGuard<'a, HashMap<K, V>>,
     key: K,
 }
 
@@ -79,7 +78,7 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync> Sync for VacantEntry
 
 impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     #[inline]
-    pub(crate) fn new(shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>, key: K) -> Self {
+    pub(crate) fn new(shard: RwLockWriteGuard<'a, HashMap<K, V>>, key: K) -> Self {
         Self { shard, key }
     }
 
@@ -109,7 +108,7 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
 }
 
 pub struct OccupiedEntry<'a, K: Eq + Hash, V> {
-    shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>,
+    shard: RwLockWriteGuard<'a, HashMap<K, V>>,
     elem: (&'a K, &'a mut V),
     key: Option<K>,
 }
@@ -120,7 +119,7 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync> Sync for OccupiedEnt
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     #[inline]
     pub(crate) fn new(
-        shard: RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>,
+        shard: RwLockWriteGuard<'a, HashMap<K, V>>,
         key: Option<K>,
         elem: (&'a K, &'a mut V),
     ) -> Self {
