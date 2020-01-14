@@ -2,6 +2,7 @@ use super::mapref::multiple::{RefMulti, RefMutMulti};
 use super::util;
 use crate::t::Map;
 use crate::HashMap;
+use crate::util::SharedValue;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::collections::hash_map;
 use std::hash::Hash;
@@ -9,11 +10,11 @@ use std::sync::Arc;
 
 type GuardIter<'a, K, V> = (
     Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
-    hash_map::Iter<'a, K, V>,
+    hash_map::Iter<'a, K, SharedValue<V>>,
 );
 type GuardIterMut<'a, K, V> = (
     Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
-    hash_map::IterMut<'a, K, V>,
+    hash_map::IterMut<'a, K, SharedValue<V>>,
 );
 
 /// Iterator over a DashMap yielding immutable references.
@@ -55,9 +56,9 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for Iter<'a, K, V, M> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(current) = self.current.as_mut() {
-            if let Some(v) = current.1.next() {
+            if let Some((k, v)) = current.1.next() {
                 let guard = current.0.clone();
-                return Some(RefMulti::new(guard, v.0, v.1));
+                return Some(RefMulti::new(guard, k, v.get()));
             }
         }
 
@@ -115,11 +116,13 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for IterMut<'a, K, V, M> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(current) = self.current.as_mut() {
-            if let Some(t) = current.1.next() {
+            if let Some((k, v)) = current.1.next() {
                 let guard = current.0.clone();
-                let k = unsafe { &*(t.0 as *const K) };
-                let v = unsafe { &mut *(t.1 as *mut V) };
-                return Some(RefMutMulti::new(guard, k, v));
+                unsafe {
+                    let k = util::change_lifetime_const(k);
+                    let v = &mut *v.as_ptr();
+                    return Some(RefMutMulti::new(guard, k, v));
+                }
             }
         }
 
