@@ -1,19 +1,18 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use super::util;
 use crate::t::Map;
-use dashmap_shard::hash_map;
-use dashmap_shard::HashMap;
-use fxhash::FxBuildHasher;
+use crate::HashMap;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
+use std::collections::hash_map;
 use std::hash::Hash;
 use std::sync::Arc;
 
 type GuardIter<'a, K, V> = (
-    Arc<RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>>,
+    Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
     hash_map::Iter<'a, K, V>,
 );
 type GuardIterMut<'a, K, V> = (
-    Arc<RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>>,
+    Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
     hash_map::IterMut<'a, K, V>,
 );
 
@@ -67,7 +66,7 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for Iter<'a, K, V, M> {
         }
 
         let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
-        let sref: &HashMap<K, V, FxBuildHasher> = unsafe { util::change_lifetime_const(&*guard) };
+        let sref: &HashMap<K, V> = unsafe { util::change_lifetime_const(&*guard) };
         let iter = sref.iter();
         self.current = Some((Arc::new(guard), iter));
         self.shard_i += 1;
@@ -129,8 +128,7 @@ impl<'a, K: Eq + Hash, V, M: Map<'a, K, V>> Iterator for IterMut<'a, K, V, M> {
         }
 
         let mut guard = unsafe { self.map._yield_write_shard(self.shard_i) };
-        let sref: &mut HashMap<K, V, FxBuildHasher> =
-            unsafe { util::change_lifetime_mut(&mut *guard) };
+        let sref: &mut HashMap<K, V> = unsafe { util::change_lifetime_mut(&mut *guard) };
         let iter = sref.iter_mut();
         self.current = Some((Arc::new(guard), iter));
         self.shard_i += 1;

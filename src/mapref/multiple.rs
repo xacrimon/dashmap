@@ -1,5 +1,4 @@
-use dashmap_shard::HashMap;
-use fxhash::FxBuildHasher;
+use crate::HashMap;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
@@ -8,7 +7,7 @@ use std::sync::Arc;
 // -- Shared
 
 pub struct RefMulti<'a, K: Eq + Hash, V> {
-    _guard: Arc<RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>>,
+    _guard: Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
     k: &'a K,
     v: &'a V,
 }
@@ -18,11 +17,7 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync> Sync for RefMulti<'a
 
 impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     #[inline(always)]
-    pub(crate) fn new(
-        guard: Arc<RwLockReadGuard<'a, HashMap<K, V, FxBuildHasher>>>,
-        k: &'a K,
-        v: &'a V,
-    ) -> Self {
+    pub(crate) fn new(guard: Arc<RwLockReadGuard<'a, HashMap<K, V>>>, k: &'a K, v: &'a V) -> Self {
         Self {
             _guard: guard,
             k,
@@ -60,7 +55,7 @@ impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
 // -- Unique
 
 pub struct RefMutMulti<'a, K: Eq + Hash, V> {
-    _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>>,
+    _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
     k: &'a K,
     v: &'a mut V,
 }
@@ -71,7 +66,7 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync> Sync for RefMutMulti
 impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     #[inline(always)]
     pub(crate) fn new(
-        guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, FxBuildHasher>>>,
+        guard: Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
         k: &'a K,
         v: &'a mut V,
     ) -> Self {

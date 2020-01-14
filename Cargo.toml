@@ -13,7 +13,7 @@ keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
 [features]
-nightly = ["parking_lot/nightly", "dashmap-shard/nightly"]
+nightly = ["parking_lot/nightly"]
 
 [dev-dependencies]
 criterion = "0.3.0"
@@ -43,7 +43,6 @@ name = "cht"
 harness = false
 
 [dependencies]
-dashmap-shard = { version = "0.1.1", default-features = false }
 parking_lot = "0.10.0"
 num_cpus = "1.11.1"
 fxhash = "0.2.1"
