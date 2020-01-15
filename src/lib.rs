@@ -136,19 +136,33 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// map.insert("coca-cola", 1.4);
     /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
     /// ```
-    #[inline]
     cfg_if! {
-        if #[cfg(feature = "raw-api")] { pub }
-    } fn determine_map<Q>(&self, key: &Q) -> usize
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        let hash = fxhash::hash64(&key);
-        let shift = util::ptr_size_bits() - self.ncb;
-
-        (hash >> shift) as usize
-    }
+        if #[cfg(feature = "raw-api")] {
+            #[inline]
+            pub fn determine_map<Q>(&self, key: &Q) -> usize
+            where
+                K: Borrow<Q>,
+                Q: Hash + Eq + ?Sized,
+            {
+                let hash = fxhash::hash64(&key);
+                let shift = util::ptr_size_bits() - self.ncb;
+        
+                (hash >> shift) as usize
+            }
+        } else {
+            #[inline]
+            fn determine_map<Q>(&self, key: &Q) -> usize
+            where
+                K: Borrow<Q>,
+                Q: Hash + Eq + ?Sized,
+            {
+                let hash = fxhash::hash64(&key);
+                let shift = util::ptr_size_bits() - self.ncb;
+        
+                (hash >> shift) as usize
+            }
+        }
+    } 
 
     /// Inserts a key and a value into the map.
     ///
