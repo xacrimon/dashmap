@@ -115,7 +115,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// println!("Amount of shards: {}", map.shards().len());
     /// ```
     #[inline]
-    pub fn shards(&self) -> &[RwLock<HashMap<K, V>>] {
+    fn shards(&self) -> &[RwLock<HashMap<K, V>>] {
         &self.shards
     }
 
@@ -132,7 +132,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
     /// ```
     #[inline]
-    pub fn determine_map<Q>(&self, key: &Q) -> usize
+    fn determine_map<Q>(&self, key: &Q) -> usize
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
@@ -347,6 +347,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// stats.alter("Goals", |_, v| v * 2);
     /// assert_eq!(*stats.get("Goals").unwrap(), 8);
     /// ```
+    /// 
+    /// # Panics
+    /// 
+    /// If the given closure panics, then `alter_all` will abort the process
     #[inline]
     pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
@@ -370,6 +374,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// assert_eq!(*stats.get("Wins").unwrap(), 5);
     /// assert_eq!(*stats.get("Losses").unwrap(), 3);
     /// ```
+    /// 
+    /// # Panics
+    /// 
+    /// If the given closure panics, then `alter_all` will abort the process
     #[inline]
     pub fn alter_all(&self, f: impl FnMut(&K, V) -> V) {
         self._alter_all(f);
