@@ -8,6 +8,7 @@ mod util;
 #[cfg(feature = "serde")]
 mod serde;
 
+use cfg_if::cfg_if;
 use fxhash::FxBuildHasher;
 use iter::{Iter, IterMut};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
@@ -19,7 +20,6 @@ use std::iter::FromIterator;
 use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use t::Map;
 use util::SharedValue;
-use cfg_if::cfg_if;
 
 type HashMap<K, V> = std::collections::HashMap<K, SharedValue<V>, FxBuildHasher>;
 
@@ -121,6 +121,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
             pub fn shards(&self) -> &[RwLock<HashMap<K, V>>] {
                 &self.shards
             }
+        } else {
+            #[allow(dead_code)]
+            #[inline]
+            fn shards(&self) -> &[RwLock<HashMap<K, V>>] {
+                &self.shards
+            }
         }
     }
 
@@ -146,7 +152,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
             {
                 let hash = fxhash::hash64(&key);
                 let shift = util::ptr_size_bits() - self.ncb;
-        
+
                 (hash >> shift) as usize
             }
         } else {
@@ -158,11 +164,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
             {
                 let hash = fxhash::hash64(&key);
                 let shift = util::ptr_size_bits() - self.ncb;
-        
+
                 (hash >> shift) as usize
             }
         }
-    } 
+    }
 
     /// Inserts a key and a value into the map.
     ///
@@ -368,9 +374,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// stats.alter("Goals", |_, v| v * 2);
     /// assert_eq!(*stats.get("Goals").unwrap(), 8);
     /// ```
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// If the given closure panics, then `alter_all` will abort the process
     #[inline]
     pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
@@ -395,9 +401,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// assert_eq!(*stats.get("Wins").unwrap(), 5);
     /// assert_eq!(*stats.get("Losses").unwrap(), 3);
     /// ```
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// If the given closure panics, then `alter_all` will abort the process
     #[inline]
     pub fn alter_all(&self, f: impl FnMut(&K, V) -> V) {
@@ -454,7 +460,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
     fn _insert(&self, key: K, value: V) -> Option<V> {
         let idx = self.determine_map(&key);
         let mut shard = unsafe { self._yield_write_shard(idx) };
-        shard.insert(key, SharedValue::new(value)).map(SharedValue::into_inner)
+        shard
+            .insert(key, SharedValue::new(value))
+            .map(SharedValue::into_inner)
     }
 
     #[inline]
@@ -523,7 +531,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
 
     #[inline]
     fn _retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
-        self.shards.iter().for_each(|s| s.write().retain(|k, v| f(k, v.get_mut())));
+        self.shards
+            .iter()
+            .for_each(|s| s.write().retain(|k, v| f(k, v.get_mut())));
     }
 
     #[inline]

@@ -1,7 +1,7 @@
 use super::one::RefMut;
 use crate::util;
-use crate::HashMap;
 use crate::util::SharedValue;
+use crate::HashMap;
 use parking_lot::RwLockWriteGuard;
 use std::hash::Hash;
 use std::mem;

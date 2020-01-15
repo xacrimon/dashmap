@@ -1,8 +1,8 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use super::util;
 use crate::t::Map;
-use crate::HashMap;
 use crate::util::SharedValue;
+use crate::HashMap;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::collections::hash_map;
 use std::hash::Hash;

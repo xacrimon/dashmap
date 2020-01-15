@@ -1,8 +1,8 @@
 //! This module is full of hackery and dark magic.
 //! Either spend a day fixing it and quietly submit a PR or don't mention it to anybody.
 
-use std::{mem, ptr};
 use std::cell::UnsafeCell;
+use std::{mem, ptr};
 
 #[inline(always)]
 pub const fn ptr_size_bits() -> usize {
@@ -13,7 +13,7 @@ pub const fn ptr_size_bits() -> usize {
 pub fn map_in_place_2<T, U, F: FnOnce(U, T) -> T>((k, v): (U, &mut T), f: F) {
     unsafe {
         // # Safety
-        // 
+        //
         // If the closure panics, we must abort otherwise we could double drop `T`
         let _promote_panic_to_abort = AbortOnPanic;
 
