@@ -1,6 +1,6 @@
 [package]
 name = "dashmap"
-version = "3.0.2"
+version = "3.0.3"
 authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -14,6 +14,7 @@ categories = ["concurrency", "algorithms", "data-structures"]
 
 [features]
 nightly = ["parking_lot/nightly"]
+raw-api = []
 
 [dev-dependencies]
 criterion = "0.3.0"
@@ -46,4 +47,8 @@ harness = false
 parking_lot = "0.10.0"
 num_cpus = "1.11.1"
 fxhash = "0.2.1"
-serde = { version = "~1.0.24", optional = true, features = ["derive"] }
+serde = { version = "1.0.104", optional = true, features = ["derive"] }
+cfg-if = "0.1.10"
+
+[package.metadata.docs.rs]
+all-features = true

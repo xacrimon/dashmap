@@ -19,6 +19,7 @@ use std::iter::FromIterator;
 use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use t::Map;
 use util::SharedValue;
+use cfg_if::cfg_if;
 
 type HashMap<K, V> = std::collections::HashMap<K, SharedValue<V>, FxBuildHasher>;
 
@@ -114,9 +115,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// let map = DashMap::<(), ()>::new();
     /// println!("Amount of shards: {}", map.shards().len());
     /// ```
-    #[inline]
-    pub fn shards(&self) -> &[RwLock<HashMap<K, V>>] {
-        &self.shards
+    cfg_if! {
+        if #[cfg(feature = "raw-api")] {
+            #[inline]
+            pub fn shards(&self) -> &[RwLock<HashMap<K, V>>] {
+                &self.shards
+            }
+        }
     }
 
     /// Finds which shard a certain key is stored in.
@@ -132,7 +137,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
     /// ```
     #[inline]
-    pub fn determine_map<Q>(&self, key: &Q) -> usize
+    cfg_if! {
+        if #[cfg(feature = "raw-api")] { pub }
+    } fn determine_map<Q>(&self, key: &Q) -> usize
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,

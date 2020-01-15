@@ -24,6 +24,8 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - `serde` - Enables serde support.
 
+- `raw-api` - Enables the unstable raw-shard api.
+
 ## Contributing
 
 DashMap is gladly accepts contributions!
