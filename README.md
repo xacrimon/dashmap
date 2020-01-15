@@ -38,6 +38,9 @@ I will take a look as soon as I have time for it.
 Benchmarks are currently not fantastic and can be improved and more can be created.
 Help is welcomed with open arms.
 
+Also, to be brutally honest, do your own benchmarking with your setup.
+This is one of infinite possible configations. It doesn't speak for how it will work for you.
+
 <img src="https://raw.githubusercontent.com/xacrimon/dashmap/master/assets/bench-insert.svg?sanitize=true" alt="Insert Benchmark">
 
 <img src="https://raw.githubusercontent.com/xacrimon/dashmap/master/assets/bench-get.svg?sanitize=true" alt="Get Benchmark">
