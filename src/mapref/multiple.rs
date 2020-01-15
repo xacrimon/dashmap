@@ -6,18 +6,22 @@ use std::sync::Arc;
 
 // -- Shared
 
-pub struct RefMulti<'a, K: Eq + Hash, V> {
-    _guard: Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
+pub struct RefMulti<'a, K: Eq + Hash, V, S> {
+    _guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
     k: &'a K,
     v: &'a V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Send, V: Send> Send for RefMulti<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync> Sync for RefMulti<'a, K, V> {}
+unsafe impl<'a, K: Eq + Hash + Send, V: Send, S> Send for RefMulti<'a, K, V, S> {}
+unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S> Sync for RefMulti<'a, K, V, S> {}
 
-impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V, S> RefMulti<'a, K, V, S> {
     #[inline(always)]
-    pub(crate) fn new(guard: Arc<RwLockReadGuard<'a, HashMap<K, V>>>, k: &'a K, v: &'a V) -> Self {
+    pub(crate) fn new(
+        guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
+        k: &'a K,
+        v: &'a V,
+    ) -> Self {
         Self {
             _guard: guard,
             k,
@@ -41,7 +45,7 @@ impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V, S> Deref for RefMulti<'a, K, V, S> {
     type Target = V;
 
     #[inline(always)]
@@ -54,19 +58,19 @@ impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
 
 // -- Unique
 
-pub struct RefMutMulti<'a, K: Eq + Hash, V> {
-    _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
+pub struct RefMutMulti<'a, K: Eq + Hash, V, S> {
+    _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
     k: &'a K,
     v: &'a mut V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Send, V: Send> Send for RefMutMulti<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync> Sync for RefMutMulti<'a, K, V> {}
+unsafe impl<'a, K: Eq + Hash + Send, V: Send, S> Send for RefMutMulti<'a, K, V, S> {}
+unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S> Sync for RefMutMulti<'a, K, V, S> {}
 
-impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V, S> RefMutMulti<'a, K, V, S> {
     #[inline(always)]
     pub(crate) fn new(
-        guard: Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
+        guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
         k: &'a K,
         v: &'a mut V,
     ) -> Self {
@@ -103,7 +107,7 @@ impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for RefMutMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V, S> Deref for RefMutMulti<'a, K, V, S> {
     type Target = V;
 
     #[inline(always)]
@@ -112,7 +116,7 @@ impl<'a, K: Eq + Hash, V> Deref for RefMutMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> DerefMut for RefMutMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V, S> DerefMut for RefMutMulti<'a, K, V, S> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut V {
         self.value_mut()
