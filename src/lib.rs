@@ -19,7 +19,14 @@ use std::hash::Hash;
 use std::iter::FromIterator;
 use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use t::Map;
-use util::SharedValue;
+
+cfg_if! {
+    if #[cfg(feature = "raw-api")] {
+        pub use util::SharedValue;
+    } else {
+        use util::SharedValue;
+    }
+}
 
 type HashMap<K, V> = std::collections::HashMap<K, SharedValue<V>, FxBuildHasher>;
 
@@ -104,21 +111,21 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
-    /// Allows you to peek at the inner shards that store your data.
-    /// You should probably not use this unless you know what you are doing.
-    ///
-    /// Requires the `raw-api` feature to be enabled.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use dashmap::DashMap;
-    ///
-    /// let map = DashMap::<(), ()>::new();
-    /// println!("Amount of shards: {}", map.shards().len());
-    /// ```
     cfg_if! {
         if #[cfg(feature = "raw-api")] {
+            /// Allows you to peek at the inner shards that store your data.
+            /// You should probably not use this unless you know what you are doing.
+            ///
+            /// Requires the `raw-api` feature to be enabled.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use dashmap::DashMap;
+            ///
+            /// let map = DashMap::<(), ()>::new();
+            /// println!("Amount of shards: {}", map.shards().len());
+            /// ```
             #[inline]
             pub fn shards(&self) -> &[RwLock<HashMap<K, V>>] {
                 &self.shards
@@ -132,22 +139,22 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
         }
     }
 
-    /// Finds which shard a certain key is stored in.
-    /// You should probably not use this unless you know what you are doing.
-    ///
-    /// Requires the `raw-api` feature to be enabled.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use dashmap::DashMap;
-    ///
-    /// let map = DashMap::new();
-    /// map.insert("coca-cola", 1.4);
-    /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
-    /// ```
     cfg_if! {
         if #[cfg(feature = "raw-api")] {
+            /// Finds which shard a certain key is stored in.
+            /// You should probably not use this unless you know what you are doing.
+            ///
+            /// Requires the `raw-api` feature to be enabled.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use dashmap::DashMap;
+            ///
+            /// let map = DashMap::new();
+            /// map.insert("coca-cola", 1.4);
+            /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
+            /// ```
             #[inline]
             pub fn determine_map<Q>(&self, key: &Q) -> usize
             where
