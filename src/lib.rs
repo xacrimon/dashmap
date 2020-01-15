@@ -105,7 +105,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     }
 
     /// Allows you to peek at the inner shards that store your data.
-    /// You should probably not use this.
+    /// You should probably not use this unless you know what you are doing.
+    ///
+    /// Requires the `raw-api` feature to be enabled.
     ///
     /// # Examples
     ///
@@ -131,7 +133,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     }
 
     /// Finds which shard a certain key is stored in.
-    /// You should probably not use this.
+    /// You should probably not use this unless you know what you are doing.
+    ///
+    /// Requires the `raw-api` feature to be enabled.
     ///
     /// # Examples
     ///
