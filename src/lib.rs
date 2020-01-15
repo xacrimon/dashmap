@@ -18,8 +18,9 @@ use std::hash::Hash;
 use std::iter::FromIterator;
 use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use t::Map;
+use util::SharedValue;
 
-type HashMap<K, V> = std::collections::HashMap<K, V, FxBuildHasher>;
+type HashMap<K, V> = std::collections::HashMap<K, SharedValue<V>, FxBuildHasher>;
 
 fn shard_amount() -> usize {
     (num_cpus::get() * 4).next_power_of_two()
@@ -346,6 +347,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// stats.alter("Goals", |_, v| v * 2);
     /// assert_eq!(*stats.get("Goals").unwrap(), 8);
     /// ```
+    /// 
+    /// # Panics
+    /// 
+    /// If the given closure panics, then `alter_all` will abort the process
     #[inline]
     pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
@@ -369,6 +374,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// assert_eq!(*stats.get("Wins").unwrap(), 5);
     /// assert_eq!(*stats.get("Losses").unwrap(), 3);
     /// ```
+    /// 
+    /// # Panics
+    /// 
+    /// If the given closure panics, then `alter_all` will abort the process
     #[inline]
     pub fn alter_all(&self, f: impl FnMut(&K, V) -> V) {
         self._alter_all(f);
@@ -424,7 +433,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
     fn _insert(&self, key: K, value: V) -> Option<V> {
         let idx = self.determine_map(&key);
         let mut shard = unsafe { self._yield_write_shard(idx) };
-        shard.insert(key, value)
+        shard.insert(key, SharedValue::new(value)).map(SharedValue::into_inner)
     }
 
     #[inline]
@@ -435,7 +444,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
     {
         let idx = self.determine_map(&key);
         let mut shard = unsafe { self._yield_write_shard(idx) };
-        shard.remove_entry(key)
+        shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
     }
 
     #[inline]
@@ -460,7 +469,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
                 let vptr = util::change_lifetime_const(vptr);
-                Some(Ref::new(shard, kptr, vptr))
+                Some(Ref::new(shard, kptr, vptr.get()))
             }
         } else {
             None
@@ -478,7 +487,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
-                let vptr = util::change_lifetime_mut(util::to_mut(vptr));
+                let vptr = &mut *vptr.as_ptr();
                 Some(RefMut::new(shard, kptr, vptr))
             }
         } else {
@@ -493,7 +502,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
 
     #[inline]
     fn _retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
-        self.shards.iter().for_each(|s| s.write().retain(&mut f));
+        self.shards.iter().for_each(|s| s.write().retain(|k, v| f(k, v.get_mut())));
     }
 
     #[inline]
@@ -522,7 +531,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         self.shards.iter().for_each(|s| {
             s.write()
                 .iter_mut()
-                .for_each(|pair| util::map_in_place_2(pair, &mut f));
+                .for_each(|(k, v)| util::map_in_place_2((k, v.get_mut()), &mut f));
         });
     }
 
@@ -533,7 +542,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Map<'a, K, V> for DashMap<K, V> {
         if let Some((kptr, vptr)) = shard.get_key_value(&key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
-                let vptr = util::change_lifetime_mut(util::to_mut(vptr));
+                let vptr = &mut *vptr.as_ptr();
                 Entry::Occupied(OccupiedEntry::new(shard, Some(key), (kptr, vptr)))
             }
         } else {

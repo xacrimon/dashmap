@@ -1,6 +1,7 @@
 use super::one::RefMut;
 use crate::util;
 use crate::HashMap;
+use crate::util::SharedValue;
 use parking_lot::RwLockWriteGuard;
 use std::hash::Hash;
 use std::mem;
@@ -86,10 +87,10 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     pub fn insert(mut self, value: V) -> RefMut<'a, K, V> {
         unsafe {
             let c: K = ptr::read(&self.key);
-            self.shard.insert(self.key, value);
+            self.shard.insert(self.key, SharedValue::new(value));
             let (k, v) = self.shard.get_key_value(&c).unwrap();
             let k = util::change_lifetime_const(k);
-            let v = util::change_lifetime_mut(util::to_mut(v));
+            let v = &mut *v.as_ptr();
             let r = RefMut::new(self.shard, k, v);
             mem::forget(c);
             r
@@ -153,19 +154,21 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
 
     #[inline]
     pub fn remove(mut self) -> V {
-        self.shard.remove(self.elem.0).unwrap()
+        self.shard.remove(self.elem.0).unwrap().into_inner()
     }
 
     #[inline]
     pub fn remove_entry(mut self) -> (K, V) {
-        self.shard.remove_entry(self.elem.0).unwrap()
+        let (k, v) = self.shard.remove_entry(self.elem.0).unwrap();
+
+        (k, v.into_inner())
     }
 
     #[inline]
     pub fn replace_entry(mut self, value: V) -> (K, V) {
         let nk = self.key.unwrap();
-        let p = self.shard.remove_entry(self.elem.0).unwrap();
-        self.shard.insert(nk, value);
-        p
+        let (k, v) = self.shard.remove_entry(self.elem.0).unwrap();
+        self.shard.insert(nk, SharedValue::new(value));
+        (k, v.into_inner())
     }
 }

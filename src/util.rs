@@ -2,6 +2,7 @@
 //! Either spend a day fixing it and quietly submit a PR or don't mention it to anybody.
 
 use std::{mem, ptr};
+use std::cell::UnsafeCell;
 
 #[inline(always)]
 pub const fn ptr_size_bits() -> usize {
@@ -9,9 +10,14 @@ pub const fn ptr_size_bits() -> usize {
 }
 
 #[inline(always)]
-pub fn map_in_place_2<T, U, F: FnOnce(U, T) -> T>(a: (U, &mut T), f: F) {
+pub fn map_in_place_2<T, U, F: FnOnce(U, T) -> T>((k, v): (U, &mut T), f: F) {
     unsafe {
-        ptr::write(a.1, f(a.0, ptr::read(a.1)));
+        // # Safety
+        // 
+        // If the closure panics, we must abort otherwise we could double drop `T`
+        let _promote_panic_to_abort = AbortOnPanic;
+
+        ptr::write(v, f(k, ptr::read(v)));
     }
 }
 
@@ -33,15 +39,43 @@ pub unsafe fn change_lifetime_mut<'a, 'b, T>(x: &'a mut T) -> &'b mut T {
     &mut *(x as *mut T)
 }
 
-/// # Safety
-///
-/// Make a immutable ref mutable.
-/// Not sure we can do this but you have to guarantee it's the only mut ref in existance.
-/// It works anyway.
-#[allow(clippy::cast_ref_to_mut)]
-#[allow(clippy::mut_from_ref)]
-#[allow(clippy::needless_lifetimes)]
-#[inline(always)]
-pub unsafe fn to_mut<'a, T>(x: &'a T) -> &'a mut T {
-    &mut *(x as *const T as *mut T)
+pub struct SharedValue<T> {
+    value: UnsafeCell<T>,
+}
+
+unsafe impl<T: Send> Send for SharedValue<T> {}
+unsafe impl<T: Sync> Sync for SharedValue<T> {}
+
+impl<T> SharedValue<T> {
+    pub const fn new(value: T) -> Self {
+        Self {
+            value: UnsafeCell::new(value),
+        }
+    }
+
+    pub fn get(&self) -> &T {
+        unsafe { &*self.value.get() }
+    }
+
+    pub fn get_mut(&mut self) -> &mut T {
+        unsafe { &mut *self.value.get() }
+    }
+
+    pub fn into_inner(self) -> T {
+        self.value.into_inner()
+    }
+
+    pub(crate) fn as_ptr(&self) -> *mut T {
+        self.value.get()
+    }
+}
+
+pub struct AbortOnPanic;
+
+impl Drop for AbortOnPanic {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            std::process::abort()
+        }
+    }
 }
