@@ -115,7 +115,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// println!("Amount of shards: {}", map.shards().len());
     /// ```
     #[inline]
-    fn shards(&self) -> &[RwLock<HashMap<K, V>>] {
+    pub fn shards(&self) -> &[RwLock<HashMap<K, V>>] {
         &self.shards
     }
 
@@ -132,7 +132,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V> {
     /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
     /// ```
     #[inline]
-    fn determine_map<Q>(&self, key: &Q) -> usize
+    pub fn determine_map<Q>(&self, key: &Q) -> usize
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
