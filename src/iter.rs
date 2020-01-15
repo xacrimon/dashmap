@@ -11,11 +11,11 @@ use std::sync::Arc;
 
 type GuardIter<'a, K, V, S> = (
     Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
-    hash_map::Iter<'a, K, SharedValue<V>, S>,
+    hash_map::Iter<'a, K, SharedValue<V>>,
 );
 type GuardIterMut<'a, K, V, S> = (
     Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
-    hash_map::IterMut<'a, K, SharedValue<V>, S>,
+    hash_map::IterMut<'a, K, SharedValue<V>>,
 );
 
 /// Iterator over a DashMap yielding immutable references.
