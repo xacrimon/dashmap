@@ -46,7 +46,6 @@ fn ncb(shard_amount: usize) -> usize {
 /// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V>>`.
 /// To accomplish these all methods take `&self` instead modifying methods taking `&mut self`.
 /// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
-#[derive(Default)]
 pub struct DashMap<K, V, S = FxBuildHasher>
 where
     K: Eq + Hash,
@@ -54,6 +53,15 @@ where
 {
     ncb: usize,
     shards: Box<[RwLock<HashMap<K, V, S>>]>,
+}
+
+impl<K, V> Default for DashMap<K, V>
+where
+    K: Eq + Hash,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, FxBuildHasher> {
@@ -702,5 +710,22 @@ impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V, FxBuildHasher> {
         let mut map = DashMap::new();
         map.extend(intoiter);
         map
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::DashMap;
+    #[test]
+    fn test_basic() {
+        let dm = DashMap::new();
+        dm.insert(0, 0);
+        assert_eq!(dm.get(&0).unwrap().value(), &0);
+    }
+    #[test]
+    fn test_default() {
+        let dm: DashMap<u32, u32> = DashMap::default();
+        dm.insert(0, 0);
+        assert_eq!(dm.get(&0).unwrap().value(), &0);
     }
 }
