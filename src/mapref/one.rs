@@ -2,7 +2,6 @@ use crate::HashMap;
 use fxhash::FxBuildHasher;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::{BuildHasher, Hash};
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 // -- Shared
@@ -11,7 +10,6 @@ pub struct Ref<'a, K: Eq + Hash, V, S: BuildHasher = FxBuildHasher> {
     _guard: RwLockReadGuard<'a, HashMap<K, V, S>>,
     k: &'a K,
     v: &'a V,
-    phantom: PhantomData<S>,
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for Ref<'a, K, V, S> {}
@@ -27,7 +25,6 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
             _guard: guard,
             k,
             v,
-            phantom: PhantomData,
         }
     }
 

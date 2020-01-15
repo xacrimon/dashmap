@@ -39,7 +39,7 @@ fn shard_amount() -> usize {
 
 #[inline]
 fn ncb(shard_amount: usize) -> usize {
-    (shard_amount as f32).log2() as usize
+    shard_amount.trailing_zeros() as usize
 }
 
 /// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
@@ -119,8 +119,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         let shard_amount = shard_amount();
         let shards = (0..shard_amount)
             .map(|_| RwLock::new(HashMap::with_hasher(hasher.clone())))
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
+            .collect();
 
         Self {
             ncb: ncb(shard_amount),
@@ -147,8 +146,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         let cps = capacity / shard_amount;
         let shards = (0..shard_amount)
             .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, hasher.clone())))
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
+            .collect();
 
         Self {
             ncb: ncb(shard_amount),

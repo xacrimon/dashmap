@@ -6,7 +6,6 @@ use crate::HashMap;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::collections::hash_map;
 use std::hash::{BuildHasher, Hash};
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 type GuardIter<'a, K, V, S> = (
@@ -33,7 +32,6 @@ pub struct Iter<'a, K: Eq + Hash, V, S: 'a + BuildHasher, M: Map<'a, K, V, S>> {
     map: &'a M,
     shard_i: usize,
     current: Option<GuardIter<'a, K, V, S>>,
-    phantom: PhantomData<S>,
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: 'a + BuildHasher, M: Map<'a, K, V, S>> Send
@@ -51,7 +49,6 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher, M: Map<'a, K, V, S>> Iter<'a, K, 
             map,
             shard_i: 0,
             current: None,
-            phantom: PhantomData,
         }
     }
 }
@@ -100,7 +97,6 @@ pub struct IterMut<'a, K: Eq + Hash, V, S: 'a + BuildHasher, M: Map<'a, K, V, S>
     map: &'a M,
     shard_i: usize,
     current: Option<GuardIterMut<'a, K, V, S>>,
-    phantom: PhantomData<S>,
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: 'a + BuildHasher, M: Map<'a, K, V, S>> Send
@@ -118,7 +114,6 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher, M: Map<'a, K, V, S>> IterMut<'a, 
             map,
             shard_i: 0,
             current: None,
-            phantom: PhantomData,
         }
     }
 }
