@@ -2,12 +2,13 @@ use super::one::RefMut;
 use crate::util;
 use crate::util::SharedValue;
 use crate::HashMap;
+use fxhash::FxBuildHasher;
 use parking_lot::RwLockWriteGuard;
 use std::hash::{BuildHasher, Hash};
 use std::mem;
 use std::ptr;
 
-pub enum Entry<'a, K: Eq + Hash, V, S: BuildHasher> {
+pub enum Entry<'a, K: Eq + Hash, V, S: BuildHasher = FxBuildHasher> {
     Occupied(OccupiedEntry<'a, K, V, S>),
     Vacant(VacantEntry<'a, K, V, S>),
 }

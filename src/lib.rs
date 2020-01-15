@@ -12,9 +12,11 @@ use cfg_if::cfg_if;
 use fxhash::FxBuildHasher;
 use iter::{Iter, IterMut};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
+use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::borrow::Borrow;
+use std::fmt;
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
@@ -30,10 +32,12 @@ cfg_if! {
 
 type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
 
+#[inline]
 fn shard_amount() -> usize {
     (num_cpus::get() * 4).next_power_of_two()
 }
 
+#[inline]
 fn ncb(shard_amount: usize) -> usize {
     (shard_amount as f32).log2() as usize
 }
@@ -202,10 +206,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
                 K: Borrow<Q>,
                 Q: Hash + Eq + ?Sized,
             {
-                let hash = fxhash::hash64(&key);
+                let hash = fxhash::hash(&key);
                 let shift = util::ptr_size_bits() - self.ncb;
 
-                (hash >> shift) as usize
+                (hash >> shift)
             }
         } else {
             #[inline]
@@ -214,10 +218,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
                 K: Borrow<Q>,
                 Q: Hash + Eq + ?Sized,
             {
-                let hash = fxhash::hash64(&key);
+                let hash = fxhash::hash(&key);
                 let shift = util::ptr_size_bits() - self.ncb;
 
-                (hash >> shift) as usize
+                (hash >> shift)
             }
         }
     }
@@ -636,6 +640,19 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     }
 }
 
+impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debug
+    for DashMap<K, V, S>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut pmap = f.debug_map();
+        for r in self {
+            let (k, v) = r.pair();
+            pmap.entry(k, v);
+        }
+        pmap.finish()
+    }
+}
+
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> Shl<(K, V)> for &'a DashMap<K, V, S> {
     type Output = Option<V>;
 
@@ -694,6 +711,15 @@ where
     #[inline]
     fn bitand(self, key: &Q) -> Self::Output {
         self.contains_key(key)
+    }
+}
+
+impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a DashMap<K, V, S> {
+    type Item = RefMulti<'a, K, V, S>;
+    type IntoIter = Iter<'a, K, V, S, DashMap<K, V, S>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
