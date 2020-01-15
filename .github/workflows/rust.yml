@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - name: Build
-      run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+    - name: Run tests with features
+      run: cargo test --verbose --features raw-api serde
