@@ -13,7 +13,6 @@ keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
 [features]
-nightly = ["parking_lot/nightly"]
 raw-api = []
 
 [dev-dependencies]
@@ -44,7 +43,7 @@ name = "cht"
 harness = false
 
 [dependencies]
-parking_lot = "0.10.0"
+spin = "0.5.2"
 num_cpus = "1.11.1"
 fxhash = "0.2.1"
 serde = { version = "1.0.104", optional = true, features = ["derive"] }
