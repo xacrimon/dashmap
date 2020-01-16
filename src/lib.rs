@@ -19,6 +19,7 @@ use mapref::one::{Ref, RefMut};
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::borrow::Borrow;
 use std::fmt;
+use std::hash::Hasher;
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
@@ -59,6 +60,7 @@ where
 {
     ncb: usize,
     shards: Box<[RwLock<HashMap<K, V, S>>]>,
+    hasher: S,
 }
 
 impl<K, V> Default for DashMap<K, V>
@@ -126,6 +128,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         Self {
             ncb: ncb(shard_amount),
             shards,
+            hasher,
         }
     }
 
@@ -153,7 +156,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         Self {
             ncb: ncb(shard_amount),
             shards,
+            hasher,
         }
+    }
+
+    /// Hash a given item to produce a usize.
+    /// Uses the provided or default HashBuilder.
+    #[inline]
+    fn hash_usize<T: Hash>(&self, item: &T) -> usize {
+        let mut hasher = self.hasher.build_hasher();
+        item.hash(&mut hasher);
+        hasher.finish() as usize
     }
 
     cfg_if! {
@@ -188,6 +201,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         if #[cfg(feature = "raw-api")] {
             /// Finds which shard a certain key is stored in.
             /// You should probably not use this unless you know what you are doing.
+            /// Note that shard selection is dependent on the default or provided HashBuilder.
             ///
             /// Requires the `raw-api` feature to be enabled.
             ///
@@ -206,7 +220,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
                 K: Borrow<Q>,
                 Q: Hash + Eq + ?Sized,
             {
-                let hash = fxhash::hash(&key);
+                let hash = self.hash_usize(&key);
                 let shift = util::ptr_size_bits() - self.ncb;
 
                 (hash >> shift)
@@ -218,7 +232,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
                 K: Borrow<Q>,
                 Q: Hash + Eq + ?Sized,
             {
-                let hash = fxhash::hash(&key);
+                let hash = self.hash_usize(&key);
                 let shift = util::ptr_size_bits() - self.ncb;
 
                 (hash >> shift)
@@ -742,16 +756,64 @@ impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V, FxBuildHasher> {
 #[cfg(test)]
 mod tests {
     use crate::DashMap;
+
     #[test]
     fn test_basic() {
         let dm = DashMap::new();
         dm.insert(0, 0);
         assert_eq!(dm.get(&0).unwrap().value(), &0);
     }
+
     #[test]
     fn test_default() {
         let dm: DashMap<u32, u32> = DashMap::default();
         dm.insert(0, 0);
         assert_eq!(dm.get(&0).unwrap().value(), &0);
+    }
+
+    #[test]
+    fn test_multiple_hashes() {
+        let dm: DashMap<u32, u32> = DashMap::default();
+        for i in 0..100 {
+            dm.insert(0, i);
+            dm.insert(i, i);
+        }
+        for i in 1..100 {
+            let r = dm.get(&i).unwrap();
+            assert_eq!(i, *r.value());
+            assert_eq!(i, *r.key());
+        }
+        let r = dm.get(&0).unwrap();
+        assert_eq!(99, *r.value());
+    }
+
+    #[test]
+    fn test_more_complex_values() {
+        #[derive(Hash, PartialEq, Debug, Clone)]
+        struct T0 {
+            s: String,
+            u: u8,
+        }
+        let dm = DashMap::default();
+        let range = 0..10;
+        for i in range {
+            let t = T0 {
+                s: i.to_string(),
+                u: i as u8,
+            };
+            dm.insert(i, t.clone());
+            assert_eq!(&t, dm.get(&i).unwrap().value());
+        }
+    }
+
+    #[test]
+    fn test_different_hashers_randomstate() {
+        use std::collections::hash_map::RandomState;
+        let dm_hm_default: DashMap<u32, u32, RandomState> =
+            DashMap::with_hasher(RandomState::new());
+        for i in 0..10 {
+            dm_hm_default.insert(i, i);
+            assert_eq!(i, *dm_hm_default.get(&i).unwrap().value());
+        }
     }
 }
