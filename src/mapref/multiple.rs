@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 // -- Shared
 
-pub struct RefMulti<'a, K: Eq + Hash, V, S: BuildHasher = FxBuildHasher> {
+pub struct RefMulti<'a, K, V, S = FxBuildHasher> {
     _guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
     k: &'a K,
     v: &'a V,
@@ -63,7 +63,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMulti<'a, K, V, S> {
 
 // -- Unique
 
-pub struct RefMutMulti<'a, K: Eq + Hash, V, S: BuildHasher = FxBuildHasher> {
+pub struct RefMutMulti<'a, K, V, S = FxBuildHasher> {
     _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
     k: &'a K,
     v: &'a mut V,
