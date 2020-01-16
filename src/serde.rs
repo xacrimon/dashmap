@@ -6,10 +6,7 @@ use serde::Deserializer;
 use std::fmt;
 use std::hash::Hash;
 
-pub struct DashMapVisitor<K, V>
-where
-    K: Eq + Hash,
-{
+pub struct DashMapVisitor<K, V> {
     marker: PhantomData<fn() -> DashMap<K, V>>,
 }
 

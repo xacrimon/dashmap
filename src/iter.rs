@@ -28,19 +28,10 @@ type GuardIterMut<'a, K, V, S> = (
 /// map.insert("hello", "world");
 /// assert_eq!(map.iter().count(), 1);
 /// ```
-pub struct Iter<'a, K: Eq + Hash, V, S: 'a + BuildHasher, M: Map<'a, K, V, S>> {
+pub struct Iter<'a, K, V, S, M> {
     map: &'a M,
     shard_i: usize,
     current: Option<GuardIter<'a, K, V, S>>,
-}
-
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: 'a + BuildHasher, M: Map<'a, K, V, S>> Send
-    for Iter<'a, K, V, S, M>
-{
-}
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: 'a + BuildHasher, M: Map<'a, K, V, S>>
-    Sync for Iter<'a, K, V, S, M>
-{
 }
 
 impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher, M: Map<'a, K, V, S>> Iter<'a, K, V, S, M> {
@@ -93,19 +84,10 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher, M: Map<'a, K, V, S>> Iterator
 /// map.iter_mut().for_each(|mut r| *r += 1);
 /// assert_eq!(*map.get("Johnny").unwrap(), 22);
 /// ```
-pub struct IterMut<'a, K: Eq + Hash, V, S: 'a + BuildHasher, M: Map<'a, K, V, S>> {
+pub struct IterMut<'a, K, V, S, M> {
     map: &'a M,
     shard_i: usize,
     current: Option<GuardIterMut<'a, K, V, S>>,
-}
-
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: 'a + BuildHasher, M: Map<'a, K, V, S>> Send
-    for IterMut<'a, K, V, S, M>
-{
-}
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: 'a + BuildHasher, M: Map<'a, K, V, S>>
-    Sync for IterMut<'a, K, V, S, M>
-{
 }
 
 impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher, M: Map<'a, K, V, S>> IterMut<'a, K, V, S, M> {

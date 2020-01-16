@@ -8,7 +8,7 @@ use std::hash::{BuildHasher, Hash};
 use std::mem;
 use std::ptr;
 
-pub enum Entry<'a, K: Eq + Hash, V, S: BuildHasher = FxBuildHasher> {
+pub enum Entry<'a, K, V, S = FxBuildHasher> {
     Occupied(OccupiedEntry<'a, K, V, S>),
     Vacant(VacantEntry<'a, K, V, S>),
 }
@@ -70,15 +70,9 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     }
 }
 
-pub struct VacantEntry<'a, K: Eq + Hash, V, S> {
+pub struct VacantEntry<'a, K, V, S> {
     shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
     key: K,
-}
-
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for VacantEntry<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
-    for VacantEntry<'a, K, V, S>
-{
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
@@ -112,16 +106,10 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
     }
 }
 
-pub struct OccupiedEntry<'a, K: Eq + Hash, V, S: BuildHasher> {
+pub struct OccupiedEntry<'a, K, V, S> {
     shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
     elem: (&'a K, &'a mut V),
     key: Option<K>,
-}
-
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for OccupiedEntry<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
-    for OccupiedEntry<'a, K, V, S>
-{
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {

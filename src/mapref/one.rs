@@ -6,16 +6,10 @@ use std::ops::{Deref, DerefMut};
 
 // -- Shared
 
-pub struct Ref<'a, K: Eq + Hash, V, S: BuildHasher = FxBuildHasher> {
+pub struct Ref<'a, K, V, S = FxBuildHasher> {
     _guard: RwLockReadGuard<'a, HashMap<K, V, S>>,
     k: &'a K,
     v: &'a V,
-}
-
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for Ref<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
-    for Ref<'a, K, V, S>
-{
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
@@ -57,16 +51,10 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for Ref<'a, K, V, S> {
 
 // -- Unique
 
-pub struct RefMut<'a, K: Eq + Hash, V, S: BuildHasher = FxBuildHasher> {
+pub struct RefMut<'a, K, V, S = FxBuildHasher> {
     _guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
     k: &'a K,
     v: &'a mut V,
-}
-
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for RefMut<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
-    for RefMut<'a, K, V, S>
-{
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {

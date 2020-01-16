@@ -8,16 +8,10 @@ use std::sync::Arc;
 
 // -- Shared
 
-pub struct RefMulti<'a, K: Eq + Hash, V, S: BuildHasher = FxBuildHasher> {
+pub struct RefMulti<'a, K, V, S = FxBuildHasher> {
     _guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
     k: &'a K,
     v: &'a V,
-}
-
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for RefMulti<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
-    for RefMulti<'a, K, V, S>
-{
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMulti<'a, K, V, S> {
@@ -63,16 +57,10 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMulti<'a, K, V, S> {
 
 // -- Unique
 
-pub struct RefMutMulti<'a, K: Eq + Hash, V, S: BuildHasher = FxBuildHasher> {
+pub struct RefMutMulti<'a, K, V, S = FxBuildHasher> {
     _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
     k: &'a K,
     v: &'a mut V,
-}
-
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for RefMutMulti<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
-    for RefMutMulti<'a, K, V, S>
-{
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
