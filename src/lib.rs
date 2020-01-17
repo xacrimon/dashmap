@@ -59,6 +59,21 @@ pub struct DashMap<K, V, S = FxBuildHasher> {
     hasher: S,
 }
 
+impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
+    fn clone(&self) -> Self {
+        let mut inner_shards = Vec::new();
+        for shard in self.shards.iter() {
+            let shard = shard.read();
+            inner_shards.push(RwLock::new((*shard).clone()));
+        }
+        Self {
+            ncb: self.ncb,
+            shards: inner_shards.into_boxed_slice(),
+            hasher: self.hasher.clone(),
+        }
+    }
+}
+
 impl<K, V> Default for DashMap<K, V>
 where
     K: Eq + Hash,

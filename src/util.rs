@@ -40,17 +40,26 @@ pub unsafe fn change_lifetime_mut<'a, 'b, T>(x: &'a mut T) -> &'b mut T {
 }
 
 /// A simple wrapper around `T`
-/// 
+///
 /// This is to prevent UB when using `HashMap::get_key_value`, because
 /// `HashMap` doesn't expose an api to get the key and value, where
 /// the value is a `&mut T`.
-/// 
+///
 /// See [#10](https://github.com/xacrimon/dashmap/issues/10) for details
-/// 
+///
 /// This type is meant to be an implementation detail, but must be exposed due to the `Dashmap::shards`
 #[repr(transparent)]
 pub struct SharedValue<T> {
     value: UnsafeCell<T>,
+}
+
+impl<T: Clone> Clone for SharedValue<T> {
+    fn clone(&self) -> Self {
+        let inner = self.get().clone();
+        Self {
+            value: UnsafeCell::new(inner),
+        }
+    }
 }
 
 unsafe impl<T: Send> Send for SharedValue<T> {}
