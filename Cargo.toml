@@ -43,7 +43,7 @@ name = "cht"
 harness = false
 
 [dependencies]
-spin = "0.5.2"
+qadapt-spin = "1.0.1"
 num_cpus = "1.11.1"
 fxhash = "0.2.1"
 serde = { version = "1.0.104", optional = true, features = ["derive"] }

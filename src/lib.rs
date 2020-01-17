@@ -1,6 +1,6 @@
 #![allow(clippy::type_complexity)]
 
-extern crate spin as parking_lot;
+extern crate qadapt_spin as parking_lot;
 
 pub mod iter;
 pub mod mapref;
