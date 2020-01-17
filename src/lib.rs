@@ -53,11 +53,7 @@ fn ncb(shard_amount: usize) -> usize {
 /// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V>>`.
 /// To accomplish these all methods take `&self` instead modifying methods taking `&mut self`.
 /// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
-pub struct DashMap<K, V, S = FxBuildHasher>
-where
-    K: Eq + Hash,
-    S: BuildHasher + Clone,
-{
+pub struct DashMap<K, V, S = FxBuildHasher> {
     ncb: usize,
     shards: Box<[RwLock<HashMap<K, V, S>>]>,
     hasher: S,
