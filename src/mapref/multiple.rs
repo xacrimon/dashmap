@@ -1,5 +1,5 @@
 use crate::HashMap;
-use fxhash::FxBuildHasher;
+use ahash::RandomState;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::BuildHasher;
 use std::hash::Hash;
@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 // -- Shared
 
-pub struct RefMulti<'a, K, V, S = FxBuildHasher> {
+pub struct RefMulti<'a, K, V, S = RandomState> {
     _guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
     k: &'a K,
     v: &'a V,
@@ -63,7 +63,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMulti<'a, K, V, S> {
 
 // -- Unique
 
-pub struct RefMutMulti<'a, K, V, S = FxBuildHasher> {
+pub struct RefMutMulti<'a, K, V, S = RandomState> {
     _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
     k: &'a K,
     v: &'a mut V,

@@ -10,8 +10,8 @@ mod util;
 #[cfg(feature = "serde")]
 mod serde;
 
+use ahash::RandomState;
 use cfg_if::cfg_if;
-use fxhash::FxBuildHasher;
 use iter::{Iter, IterMut};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
@@ -53,8 +53,8 @@ fn ncb(shard_amount: usize) -> usize {
 /// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V>>`.
 /// To accomplish these all methods take `&self` instead modifying methods taking `&mut self`.
 /// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
-pub struct DashMap<K, V, S = FxBuildHasher> {
-    ncb: usize,
+pub struct DashMap<K, V, S = RandomState> {
+    shift: usize,
     shards: Box<[RwLock<HashMap<K, V, S>>]>,
     hasher: S,
 }
@@ -67,7 +67,7 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
             inner_shards.push(RwLock::new((*shard).clone()));
         }
         Self {
-            ncb: self.ncb,
+            shift: self.shift,
             shards: inner_shards.into_boxed_slice(),
             hasher: self.hasher.clone(),
         }
@@ -83,7 +83,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, FxBuildHasher> {
+impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     /// Creates a new DashMap with a capacity of 0.
     ///
     /// # Examples
@@ -96,7 +96,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, FxBuildHasher> {
     /// ```
     #[inline]
     pub fn new() -> Self {
-        DashMap::with_hasher(FxBuildHasher::default())
+        DashMap::with_hasher(RandomState::default())
     }
 
     /// Creates a new DashMap with a specified starting capacity.
@@ -112,7 +112,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, FxBuildHasher> {
     /// ```
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
-        DashMap::with_capacity_and_hasher(capacity, FxBuildHasher::default())
+        DashMap::with_capacity_and_hasher(capacity, RandomState::default())
     }
 }
 
@@ -132,12 +132,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     #[inline]
     pub fn with_hasher(hasher: S) -> Self {
         let shard_amount = shard_amount();
+        let shift = util::ptr_size_bits() - ncb(shard_amount);
         let shards = (0..shard_amount)
             .map(|_| RwLock::new(HashMap::with_hasher(hasher.clone())))
             .collect();
 
         Self {
-            ncb: ncb(shard_amount),
+            shift,
             shards,
             hasher,
         }
@@ -159,13 +160,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     #[inline]
     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         let shard_amount = shard_amount();
+        let shift = util::ptr_size_bits() - ncb(shard_amount);
         let cps = capacity / shard_amount;
         let shards = (0..shard_amount)
             .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, hasher.clone())))
             .collect();
 
         Self {
-            ncb: ncb(shard_amount),
+            shift,
             shards,
             hasher,
         }
@@ -232,9 +234,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
                 Q: Hash + Eq + ?Sized,
             {
                 let hash = self.hash_usize(&key);
-                let shift = util::ptr_size_bits() - self.ncb;
 
-                (hash >> shift)
+                (hash >> self.shift)
             }
         } else {
             #[inline]
@@ -244,9 +245,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
                 Q: Hash + Eq + ?Sized,
             {
                 let hash = self.hash_usize(&key);
-                let shift = util::ptr_size_bits() - self.ncb;
 
-                (hash >> shift)
+                (hash >> self.shift)
             }
         }
     }
@@ -756,7 +756,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Extend<(K, V)> for DashMap<K, V, S
     }
 }
 
-impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V, FxBuildHasher> {
+impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V, RandomState> {
     fn from_iter<I: IntoIterator<Item = (K, V)>>(intoiter: I) -> Self {
         let mut map = DashMap::new();
         map.extend(intoiter);
