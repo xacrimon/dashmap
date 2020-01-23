@@ -1,12 +1,12 @@
 use crate::HashMap;
-use fxhash::FxBuildHasher;
+use ahash::RandomState;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::{BuildHasher, Hash};
 use std::ops::{Deref, DerefMut};
 
 // -- Shared
 
-pub struct Ref<'a, K, V, S = FxBuildHasher> {
+pub struct Ref<'a, K, V, S = RandomState> {
     _guard: RwLockReadGuard<'a, HashMap<K, V, S>>,
     k: &'a K,
     v: &'a V,
@@ -57,7 +57,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for Ref<'a, K, V, S> {
 
 // -- Unique
 
-pub struct RefMut<'a, K, V, S = FxBuildHasher> {
+pub struct RefMut<'a, K, V, S = RandomState> {
     _guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
     k: &'a K,
     v: &'a mut V,

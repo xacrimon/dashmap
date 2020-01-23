@@ -10,8 +10,8 @@ mod util;
 #[cfg(feature = "serde")]
 mod serde;
 
+use ahash::RandomState;
 use cfg_if::cfg_if;
-use fxhash::FxBuildHasher;
 use iter::{Iter, IterMut};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
@@ -53,7 +53,7 @@ fn ncb(shard_amount: usize) -> usize {
 /// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V>>`.
 /// To accomplish these all methods take `&self` instead modifying methods taking `&mut self`.
 /// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
-pub struct DashMap<K, V, S = FxBuildHasher> {
+pub struct DashMap<K, V, S = RandomState> {
     ncb: usize,
     shards: Box<[RwLock<HashMap<K, V, S>>]>,
     hasher: S,
@@ -83,7 +83,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, FxBuildHasher> {
+impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     /// Creates a new DashMap with a capacity of 0.
     ///
     /// # Examples
@@ -96,7 +96,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, FxBuildHasher> {
     /// ```
     #[inline]
     pub fn new() -> Self {
-        DashMap::with_hasher(FxBuildHasher::default())
+        DashMap::with_hasher(RandomState::default())
     }
 
     /// Creates a new DashMap with a specified starting capacity.
@@ -112,7 +112,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, FxBuildHasher> {
     /// ```
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
-        DashMap::with_capacity_and_hasher(capacity, FxBuildHasher::default())
+        DashMap::with_capacity_and_hasher(capacity, RandomState::default())
     }
 }
 
@@ -756,7 +756,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Extend<(K, V)> for DashMap<K, V, S
     }
 }
 
-impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V, FxBuildHasher> {
+impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V, RandomState> {
     fn from_iter<I: IntoIterator<Item = (K, V)>>(intoiter: I) -> Self {
         let mut map = DashMap::new();
         map.extend(intoiter);
