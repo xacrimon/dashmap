@@ -12,41 +12,10 @@ documentation = "https://docs.rs/dashmap"
 keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
-[features]
-default = []
-raw-api = []
-no_std = ["hashbrown"]
-
-[dev-dependencies]
-criterion = "0.3.2"
-rayon = "1.3.0"
-chashmap = "2.2.2"
-contrie = "0.1.4"
-cht = "0.4.1"
-fxhash = "0.2.1"
-
-[[bench]]
-name = "rwlock_std"
-harness = false
-
-[[bench]]
-name = "dashmap"
-harness = false
-
-[[bench]]
-name = "chashmap"
-harness = false
-
-[[bench]]
-name = "contrie"
-harness = false
-
 [dependencies]
-num_cpus = "1.13.0"
-ahash = "0.3.5"
-serde = { version = "1.0.110", optional = true, features = ["derive"] }
-cfg-if = "0.1.10"
-hashbrown = { version = "0.7.2", optional = true }
+crossbeam-epoch = "0.8.0"
+qadapt-spin = "1.0.1"
+rustc-hash = "1.0.1"
 
 [package.metadata.docs.rs]
 features = ["raw-api"]
