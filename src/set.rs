@@ -114,6 +114,84 @@ impl<'a, T: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<T, S> {
     {
         self.map.contains_key(value)
     }
+
+    /// Returns how many values the set can store without reallocating.
+    pub fn capacity(&self) -> usize {
+        self.map.capacity()
+    }
+
+    /// Fetches the total amount of values stored in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::set::DashSet;
+    ///
+    /// let people = DashSet::new();
+    /// people.insert("Albin");
+    /// people.insert("Jones");
+    /// people.insert("Charlie");
+    /// assert_eq!(people.len(), 3);
+    /// ```
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    /// Checks if the set is empty or not.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::set::DashSet;
+    ///
+    /// let s = DashSet::<()>::new();
+    /// assert!(s.is_empty());
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
+    /// Removes all values in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::set::DashSet;
+    ///
+    /// let stats = DashSet::new();
+    /// stats.insert("Goals");
+    /// assert!(!stats.is_empty());
+    /// stats.clear();
+    /// assert!(stats.is_empty());
+    /// ```
+    pub fn clear(&self) {
+        self.map.clear()
+    }
+
+    /// Remove excess capacity to reduce memory usage.
+    pub fn shrink_to_fit(&self) {
+        self.map.shrink_to_fit();
+    }
+
+    /// Removes an entry from the set, returning the true if it existed in the set.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::set::DashSet;
+    ///
+    /// let soccer_team = DashSet::with_capacity(2);
+    /// soccer_team.insert("Jack");
+    /// assert!(soccer_team.remove("Jack"));
+    /// assert!(!soccer_team.remove("Jill"));
+    /// ```
+    pub fn remove<Q: ?Sized>(&self, value: &Q) -> bool
+    where
+        T: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.map.remove(value).is_some()
+    }
 }
 
 #[cfg(test)]
