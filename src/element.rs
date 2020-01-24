@@ -1,7 +1,7 @@
+use crossbeam_epoch::Guard;
 use spin::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::cell::UnsafeCell;
 use std::ops::{Deref, DerefMut};
-use crossbeam_epoch::Guard;
 
 pub struct Element<K, V> {
     pub lock: RwLock<()>,
