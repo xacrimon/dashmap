@@ -6,6 +6,7 @@ use std::iter;
 use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::cmp;
 
 const PTR_SIZE_BITS: usize = mem::size_of::<usize>() * 8;
 const REDIRECT_TAG: usize = 5;
@@ -40,7 +41,7 @@ pub struct BucketArray<K, V, S> {
 
 impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     pub fn new(capacity: usize, hash_builder: Arc<S>) -> Self {
-        let remaining_cells = AtomicUsize::new(capacity * 3 / 4);
+        let remaining_cells = AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity));
         let shift = make_shift(capacity);
         let buckets = make_buckets(capacity);
 
