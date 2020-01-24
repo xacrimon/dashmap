@@ -1,7 +1,7 @@
 use super::element::*;
-use crossbeam_epoch::{Atomic, Owned, Shared, Guard};
-use std::sync::atomic::{Ordering, AtomicUsize};
+use crossbeam_epoch::{Atomic, Guard, Owned, Shared};
 use std::hash::BuildHasher;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 pub struct BucketArray<K, V, S> {
