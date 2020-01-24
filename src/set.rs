@@ -23,13 +23,65 @@ impl<'a, T: 'a + Eq + Hash> DashSet<T, RandomState> {
     /// games.insert("Veloren");
     /// ```
     pub fn new() -> Self {
-        Self {
-            map: DashMap::with_hasher(RandomState::default()),
-        }
+        DashSet::with_hasher(RandomState::default())
+    }
+
+    /// Creates a new DashSet with a specified starting capacity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::set::DashSet;
+    ///
+    /// let ds = DashSet::with_capacity(2);
+    /// ds.insert(2);
+    /// ds.insert(4);
+    /// ```
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        DashSet::with_capacity_and_hasher(capacity, RandomState::default())
     }
 }
 
 impl<'a, T: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<T, S> {
+    /// Creates a new DashSet with a capacity of 0 and the provided hasher.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::set::DashSet;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let games = DashSet::with_hasher(s);
+    /// games.insert("Veloren");
+    /// ```
+    pub fn with_hasher(hasher: S) -> Self {
+        Self {
+            map: DashMap::with_hasher(hasher),
+        }
+    }
+
+    /// Creates a new DashSet with a specified starting capacity and hasher.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::set::DashSet;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let ds = DashSet::with_capacity_and_hasher(2, s);
+    /// ds.insert(2);
+    /// ds.insert(4);
+    /// ```
+    #[inline]
+    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+        Self {
+            map: DashMap::with_capacity_and_hasher(capacity, hasher),
+        }
+    }
+
     /// Inserts a value into the set.
     ///
     /// # Examples
