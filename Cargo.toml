@@ -14,8 +14,8 @@ categories = ["concurrency", "algorithms", "data-structures"]
 
 [dependencies]
 crossbeam-epoch = "0.8.0"
-qadapt-spin = "1.0.1"
-rustc-hash = "1.0.1"
+spin = "0.5.2"
+fxhash = "0.2.1"
 
 [package.metadata.docs.rs]
 features = ["raw-api", "serde"]
