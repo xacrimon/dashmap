@@ -1,12 +1,12 @@
 use super::element::*;
 use crossbeam_epoch::{pin, Atomic, Guard, Owned, Shared};
 use std::borrow::Borrow;
+use std::cmp;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::iter;
 use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::cmp;
 
 const PTR_SIZE_BITS: usize = mem::size_of::<usize>() * 8;
 const REDIRECT_TAG: usize = 5;
@@ -54,6 +54,91 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
+    fn insert_node(&self, guard: &Guard, node: Owned<Element<K, V>>) {
+        if let Some(next) = self.get_next(guard) {
+            next.insert_node(guard, node);
+            return;
+        }
+
+        let mut idx = hash2idx(node.hash, self.shift);
+        let mut node = Some(node);
+        let remaining_b = self.remaining_cells.fetch_sub(1, Ordering::SeqCst);
+        debug_assert_ne!(remaining_b, 0);
+
+        loop {
+            let e_current = self.buckets[idx].load(Ordering::SeqCst, guard);
+            match e_current.tag() {
+                REDIRECT_TAG => {
+                    self.remaining_cells.fetch_add(1, Ordering::SeqCst);
+                    return self
+                        .get_next(guard)
+                        .unwrap()
+                        .insert_node(guard, node.take().unwrap());
+                }
+
+                TOMBSTONE_TAG => {
+                    match {
+                        self.buckets[idx].compare_and_set(
+                            e_current,
+                            node.take().unwrap(),
+                            Ordering::SeqCst,
+                            guard,
+                        )
+                    } {
+                        Ok(_) => return,
+                        Err(err) => {
+                            node = Some(err.new);
+                            continue;
+                        }
+                    }
+                }
+
+                _ => (),
+            }
+            if let Some(e_current_node) = unsafe { e_current.as_ref() } {
+                let nt = node.as_ref().unwrap();
+                if e_current_node.hash == nt.hash && e_current_node.key == nt.key {
+                    match {
+                        self.buckets[idx].compare_and_set(
+                            e_current,
+                            node.take().unwrap(),
+                            Ordering::SeqCst,
+                            guard,
+                        )
+                    } {
+                        Ok(_) => return,
+                        Err(err) => {
+                            node = Some(err.new);
+                            continue;
+                        }
+                    }
+                } else {
+                    idx = hash2idx(idx as u64 + 1, self.shift);
+                    continue;
+                }
+            } else {
+                match {
+                    self.buckets[idx].compare_and_set(
+                        e_current,
+                        node.take().unwrap(),
+                        Ordering::SeqCst,
+                        guard,
+                    )
+                } {
+                    Ok(_) => return,
+                    Err(err) => {
+                        node = Some(err.new);
+                        continue;
+                    }
+                }
+            }
+        }
+    }
+
+    fn try_grow(&self) -> bool {
+        unimplemented!()
+    }
+
     fn get_next<'a>(&self, guard: &'a Guard) -> Option<&'a Self> {
         unsafe { self.next.load(Ordering::SeqCst, guard).as_ref() }
     }
@@ -67,7 +152,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let mut idx = hash2idx(hash, self.shift);
 
         loop {
-            let shared = unsafe { self.buckets[idx].load(Ordering::SeqCst, guard) };
+            let shared = self.buckets[idx].load(Ordering::SeqCst, guard);
             match shared.tag() {
                 REDIRECT_TAG => {
                     return self.get_next(guard).unwrap().get_elem(guard, key);
