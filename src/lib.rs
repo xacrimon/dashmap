@@ -4,6 +4,7 @@ extern crate qadapt_spin as parking_lot;
 
 pub mod iter;
 pub mod mapref;
+pub mod set;
 mod t;
 mod util;
 
