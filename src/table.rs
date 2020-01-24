@@ -62,14 +62,11 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 
         let mut idx = hash2idx(node.hash, self.shift);
         let mut node = Some(node);
-        let remaining_b = self.remaining_cells.fetch_sub(1, Ordering::SeqCst);
-        debug_assert_ne!(remaining_b, 0);
 
         loop {
             let e_current = self.buckets[idx].load(Ordering::SeqCst, guard);
             match e_current.tag() {
                 REDIRECT_TAG => {
-                    self.remaining_cells.fetch_add(1, Ordering::SeqCst);
                     return self
                         .get_next(guard)
                         .unwrap()
