@@ -205,7 +205,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         } else {
             #[allow(dead_code)]
             #[inline]
-            fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
+            pub(crate) fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
                 &self.shards
             }
         }

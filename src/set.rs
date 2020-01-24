@@ -192,6 +192,28 @@ impl<'a, T: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<T, S> {
     {
         self.map.remove(value).is_some()
     }
+
+    /// Retain elements that whose predicates return true
+    /// and discard elements whose predicates return false.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::set::DashSet;
+    ///
+    /// let ages = DashSet::new();
+    /// ages.insert(15);
+    /// ages.insert(22);
+    /// ages.insert(27);
+    /// ages.retain(|v| *v > 20);
+    /// assert_eq!(ages.len(), 2);
+    /// ```
+    pub fn retain(&self, mut f: impl FnMut(&T) -> bool) {
+        self.map
+            .shards()
+            .iter()
+            .for_each(|s| s.write().retain(|k, _v| f(k)));
+    }
 }
 
 #[cfg(test)]
