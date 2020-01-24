@@ -2,7 +2,7 @@
 
 Blazingly fast concurrent map in Rust.
 
-DashMap is an implementation of a concurrent associative array/hashmap in Rust.
+DashMap is an implementation of a concurrent associative array in Rust.
 
 DashMap tries to implement an easy to use API similar to `std::collections::HashMap`
 with some slight changes to handle concurrency.
