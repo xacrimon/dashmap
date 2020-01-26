@@ -31,6 +31,21 @@ fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
     hasher.finish()
 }
 
+macro_rules! cell_maybe_return {
+    ($e:expr) => {
+        return if $e.remaining_cells.fetch_sub(1, Ordering::SeqCst) == 1 {
+            InsertResult::Grow
+        } else {
+            InsertResult::None
+        };
+    };
+}
+
+enum InsertResult {
+    None,
+    Grow,
+}
+
 pub struct BucketArray<K, V, S> {
     remaining_cells: AtomicUsize,
     shift: usize,
@@ -54,10 +69,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn insert_node(&self, guard: &Guard, node: Owned<Element<K, V>>) {
+    fn insert_node(&self, guard: &Guard, node: Owned<Element<K, V>>) -> InsertResult {
         if let Some(next) = self.get_next(guard) {
-            next.insert_node(guard, node);
-            return;
+            return next.insert_node(guard, node);
         }
 
         let mut idx = hash2idx(node.hash, self.shift);
@@ -67,10 +81,11 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             let e_current = self.buckets[idx].load(Ordering::SeqCst, guard);
             match e_current.tag() {
                 REDIRECT_TAG => {
-                    return self
-                        .get_next(guard)
+                    self.get_next(guard)
                         .unwrap()
                         .insert_node(guard, node.take().unwrap());
+
+                    return InsertResult::None;
                 }
 
                 TOMBSTONE_TAG => {
@@ -82,7 +97,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                             guard,
                         )
                     } {
-                        Ok(_) => return,
+                        Ok(_) => cell_maybe_return!(self),
                         Err(err) => {
                             node = Some(err.new);
                             continue;
@@ -103,7 +118,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                             guard,
                         )
                     } {
-                        Ok(_) => return,
+                        Ok(_) => cell_maybe_return!(self),
                         Err(err) => {
                             node = Some(err.new);
                             continue;
@@ -122,7 +137,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         guard,
                     )
                 } {
-                    Ok(_) => return,
+                    Ok(_) => cell_maybe_return!(self),
                     Err(err) => {
                         node = Some(err.new);
                         continue;
