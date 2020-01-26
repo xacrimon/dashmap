@@ -55,7 +55,7 @@ pub struct BucketArray<K, V, S> {
 }
 
 impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
-    pub fn new(capacity: usize, hash_builder: Arc<S>) -> Self {
+    fn new(capacity: usize, hash_builder: Arc<S>) -> Self {
         let remaining_cells = AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity));
         let shift = make_shift(capacity);
         let buckets = make_buckets(capacity);
@@ -189,7 +189,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    pub fn get<'a, Q>(&'a self, guard: &'a Guard, key: &Q) -> Option<ElementReadGuard<'a, K, V>>
+    fn get<'a, Q>(&'a self, guard: &'a Guard, key: &Q) -> Option<ElementReadGuard<'a, K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -197,7 +197,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         self.get_elem(guard, key).map(|e| e.read(pin()))
     }
 
-    pub fn get_mut<'a, Q>(
+    fn get_mut<'a, Q>(
         &'a self,
         guard: &'a Guard,
         key: &Q,
