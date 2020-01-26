@@ -69,6 +69,15 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
+    fn remove<Q>(&self, guard: &Guard, key: &Q)
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        let hash = do_hash(&*self.hash_builder, key);
+        let mut idx = hash2idx(hash, self.shift);
+    }
+
     fn insert_node(&self, guard: &Guard, node: Owned<Element<K, V>>) -> InsertResult {
         if let Some(next) = self.get_next(guard) {
             return next.insert_node(guard, node);
@@ -147,7 +156,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn try_grow(&self) -> bool {
+    fn grow(&self) {
         unimplemented!()
     }
 
@@ -167,7 +176,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             let shared = self.buckets[idx].load(Ordering::SeqCst, guard);
             match shared.tag() {
                 REDIRECT_TAG => {
-                    return self.get_next(guard).unwrap().get_elem(guard, key);
+                    if let Some(elem) = self.get_next(guard).unwrap().get_elem(guard, key) {
+                        return Some(elem);
+                    } else {
+                        idx = hash2idx(idx as u64 + 1, self.shift);
+                        continue;
+                    }
                 }
 
                 TOMBSTONE_TAG => {
