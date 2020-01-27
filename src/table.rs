@@ -193,6 +193,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     Ordering::SeqCst,
                     guard,
                 ) {
+                    self.remaining_cells.fetch_add(1, Ordering::SeqCst);
                     return true;
                 } else {
                     continue;
