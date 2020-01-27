@@ -69,15 +69,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn remove<Q>(&self, guard: &Guard, key: &Q)
-    where
-        K: Borrow<Q>,
-        Q: ?Sized + Eq + Hash,
-    {
-        let hash = do_hash(&*self.hash_builder, key);
-        let mut idx = hash2idx(hash, self.shift);
-    }
-
     fn insert_node(&self, guard: &Guard, node: Owned<Element<K, V>>) -> InsertResult {
         if let Some(next) = self.get_next(guard) {
             return next.insert_node(guard, node);
@@ -164,6 +155,54 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         unsafe { self.next.load(Ordering::SeqCst, guard).as_ref() }
     }
 
+    fn remove<Q>(&self, guard: &Guard, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        let hash = do_hash(&*self.hash_builder, key);
+        let mut idx = hash2idx(hash, self.shift);
+
+        loop {
+            let shared = self.buckets[idx].load(Ordering::SeqCst, guard);
+            match shared.tag() {
+                REDIRECT_TAG => {
+                    if self.get_next(guard).unwrap().remove(guard, key) {
+                        return true;
+                    } else {
+                        idx = hash2idx(idx as u64 + 1, self.shift);
+                        continue;
+                    }
+                }
+
+                TOMBSTONE_TAG => {
+                    idx = hash2idx(idx as u64 + 1, self.shift);
+                    continue;
+                }
+
+                _ => (),
+            }
+            if shared.is_null() {
+                return false;
+            }
+            let elem = unsafe { shared.as_ref().unwrap() };
+            if hash == elem.hash && key == elem.key.borrow() {
+                if let Ok(_) = self.buckets[idx].compare_and_set(
+                    shared,
+                    Shared::null(),
+                    Ordering::SeqCst,
+                    guard,
+                ) {
+                    return true;
+                } else {
+                    continue;
+                }
+            } else {
+                idx = hash2idx(idx as u64 + 1, self.shift);
+            }
+        }
+    }
+
     fn get_elem<'a, Q>(&'a self, guard: &'a Guard, key: &Q) -> Option<&'a Element<K, V>>
     where
         K: Borrow<Q>,
@@ -211,11 +250,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         self.get_elem(guard, key).map(|e| e.read(pin()))
     }
 
-    fn get_mut<'a, Q>(
-        &'a self,
-        guard: &'a Guard,
-        key: &Q,
-    ) -> Option<ElementWriteGuard<'a, K, V>>
+    fn get_mut<'a, Q>(&'a self, guard: &'a Guard, key: &Q) -> Option<ElementWriteGuard<'a, K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
