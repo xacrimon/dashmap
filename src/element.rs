@@ -44,10 +44,24 @@ impl<K, V> Element<K, V> {
 }
 
 pub struct ElementReadGuard<'a, K, V> {
-    pub _lock_guard: RwLockReadGuard<'a, ()>,
-    pub _mem_guard: Guard,
-    pub key: &'a K,
-    pub value: &'a V,
+    _lock_guard: RwLockReadGuard<'a, ()>,
+    _mem_guard: Guard,
+    key: &'a K,
+    value: &'a V,
+}
+
+impl<'a, K, V> ElementReadGuard<'a, K, V> {
+    pub fn pair(&self) -> (&K, &V) {
+        (self.key, self.value)
+    }
+
+    pub fn key(&self) -> &K {
+        self.pair().0
+    }
+
+    pub fn value(&self) -> &V {
+        self.pair().1
+    }
 }
 
 impl<'a, K, V> Deref for ElementReadGuard<'a, K, V> {
@@ -59,10 +73,32 @@ impl<'a, K, V> Deref for ElementReadGuard<'a, K, V> {
 }
 
 pub struct ElementWriteGuard<'a, K, V> {
-    pub _lock_guard: RwLockWriteGuard<'a, ()>,
-    pub _mem_guard: Guard,
-    pub key: &'a K,
-    pub value: &'a mut V,
+    _lock_guard: RwLockWriteGuard<'a, ()>,
+    _mem_guard: Guard,
+    key: &'a K,
+    value: &'a mut V,
+}
+
+impl<'a, K, V> ElementWriteGuard<'a, K, V> {
+    pub fn pair(&self) -> (&K, &V) {
+        (self.key, self.value)
+    }
+
+    pub fn key(&self) -> &K {
+        self.pair().0
+    }
+
+    pub fn value(&self) -> &V {
+        self.pair().1
+    }
+
+    pub fn pair_mut(&mut self) -> (&K, &mut V) {
+        (self.key, self.value)
+    }
+
+    pub fn value_mut(&mut self) -> &mut V {
+        self.pair_mut().1
+    }
 }
 
 impl<'a, K, V> Deref for ElementWriteGuard<'a, K, V> {
