@@ -68,7 +68,7 @@ impl<'a, K, V> Deref for ElementReadGuard<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &Self::Target {
-        &self.value
+        self.value
     }
 }
 
@@ -105,12 +105,12 @@ impl<'a, K, V> Deref for ElementWriteGuard<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &Self::Target {
-        &self.value
+        self.value
     }
 }
 
 impl<'a, K, V> DerefMut for ElementWriteGuard<'a, K, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.value
+        self.value
     }
 }
