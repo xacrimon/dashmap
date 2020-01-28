@@ -333,9 +333,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         unsafe { self.root.load(Ordering::SeqCst, guard).deref() }
     }
 
-    pub fn insert(&self, key: K, value: V) {
+    pub fn insert(&self, key: K, hash: u64, value: V) {
         let guard = pin();
-        let hash = do_hash(&*self.hash_builder, &key);
         let node = Owned::new(Element::new(key, hash, value)).into_shared(&guard);
         let root = self.root(&guard);
         if let Some(new_root) = root.insert_node(&guard, node) {
