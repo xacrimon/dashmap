@@ -32,11 +32,11 @@ fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
 }
 
 macro_rules! cell_maybe_return {
-    ($e:expr) => {
-        return if $e.remaining_cells.fetch_sub(1, Ordering::SeqCst) == 1 {
-            InsertResult::Grow
+    ($s:expr, $g:expr) => {
+        return if $s.remaining_cells.fetch_sub(1, Ordering::SeqCst) == 1 {
+            $s.grow($g)
         } else {
-            InsertResult::None
+            None
         };
     };
 }
@@ -69,12 +69,18 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn insert_node(&self, guard: &Guard, node: Owned<Element<K, V>>) -> InsertResult {
+    fn insert_node<'a>(
+        &self,
+        guard: &'a Guard,
+        node: Shared<Element<K, V>>,
+    ) -> Option<Shared<'a, Self>> {
         if let Some(next) = self.get_next(guard) {
             return next.insert_node(guard, node);
         }
 
-        let mut idx = hash2idx(node.hash, self.shift);
+        let inner = unsafe { node.deref() };
+
+        let mut idx = hash2idx(inner.hash, self.shift);
         let mut node = Some(node);
 
         loop {
@@ -85,7 +91,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         .unwrap()
                         .insert_node(guard, node.take().unwrap());
 
-                    return InsertResult::None;
+                    return None;
                 }
 
                 TOMBSTONE_TAG => {
@@ -97,7 +103,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                             guard,
                         )
                     } {
-                        Ok(_) => cell_maybe_return!(self),
+                        Ok(_) => cell_maybe_return!(self, guard),
                         Err(err) => {
                             node = Some(err.new);
                             continue;
@@ -108,8 +114,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 _ => (),
             }
             if let Some(e_current_node) = unsafe { e_current.as_ref() } {
-                let nt = node.as_ref().unwrap();
-                if e_current_node.hash == nt.hash && e_current_node.key == nt.key {
+                if e_current_node.hash == inner.hash && e_current_node.key == inner.key {
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
@@ -118,7 +123,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                             guard,
                         )
                     } {
-                        Ok(_) => cell_maybe_return!(self),
+                        Ok(_) => cell_maybe_return!(self, guard),
                         Err(err) => {
                             node = Some(err.new);
                             continue;
@@ -137,7 +142,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         guard,
                     )
                 } {
-                    Ok(_) => cell_maybe_return!(self),
+                    Ok(_) => cell_maybe_return!(self, guard),
                     Err(err) => {
                         node = Some(err.new);
                         continue;
@@ -147,8 +152,44 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn grow(&self) {
-        unimplemented!()
+    fn grow<'a>(&self, guard: &'a Guard) -> Option<Shared<'a, Self>> {
+        let shared = self.next.load(Ordering::SeqCst, guard);
+
+        if unsafe { shared.as_ref().is_some() } {
+            return None;
+        }
+
+        let new_cap = self.buckets.len() * 2;
+        let new = Owned::new(Self::new(new_cap, self.hash_builder.clone())).into_shared(guard);
+        let new_i = unsafe { new.deref() };
+
+        if let Err(_) = self
+            .next
+            .compare_and_set(shared, new, Ordering::SeqCst, guard)
+        {
+            return None;
+        }
+
+        for atomic in &*self.buckets {
+            loop {
+                let maybe_node = atomic.load(Ordering::SeqCst, guard);
+                if atomic
+                    .compare_and_set(
+                        maybe_node,
+                        maybe_node.with_tag(REDIRECT_TAG),
+                        Ordering::SeqCst,
+                        guard,
+                    )
+                    .is_err()
+                {
+                    continue;
+                }
+                new_i.insert_node(guard, maybe_node);
+                break;
+            }
+        }
+
+        Some(new)
     }
 
     fn get_next<'a>(&self, guard: &'a Guard) -> Option<&'a Self> {
@@ -189,7 +230,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             if hash == elem.hash && key == elem.key.borrow() {
                 if let Ok(_) = self.buckets[idx].compare_and_set(
                     shared,
-                    Shared::null(),
+                    Shared::null().with_tag(TOMBSTONE_TAG),
                     Ordering::SeqCst,
                     guard,
                 ) {
@@ -209,6 +250,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
+        if let Some(Some(elem)) = self.get_next(guard).map(|a| a.get_elem(guard, key)) {
+            return Some(elem);
+        }
+
         let hash = do_hash(&*self.hash_builder, key);
         let mut idx = hash2idx(hash, self.shift);
 
