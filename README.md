@@ -49,7 +49,7 @@ This is one of infinite possible configations. It doesn't speak for how it will 
 
 [![Foo](https://c5.patreon.com/external/logo/become_a_patron_button@2x.png)](https://patreon.com/acrimon)
 
-Creating and testing open-source software like DashMap isn't free.
+Creating and testing open-source software like DashMap isn't free due to things like test servers.
 If you want to support me please head over and take a look at my [patreon](https://www.patreon.com/acrimon).
 
 ## Special thanks
