@@ -31,6 +31,13 @@ Do not hesitate to open issues or PR's.
 
 I will take a look as soon as I have time for it.
 
+## Support
+
+[![Foo](https://c5.patreon.com/external/logo/become_a_patron_button@2x.png)](https://patreon.com/acrimon)
+
+Creating and testing open-source software like DashMap isn't free.
+If you want to support me please head over and take a look at my [patreon](https://www.patreon.com/acrimon).
+
 ## Performance
 
 Benchmarks are currently not fantastic and can be improved and more can be created.
