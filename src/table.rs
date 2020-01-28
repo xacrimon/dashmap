@@ -41,6 +41,12 @@ macro_rules! cell_maybe_return {
     };
 }
 
+macro_rules! incr_idx {
+    ($s:expr, $i:ident) => {
+        $i = hash2idx($i as u64 + 1, $s.shift);
+    }
+}
+
 enum InsertResult {
     None,
     Grow,
@@ -130,7 +136,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         }
                     }
                 } else {
-                    idx = hash2idx(idx as u64 + 1, self.shift);
+                    incr_idx!(self, idx);
                     continue;
                 }
             } else {
@@ -211,13 +217,13 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     if self.get_next(guard).unwrap().remove(guard, key) {
                         return true;
                     } else {
-                        idx = hash2idx(idx as u64 + 1, self.shift);
+                        incr_idx!(self, idx);
                         continue;
                     }
                 }
 
                 TOMBSTONE_TAG => {
-                    idx = hash2idx(idx as u64 + 1, self.shift);
+                    incr_idx!(self, idx);
                     continue;
                 }
 
@@ -240,7 +246,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     continue;
                 }
             } else {
-                idx = hash2idx(idx as u64 + 1, self.shift);
+                incr_idx!(self, idx);
             }
         }
     }
@@ -264,13 +270,13 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     if let Some(elem) = self.get_next(guard).unwrap().get_elem(guard, key) {
                         return Some(elem);
                     } else {
-                        idx = hash2idx(idx as u64 + 1, self.shift);
+                        incr_idx!(self, idx);
                         continue;
                     }
                 }
 
                 TOMBSTONE_TAG => {
-                    idx = hash2idx(idx as u64 + 1, self.shift);
+                    incr_idx!(self, idx);
                     continue;
                 }
 
@@ -283,7 +289,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             if hash == elem.hash && key == elem.key.borrow() {
                 return Some(elem);
             } else {
-                idx = hash2idx(idx as u64 + 1, self.shift);
+                incr_idx!(self, idx);
             }
         }
     }
@@ -303,4 +309,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     {
         self.get_elem(guard, key).map(|e| e.write(pin()))
     }
+}
+
+pub struct Table<K, V, S> {
+    root: Atomic<BucketArray<K, V, S>>,
 }
