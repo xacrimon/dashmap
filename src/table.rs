@@ -373,3 +373,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         self.root(&guard).remove(&guard, key);
     }
 }
+
+unsafe impl<K: Send, V: Send, S: Send> Send for Table<K, V, S> {}
+unsafe impl<K: Sync, V: Sync, S: Sync> Sync for Table<K, V, S> {}
