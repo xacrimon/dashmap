@@ -44,7 +44,7 @@ macro_rules! cell_maybe_return {
 macro_rules! incr_idx {
     ($s:expr, $i:ident) => {
         $i = hash2idx($i as u64 + 1, $s.shift);
-    }
+    };
 }
 
 enum InsertResult {
@@ -241,6 +241,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     guard,
                 ) {
                     self.remaining_cells.fetch_add(1, Ordering::SeqCst);
+                    unsafe {
+                        guard.defer_destroy(shared);
+                    }
                     return true;
                 } else {
                     continue;
@@ -312,5 +315,58 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 }
 
 pub struct Table<K, V, S> {
+    hash_builder: Arc<S>,
     root: Atomic<BucketArray<K, V, S>>,
+}
+
+impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
+    pub fn new(capacity: usize, hash_builder: Arc<S>) -> Self {
+        let root = Atomic::new(BucketArray::new(capacity, hash_builder.clone()));
+        Self { hash_builder, root }
+    }
+
+    fn root<'a>(&self, guard: &'a Guard) -> &'a BucketArray<K, V, S> {
+        unsafe { self.root.load(Ordering::SeqCst, guard).deref() }
+    }
+
+    pub fn insert(&self, key: K, value: V) {
+        let guard = pin();
+        let hash = do_hash(&*self.hash_builder, &key);
+        let node = Owned::new(Element::new(key, hash, value)).into_shared(&guard);
+        let root = self.root(&guard);
+        if let Some(new_root) = root.insert_node(&guard, node) {
+            self.root.store(new_root, Ordering::SeqCst);
+            unsafe {
+                let prev_shared: Shared<'_, BucketArray<K, V, S>> = mem::transmute(root);
+                guard.defer_destroy(prev_shared);
+            }
+        }
+    }
+
+    pub fn get<'a, Q>(&'a self, key: &Q) -> Option<ElementReadGuard<'a, K, V>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        let guard = pin();
+        unsafe { mem::transmute(self.root(&guard).get(&guard, key)) }
+    }
+
+    pub fn get_mut<'a, Q>(&'a self, key: &Q) -> Option<ElementWriteGuard<'a, K, V>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        let guard = pin();
+        unsafe { mem::transmute(self.root(&guard).get_mut(&guard, key)) }
+    }
+
+    pub fn remove<'a, Q>(&'a self, key: &Q)
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        let guard = pin();
+        self.root(&guard).remove(&guard, key);
+    }
 }
