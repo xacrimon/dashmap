@@ -20,7 +20,7 @@ impl<K, V> Element<K, V> {
         }
     }
 
-    pub fn read<'a>(&'a self, guard: Guard) -> ElementReadGuard<'a, K, V> {
+    pub fn read(&self, guard: Guard) -> ElementReadGuard<'_, K, V> {
         unsafe {
             ElementReadGuard {
                 _lock_guard: self.lock.read(),
@@ -31,7 +31,7 @@ impl<K, V> Element<K, V> {
         }
     }
 
-    pub fn write<'a>(&'a self, guard: Guard) -> ElementWriteGuard<'a, K, V> {
+    pub fn write(&self, guard: Guard) -> ElementWriteGuard<'_, K, V> {
         unsafe {
             ElementWriteGuard {
                 _lock_guard: self.lock.write(),

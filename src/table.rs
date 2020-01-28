@@ -169,9 +169,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let new = Owned::new(Self::new(new_cap, self.hash_builder.clone())).into_shared(guard);
         let new_i = unsafe { new.deref() };
 
-        if let Err(_) = self
+        if self
             .next
             .compare_and_set(shared, new, Ordering::SeqCst, guard)
+            .is_err()
         {
             return None;
         }
@@ -234,12 +235,15 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             }
             let elem = unsafe { shared.as_ref().unwrap() };
             if hash == elem.hash && key == elem.key.borrow() {
-                if let Ok(_) = self.buckets[idx].compare_and_set(
-                    shared,
-                    Shared::null().with_tag(TOMBSTONE_TAG),
-                    Ordering::SeqCst,
-                    guard,
-                ) {
+                if self.buckets[idx]
+                    .compare_and_set(
+                        shared,
+                        Shared::null().with_tag(TOMBSTONE_TAG),
+                        Ordering::SeqCst,
+                        guard,
+                    )
+                    .is_ok()
+                {
                     self.remaining_cells.fetch_add(1, Ordering::SeqCst);
                     unsafe {
                         guard.defer_destroy(shared);
