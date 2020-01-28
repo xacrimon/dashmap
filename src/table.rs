@@ -12,7 +12,7 @@ const PTR_SIZE_BITS: usize = mem::size_of::<usize>() * 8;
 const REDIRECT_TAG: usize = 5;
 const TOMBSTONE_TAG: usize = 7;
 
-fn make_shift(x: usize) -> usize {
+pub fn make_shift(x: usize) -> usize {
     debug_assert!(x.is_power_of_two());
     PTR_SIZE_BITS - x.trailing_zeros() as usize
 }
@@ -21,11 +21,11 @@ fn make_buckets<K, V>(x: usize) -> Box<[Atomic<Element<K, V>>]> {
     iter::repeat(Atomic::null()).take(x).collect()
 }
 
-fn hash2idx(hash: u64, shift: usize) -> usize {
+pub fn hash2idx(hash: u64, shift: usize) -> usize {
     hash as usize >> shift
 }
 
-fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
+pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
     let mut hasher = f.build_hasher();
     i.hash(&mut hasher);
     hasher.finish()
