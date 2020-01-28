@@ -8,6 +8,7 @@ use table::{Table, make_shift, hash2idx, do_hash};
 use std::sync::Arc;
 use std::hash::{Hash, BuildHasher};
 use std::cmp;
+use crossbeam_epoch::pin;
 
 const TABLES_PER_MAP: usize = 1;
 
@@ -42,5 +43,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
             tables,
             h2i_shift,
         }
+    }
+
+    pub fn batch<T>(&self, f: impl FnOnce(&Self) -> T) -> T {
+        let guard = pin();
+        let r = f(self);
+        guard.defer(|| ());
+        r
     }
 }
