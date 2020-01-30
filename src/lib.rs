@@ -74,12 +74,13 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
     }
 }
 
-impl<K, V> Default for DashMap<K, V>
+impl<K, V, S> Default for DashMap<K, V, S>
 where
     K: Eq + Hash,
+    S: Default,
 {
     fn default() -> Self {
-        Self::new()
+        Self::with_hasher(Default::default())
     }
 }
 
