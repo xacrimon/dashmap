@@ -77,7 +77,7 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
 impl<K, V, S> Default for DashMap<K, V, S>
 where
     K: Eq + Hash,
-    S: Default,
+    S: Default + BuildHasher + Clone,
 {
     fn default() -> Self {
         Self::with_hasher(Default::default())
