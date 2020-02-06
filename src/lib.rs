@@ -2,6 +2,7 @@
 
 extern crate qadapt_spin as parking_lot;
 
+mod hasher;
 pub mod iter;
 pub mod mapref;
 mod t;
@@ -12,6 +13,7 @@ mod serde;
 
 use ahash::RandomState;
 use cfg_if::cfg_if;
+use hasher::{ShardBuildHasher, ShardKey};
 use iter::{Iter, IterMut};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
@@ -33,7 +35,7 @@ cfg_if! {
     }
 }
 
-type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
+type HashMap<K, V, S> = std::collections::HashMap<ShardKey<K>, SharedValue<V>, ShardBuildHasher<S>>;
 
 #[inline]
 fn shard_amount() -> usize {
@@ -50,7 +52,7 @@ fn ncb(shard_amount: usize) -> usize {
 /// DashMap tries to implement an easy to use API similar to `std::collections::HashMap`
 /// with some slight changes to handle concurrency.
 ///
-/// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V>>`.
+/// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V, S>>`.
 /// To accomplish these all methods take `&self` instead modifying methods taking `&mut self`.
 /// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
 pub struct DashMap<K, V, S = RandomState> {
@@ -135,7 +137,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         let shard_amount = shard_amount();
         let shift = util::ptr_size_bits() - ncb(shard_amount);
         let shards = (0..shard_amount)
-            .map(|_| RwLock::new(HashMap::with_hasher(hasher.clone())))
+            .map(|_| RwLock::new(HashMap::with_hasher(ShardBuildHasher::new())))
             .collect();
 
         Self {
@@ -164,7 +166,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         let shift = util::ptr_size_bits() - ncb(shard_amount);
         let cps = capacity / shard_amount;
         let shards = (0..shard_amount)
-            .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, hasher.clone())))
+            .map(|_| {
+                RwLock::new(HashMap::with_capacity_and_hasher(
+                    cps,
+                    ShardBuildHasher::new(),
+                ))
+            })
             .collect();
 
         Self {
@@ -238,15 +245,32 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
                 (hash >> self.shift)
             }
+        }
+    }
+
+    cfg_if! {
+        if #[cfg(feature = "raw-api")] {
+            /// Finds which shard a certain hash is stored in.
+            ///
+            /// Requires the `raw-api` feature to be enabled.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use dashmap::DashMap;
+            ///
+            /// let map = DashMap::new();
+            /// let key = "key";
+            /// let hash = map.hash_usize(&key);
+            /// println!("hash is stored in shard: {}", map.determine_shard(hash));
+            /// ```
+            #[inline]
+            pub fn determine_shard(&self, hash: usize) -> usize {
+                (hash >> self.shift)
+            }
         } else {
             #[inline]
-            fn determine_map<Q>(&self, key: &Q) -> usize
-            where
-                K: Borrow<Q>,
-                Q: Hash + Eq + ?Sized,
-            {
-                let hash = self.hash_usize(&key);
-
+            fn determine_shard(&self, hash: usize) -> usize {
                 (hash >> self.shift)
             }
         }
@@ -542,10 +566,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     #[inline]
     fn _insert(&self, key: K, value: V) -> Option<V> {
-        let idx = self.determine_map(&key);
+        let hash = self.hash_usize(&key);
+        let idx = self.determine_shard(hash);
         let mut shard = unsafe { self._yield_write_shard(idx) };
         shard
-            .insert(key, SharedValue::new(value))
+            .insert(ShardKey::new(key, hash as u64), SharedValue::new(value))
             .map(SharedValue::into_inner)
     }
 
@@ -555,9 +580,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let idx = self.determine_map(&key);
+        let hash = self.hash_usize(&key);
+        let idx = self.determine_shard(hash);
         let mut shard = unsafe { self._yield_write_shard(idx) };
-        shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
+        let shard_key = ShardKey::new_hash(hash as u64);
+        shard
+            .remove_entry(&shard_key)
+            .map(|(k, v)| (k.into_inner(), v.into_inner()))
     }
 
     #[inline]
@@ -576,13 +605,15 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let idx = self.determine_map(&key);
+        let hash = self.hash_usize(&key);
+        let idx = self.determine_shard(hash);
         let shard = unsafe { self._yield_read_shard(idx) };
-        if let Some((kptr, vptr)) = shard.get_key_value(key) {
+        let shard_key = ShardKey::new_hash(hash as u64);
+        if let Some((kptr, vptr)) = shard.get_key_value(&shard_key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
                 let vptr = util::change_lifetime_const(vptr);
-                Some(Ref::new(shard, kptr, vptr.get()))
+                Some(Ref::new(shard, kptr.get(), vptr.get()))
             }
         } else {
             None
@@ -595,13 +626,15 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let idx = self.determine_map(&key);
+        let hash = self.hash_usize(&key);
+        let idx = self.determine_shard(hash);
         let shard = unsafe { self._yield_write_shard(idx) };
-        if let Some((kptr, vptr)) = shard.get_key_value(key) {
+        let shard_key = ShardKey::new_hash(hash as u64);
+        if let Some((kptr, vptr)) = shard.get_key_value(&shard_key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
                 let vptr = &mut *vptr.as_ptr();
-                Some(RefMut::new(shard, kptr, vptr))
+                Some(RefMut::new(shard, kptr.get(), vptr))
             }
         } else {
             None
@@ -617,7 +650,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     fn _retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
         self.shards
             .iter()
-            .for_each(|s| s.write().retain(|k, v| f(k, v.get_mut())));
+            .for_each(|s| s.write().retain(|k, v| f(k.get(), v.get_mut())));
     }
 
     #[inline]
@@ -646,19 +679,21 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         self.shards.iter().for_each(|s| {
             s.write()
                 .iter_mut()
-                .for_each(|(k, v)| util::map_in_place_2((k, v.get_mut()), &mut f));
+                .for_each(|(k, v)| util::map_in_place_2((k.get(), v.get_mut()), &mut f));
         });
     }
 
     #[inline]
     fn _entry(&'a self, key: K) -> Entry<'a, K, V, S> {
-        let idx = self.determine_map(&key);
+        let hash = self.hash_usize(&key);
+        let idx = self.determine_shard(hash);
         let shard = unsafe { self._yield_write_shard(idx) };
-        if let Some((kptr, vptr)) = shard.get_key_value(&key) {
+        let shard_key = ShardKey::new_hash(hash as u64);
+        if let Some((kptr, vptr)) = shard.get_key_value(&shard_key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
                 let vptr = &mut *vptr.as_ptr();
-                Entry::Occupied(OccupiedEntry::new(shard, Some(key), (kptr, vptr)))
+                Entry::Occupied(OccupiedEntry::new(shard, Some(key), (kptr.get(), vptr)))
             }
         } else {
             Entry::Vacant(VacantEntry::new(shard, key))
@@ -806,7 +841,7 @@ mod tests {
             s: String,
             u: u8,
         }
-        let dm = DashMap::default();
+        let dm = DashMap::new();
         let range = 0..10;
         for i in range {
             let t = T0 {
