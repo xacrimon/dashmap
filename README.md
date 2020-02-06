@@ -14,6 +14,8 @@ This allows you to put a DashMap in an `Arc<T>` and share it between threads whi
 DashMap puts great effort into performance and aims to be as fast as possible.
 If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
+[Documentation](https://docs.rs/dashmap)
+
 [![version](https://img.shields.io/crates/v/dashmap)](https://crates.io/crates/dashmap)
 
 [![downloads](https://img.shields.io/crates/d/dashmap)](https://crates.io/crates/dashmap)
