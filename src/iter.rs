@@ -1,4 +1,3 @@
-use super::hasher::ShardKey;
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use super::util;
 use crate::t::Map;
@@ -11,11 +10,11 @@ use std::sync::Arc;
 
 type GuardIter<'a, K, V, S> = (
     Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
-    hash_map::Iter<'a, ShardKey<K>, SharedValue<V>>,
+    hash_map::Iter<'a, K, SharedValue<V>>,
 );
 type GuardIterMut<'a, K, V, S> = (
     Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
-    hash_map::IterMut<'a, ShardKey<K>, SharedValue<V>>,
+    hash_map::IterMut<'a, K, SharedValue<V>>,
 );
 
 /// Iterator over a DashMap yielding immutable references.
@@ -64,7 +63,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher, M: Map<'a, K, V, S>> Iterator
         if let Some(current) = self.current.as_mut() {
             if let Some((k, v)) = current.1.next() {
                 let guard = current.0.clone();
-                return Some(RefMulti::new(guard, k.get(), v.get()));
+                return Some(RefMulti::new(guard, k, v.get()));
             }
         }
 
@@ -132,7 +131,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher, M: Map<'a, K, V, S>> Iterator
                 unsafe {
                     let k = util::change_lifetime_const(k);
                     let v = &mut *v.as_ptr();
-                    return Some(RefMutMulti::new(guard, k.get(), v));
+                    return Some(RefMutMulti::new(guard, k, v));
                 }
             }
         }
