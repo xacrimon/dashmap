@@ -1,12 +1,11 @@
 #![allow(clippy::type_complexity)]
 
-extern crate qadapt_spin as parking_lot;
-
 mod hasher;
 pub mod iter;
 pub mod mapref;
 mod t;
 mod util;
+pub mod lock;
 
 #[cfg(feature = "serde")]
 mod serde;
@@ -18,7 +17,7 @@ use iter::{Iter, IterMut};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
-use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hasher;

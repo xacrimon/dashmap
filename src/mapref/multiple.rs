@@ -1,6 +1,6 @@
 use crate::HashMap;
 use ahash::RandomState;
-use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
+use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use std::hash::BuildHasher;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};

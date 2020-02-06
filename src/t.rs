@@ -4,7 +4,7 @@ use crate::iter::{Iter, IterMut};
 use crate::mapref::entry::Entry;
 use crate::mapref::one::{Ref, RefMut};
 use crate::HashMap;
-use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
+use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash};
 

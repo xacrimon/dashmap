@@ -1,6 +1,6 @@
 [package]
 name = "dashmap"
-version = "3.4.1"
+version = "3.4.2"
 authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -43,7 +43,6 @@ name = "cht"
 harness = false
 
 [dependencies]
-qadapt-spin = "1.0.1"
 num_cpus = "1.11.1"
 ahash = "0.3.1"
 serde = { version = "1.0.104", optional = true, features = ["derive"] }

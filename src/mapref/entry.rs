@@ -4,7 +4,7 @@ use crate::util;
 use crate::util::SharedValue;
 use crate::HashMap;
 use ahash::RandomState;
-use parking_lot::RwLockWriteGuard;
+use crate::lock::RwLockWriteGuard;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::mem;
 use std::ptr;
