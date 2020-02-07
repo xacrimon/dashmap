@@ -1,13 +1,14 @@
 use super::element::*;
-use crossbeam_epoch::{pin, Atomic, Guard, Owned, Shared};
+use crossbeam_epoch::{pin, Atomic, Guard, Owned, Shared, unprotected as unsafe_pin};
 use std::borrow::Borrow;
 use std::cmp;
 use std::fmt::Debug;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::iter;
 use std::mem;
-use std::sync::atomic::{fence, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use crossbeam_utils::CachePadded;
 
 const REDIRECT_TAG: usize = 5;
 const TOMBSTONE_TAG: usize = 7;
@@ -34,7 +35,7 @@ pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
 
 macro_rules! cell_maybe_return {
     ($s:expr, $g:expr) => {
-        return if $s.remaining_cells.fetch_sub(1, Ordering::SeqCst) == 1 {
+        return if $s.remaining_cells.fetch_sub(1, Ordering::Relaxed) == 1 {
             $s.grow($g)
         } else {
             None
@@ -55,7 +56,6 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
         let guard = &pin();
         let mut garbage = Vec::with_capacity(self.buckets.len());
-        fence(Ordering::SeqCst);
         unsafe {
             for bucket in &*self.buckets {
                 let ptr = bucket.load(Ordering::Relaxed, guard).into_owned();
@@ -67,18 +67,18 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
 }
 
 pub struct BucketArray<K, V, S> {
-    remaining_cells: AtomicUsize,
+    remaining_cells: CachePadded<AtomicUsize>,
+    next: Atomic<Self>,
     shift: usize,
     hash_builder: Arc<S>,
     buckets: Box<[Atomic<Element<K, V>>]>,
-    next: Atomic<Self>,
 }
 
 impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
         capacity = 2 * capacity;
         //dbg!(capacity);
-        let remaining_cells = AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity));
+        let remaining_cells = CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
         let shift = make_shift(capacity);
         let buckets = make_buckets(capacity);
 
@@ -121,7 +121,6 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
 
                 TOMBSTONE_TAG => {
                     //dbg!("was tombstone");
-
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
@@ -239,7 +238,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         let mut idx = hash2idx(hash, self.shift);
 
         loop {
-            let shared = self.buckets[idx].load(Ordering::SeqCst, guard);
+            let shared = self.buckets[idx].load(Ordering::Acquire, guard);
             match shared.tag() {
                 REDIRECT_TAG => {
                     if self.get_next(guard).unwrap().remove(guard, key) {
@@ -266,12 +265,12 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     .compare_and_set(
                         shared,
                         Shared::null().with_tag(TOMBSTONE_TAG),
-                        Ordering::SeqCst,
+                        Ordering::AcqRel,
                         guard,
                     )
                     .is_ok()
                 {
-                    self.remaining_cells.fetch_add(1, Ordering::SeqCst);
+                    self.remaining_cells.fetch_add(1, Ordering::Relaxed);
                     unsafe {
                         guard.defer_destroy(shared);
                     }
@@ -290,15 +289,15 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        if let Some(Some(elem)) = self.get_next(guard).map(|a| a.get_elem(guard, key)) {
-            return Some(elem);
-        }
+        //if let Some(Some(elem)) = self.get_next(guard).map(|a| a.get_elem(guard, key)) {
+        //    return Some(elem);
+        //}
 
         let hash = do_hash(&*self.hash_builder, key);
         let mut idx = hash2idx(hash, self.shift);
 
         loop {
-            let shared = self.buckets[idx].load(Ordering::SeqCst, guard);
+            let shared = self.buckets[idx].load(Ordering::Relaxed, guard);
             match shared.tag() {
                 REDIRECT_TAG => {
                     if let Some(elem) = self.get_next(guard).unwrap().get_elem(guard, key) {
@@ -328,20 +327,22 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn get<'a, Q>(&'a self, guard: &'a Guard, key: &Q) -> Option<ElementReadGuard<'a, K, V>>
+    fn get<'a, Q>(&'a self, guard: Guard, key: &Q) -> Option<ElementReadGuard<'a, K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        self.get_elem(guard, key).map(|e| e.read(pin()))
+        let fake = unsafe { unsafe_pin() };
+        self.get_elem(fake, key).map(|e| e.read(guard))
     }
 
-    fn get_mut<'a, Q>(&'a self, guard: &'a Guard, key: &Q) -> Option<ElementWriteGuard<'a, K, V>>
+    fn get_mut<'a, Q>(&'a self, guard: Guard, key: &Q) -> Option<ElementWriteGuard<'a, K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        self.get_elem(guard, key).map(|e| e.write(pin()))
+        let fake = unsafe { unsafe_pin() };
+        self.get_elem(fake, key).map(|e| e.write(guard))
     }
 }
 
@@ -389,7 +390,10 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         let guard = pin();
-        unsafe { mem::transmute(self.root(&guard).get(&guard, key)) }
+        unsafe {
+            let root: &'_ BucketArray<K, V, S> = mem::transmute(self.root(&guard));
+            mem::transmute(root.get(guard, key))
+        }
     }
 
     pub fn get_mut<'a, Q>(&'a self, key: &Q) -> Option<ElementWriteGuard<'a, K, V>>
@@ -398,7 +402,10 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         let guard = pin();
-        unsafe { mem::transmute(self.root(&guard).get_mut(&guard, key)) }
+        unsafe {
+            let root: &'_ BucketArray<K, V, S> = mem::transmute(self.root(&guard));
+            mem::transmute(root.get_mut(guard, key))
+        }
     }
 
     pub fn remove<'a, Q>(&'a self, key: &Q)

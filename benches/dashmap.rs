@@ -3,7 +3,7 @@ use dashmap::DashMap;
 use rayon::prelude::*;
 use fnv::FnvBuildHasher;
 
-const ITER: u32 = 4 * 1024;
+const ITER: u32 = 8 * 1024;
 
 fn task_insert_dashmap_u32_u32() -> DashMap<u32, u32, FnvBuildHasher> {
     let map = DashMap::with_capacity_and_hasher(ITER as usize, FnvBuildHasher::default());
