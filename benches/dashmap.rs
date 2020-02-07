@@ -6,8 +6,10 @@ const ITER: u64 = 4 * 1024;
 
 fn task_insert_dashmap_u64_u64() -> DashMap<u64, u64> {
     let map = DashMap::with_capacity(ITER as usize);
-    (0..ITER).into_par_iter().for_each(|i| {
-        map.insert(i, i + 7);
+    map.batch(|map| {
+        (0..ITER).into_par_iter().for_each(|i| {
+            map.insert(i, i + 7);
+        });
     });
     map
 }
@@ -35,8 +37,10 @@ fn insert_dashmap_u64_u64(c: &mut Criterion) {
 }
 
 fn task_get_dashmap_u64_u64(map: &DashMap<u64, u64>) {
-    (0..ITER).into_par_iter().for_each(|i| {
-        assert_eq!(*map.get(&i).unwrap(), i + 7);
+    map.batch(|map| {
+        (0..ITER).into_par_iter().for_each(|i| {
+            assert_eq!(*map.get(&i).unwrap(), i + 7);
+        });
     });
 }
 
