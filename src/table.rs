@@ -1,6 +1,6 @@
 use super::element::*;
 use crate::util::CachePadded;
-use crossbeam_epoch::{pin, unprotected as unsafe_pin, Atomic, Guard, Owned, Shared};
+use crossbeam_epoch::{pin, Atomic, Guard, Owned, Shared};
 use std::borrow::Borrow;
 use std::cmp;
 use std::fmt::Debug;
@@ -58,10 +58,12 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
         let mut garbage = Vec::with_capacity(self.buckets.len());
         unsafe {
             for bucket in &*self.buckets {
-                let ptr = bucket.load(Ordering::Relaxed, guard).into_owned();
-                garbage.push(ptr);
+                let ptr = bucket.load(Ordering::SeqCst, guard);
+                if !ptr.is_null() {
+                    garbage.push(ptr.into_owned());
+                }
             }
-            guard.defer_unchecked(|| drop(garbage));
+            guard.defer_unchecked(move || drop(garbage));
         }
     }
 }
@@ -142,7 +144,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
             }
             if let Some(e_current_node) = unsafe { e_current.as_ref() } {
                 //dbg!("encountered filled bucket");
-                if e_current_node.hash == inner.hash && e_current_node.key == inner.key {
+                if e_current_node.inner.key == inner.inner.key {
                     //dbg!("bucket key matched");
                     match {
                         self.buckets[idx].compare_and_set(
@@ -175,6 +177,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 } {
                     Ok(_) => cell_maybe_return!(self, guard),
                     Err(err) => {
+                        //dbg!("cas 1 failed");
                         node = Some(err.new);
                         continue;
                     }
@@ -260,7 +263,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 return false;
             }
             let elem = unsafe { shared.as_ref().unwrap() };
-            if key == elem.key.borrow() {
+            if key == elem.inner.key.borrow() {
                 if self.buckets[idx]
                     .compare_and_set(
                         shared,
@@ -319,7 +322,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 return None;
             }
             let elem = unsafe { shared.as_ref().unwrap() };
-            if key == elem.key.borrow() {
+            if key == elem.inner.key.borrow() {
                 return Some(elem);
             } else {
                 idx = incr_idx(self, idx);
@@ -327,29 +330,27 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn get<'a, Q>(&'a self, guard: Guard, key: &Q) -> Option<ElementReadGuard<'a, K, V>>
+    fn get<Q>(&self, guard: Guard, key: &Q) -> Option<ElementReadGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        let fake = unsafe { unsafe_pin() };
-        self.get_elem(fake, key).map(|e| e.read(guard))
+        self.get_elem(&guard, key).map(|e| e.read())
     }
 
-    fn get_mut<'a, Q>(&'a self, guard: Guard, key: &Q) -> Option<ElementWriteGuard<'a, K, V>>
+    fn get_mut<Q>(&self, guard: Guard, key: &Q) -> Option<ElementWriteGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        let fake = unsafe { unsafe_pin() };
-        self.get_elem(fake, key).map(|e| e.write(guard))
+        self.get_elem(&guard, key).map(|e| e.write())
     }
 }
 
 impl<K, V, S> Drop for Table<K, V, S> {
     fn drop(&mut self) {
         let guard = pin();
-        let shared = self.root.load(Ordering::Acquire, &guard);
+        let shared = self.root.load(Ordering::SeqCst, &guard);
         unsafe {
             guard.defer_destroy(shared);
         }
@@ -384,7 +385,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         }
     }
 
-    pub fn get<'a, Q>(&'a self, key: &Q) -> Option<ElementReadGuard<'a, K, V>>
+    pub fn get<Q>(&self, key: &Q) -> Option<ElementReadGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -396,7 +397,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         }
     }
 
-    pub fn get_mut<'a, Q>(&'a self, key: &Q) -> Option<ElementWriteGuard<'a, K, V>>
+    pub fn get_mut<Q>(&self, key: &Q) -> Option<ElementWriteGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
