@@ -1,5 +1,6 @@
 use super::element::*;
-use crossbeam_epoch::{pin, Atomic, Guard, Owned, Shared, unprotected as unsafe_pin};
+use crossbeam_epoch::{pin, unprotected as unsafe_pin, Atomic, Guard, Owned, Shared};
+use crossbeam_utils::CachePadded;
 use std::borrow::Borrow;
 use std::cmp;
 use std::fmt::Debug;
@@ -8,7 +9,6 @@ use std::iter;
 use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use crossbeam_utils::CachePadded;
 
 const REDIRECT_TAG: usize = 5;
 const TOMBSTONE_TAG: usize = 7;
@@ -78,7 +78,8 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
         capacity = 2 * capacity;
         //dbg!(capacity);
-        let remaining_cells = CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
+        let remaining_cells =
+            CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
         let shift = make_shift(capacity);
         let buckets = make_buckets(capacity);
 
@@ -141,7 +142,6 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
             }
             if let Some(e_current_node) = unsafe { e_current.as_ref() } {
                 //dbg!("encountered filled bucket");
-
                 if e_current_node.hash == inner.hash && e_current_node.key == inner.key {
                     //dbg!("bucket key matched");
                     match {
