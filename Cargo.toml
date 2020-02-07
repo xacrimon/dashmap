@@ -15,7 +15,6 @@ categories = ["concurrency", "algorithms", "data-structures"]
 [dependencies]
 crossbeam-epoch = "0.8.0"
 spin = "0.5.2"
-array-init = "0.1.1"
 
 [dev-dependencies]
 criterion = "0.3.0"
