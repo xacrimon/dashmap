@@ -59,7 +59,7 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
         unsafe {
             for bucket in &*self.buckets {
                 let ptr = bucket.load(Ordering::SeqCst, guard);
-                if !ptr.is_null() {
+                if !ptr.with_tag(0).is_null() {
                     garbage.push(ptr.into_owned());
                 }
             }
