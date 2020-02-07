@@ -1,11 +1,10 @@
 use super::one::RefMut;
-use crate::hasher::ShardKey;
+use crate::lock::RwLockWriteGuard;
 use crate::util;
 use crate::util::SharedValue;
 use crate::HashMap;
 use ahash::RandomState;
-use crate::lock::RwLockWriteGuard;
-use std::hash::{BuildHasher, Hash, Hasher};
+use std::hash::{BuildHasher, Hash};
 use std::mem;
 use std::ptr;
 
@@ -89,25 +88,14 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
     }
 
     #[inline]
-    fn hash_u64<T: Hash>(&self, item: &T) -> u64 {
-        let mut hasher = self.shard.hasher().build_hasher();
-        item.hash(&mut hasher);
-        hasher.finish()
-    }
-
-    #[inline]
     pub fn insert(mut self, value: V) -> RefMut<'a, K, V, S> {
         unsafe {
             let c: K = ptr::read(&self.key);
-            let hash_c = self.hash_u64(&c);
-            let hash = self.hash_u64(&self.key);
-            self.shard
-                .insert(ShardKey::new(self.key, hash), SharedValue::new(value));
-            let shard_key_c = ShardKey::new_hash(hash_c);
-            let (k, v) = self.shard.get_key_value(&shard_key_c).unwrap();
+            self.shard.insert(self.key, SharedValue::new(value));
+            let (k, v) = self.shard.get_key_value(&c).unwrap();
             let k = util::change_lifetime_const(k);
             let v = &mut *v.as_ptr();
-            let r = RefMut::new(self.shard, k.get(), v);
+            let r = RefMut::new(self.shard, k, v);
             mem::forget(c);
             r
         }
@@ -172,37 +160,22 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
     }
 
     #[inline]
-    fn hash_u64<T: Hash>(&self, item: &T) -> u64 {
-        let mut hasher = self.shard.hasher().build_hasher();
-        item.hash(&mut hasher);
-        hasher.finish()
-    }
-
-    #[inline]
     pub fn remove(mut self) -> V {
-        let hash = self.hash_u64(&self.elem.0);
-        let shard_key = ShardKey::new_hash(hash);
-        self.shard.remove(&shard_key).unwrap().into_inner()
+        self.shard.remove(self.elem.0).unwrap().into_inner()
     }
 
     #[inline]
     pub fn remove_entry(mut self) -> (K, V) {
-        let hash = self.hash_u64(&self.elem.0);
-        let shard_key = ShardKey::new_hash(hash);
-        let (k, v) = self.shard.remove_entry(&shard_key).unwrap();
+        let (k, v) = self.shard.remove_entry(self.elem.0).unwrap();
 
-        (k.into_inner(), v.into_inner())
+        (k, v.into_inner())
     }
 
     #[inline]
     pub fn replace_entry(mut self, value: V) -> (K, V) {
-        let hash = self.hash_u64(&self.elem.0);
-        let hash_nk = self.hash_u64(self.key.as_ref().unwrap());
         let nk = self.key.unwrap();
-        let shard_key = ShardKey::new_hash(hash);
-        let (k, v) = self.shard.remove_entry(&shard_key).unwrap();
-        self.shard
-            .insert(ShardKey::new(nk, hash_nk), SharedValue::new(value));
-        (k.into_inner(), v.into_inner())
+        let (k, v) = self.shard.remove_entry(self.elem.0).unwrap();
+        self.shard.insert(nk, SharedValue::new(value));
+        (k, v.into_inner())
     }
 }

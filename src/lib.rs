@@ -1,23 +1,21 @@
 #![allow(clippy::type_complexity)]
 
-mod hasher;
 pub mod iter;
+pub mod lock;
 pub mod mapref;
 mod t;
 mod util;
-pub mod lock;
 
 #[cfg(feature = "serde")]
 mod serde;
 
 use ahash::RandomState;
 use cfg_if::cfg_if;
-use hasher::{ShardBuildHasher, ShardKey};
 use iter::{Iter, IterMut};
+use lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
-use lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hasher;
@@ -34,7 +32,7 @@ cfg_if! {
     }
 }
 
-type HashMap<K, V, S> = std::collections::HashMap<ShardKey<K>, SharedValue<V>, ShardBuildHasher<S>>;
+type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
 
 #[inline]
 fn shard_amount() -> usize {
@@ -133,17 +131,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     #[inline]
     pub fn with_hasher(hasher: S) -> Self {
-        let shard_amount = shard_amount();
-        let shift = util::ptr_size_bits() - ncb(shard_amount);
-        let shards = (0..shard_amount)
-            .map(|_| RwLock::new(HashMap::with_hasher(ShardBuildHasher::new())))
-            .collect();
-
-        Self {
-            shift,
-            shards,
-            hasher,
-        }
+        Self::with_capacity_and_hasher(0, hasher)
     }
 
     /// Creates a new DashMap with a specified starting capacity and hasher.
@@ -165,12 +153,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         let shift = util::ptr_size_bits() - ncb(shard_amount);
         let cps = capacity / shard_amount;
         let shards = (0..shard_amount)
-            .map(|_| {
-                RwLock::new(HashMap::with_capacity_and_hasher(
-                    cps,
-                    ShardBuildHasher::new(),
-                ))
-            })
+            .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, hasher.clone())))
             .collect();
 
         Self {
@@ -569,8 +552,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let idx = self.determine_shard(hash);
         let mut shard = unsafe { self._yield_write_shard(idx) };
         shard
-            .insert(ShardKey::new(key, hash as u64), SharedValue::new(value))
-            .map(SharedValue::into_inner)
+            .insert(key, SharedValue::new(value))
+            .map(|v| v.into_inner())
     }
 
     #[inline]
@@ -582,10 +565,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let hash = self.hash_usize(&key);
         let idx = self.determine_shard(hash);
         let mut shard = unsafe { self._yield_write_shard(idx) };
-        let shard_key = ShardKey::new_hash(hash as u64);
-        shard
-            .remove_entry(&shard_key)
-            .map(|(k, v)| (k.into_inner(), v.into_inner()))
+        shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
     }
 
     #[inline]
@@ -607,12 +587,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let hash = self.hash_usize(&key);
         let idx = self.determine_shard(hash);
         let shard = unsafe { self._yield_read_shard(idx) };
-        let shard_key = ShardKey::new_hash(hash as u64);
-        if let Some((kptr, vptr)) = shard.get_key_value(&shard_key) {
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
                 let vptr = util::change_lifetime_const(vptr);
-                Some(Ref::new(shard, kptr.get(), vptr.get()))
+                Some(Ref::new(shard, kptr, vptr.get()))
             }
         } else {
             None
@@ -628,12 +607,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let hash = self.hash_usize(&key);
         let idx = self.determine_shard(hash);
         let shard = unsafe { self._yield_write_shard(idx) };
-        let shard_key = ShardKey::new_hash(hash as u64);
-        if let Some((kptr, vptr)) = shard.get_key_value(&shard_key) {
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
                 let vptr = &mut *vptr.as_ptr();
-                Some(RefMut::new(shard, kptr.get(), vptr))
+                Some(RefMut::new(shard, kptr, vptr))
             }
         } else {
             None
@@ -649,7 +627,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     fn _retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
         self.shards
             .iter()
-            .for_each(|s| s.write().retain(|k, v| f(k.get(), v.get_mut())));
+            .for_each(|s| s.write().retain(|k, v| f(k, v.get_mut())));
     }
 
     #[inline]
@@ -678,7 +656,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         self.shards.iter().for_each(|s| {
             s.write()
                 .iter_mut()
-                .for_each(|(k, v)| util::map_in_place_2((k.get(), v.get_mut()), &mut f));
+                .for_each(|(k, v)| util::map_in_place_2((k, v.get_mut()), &mut f));
         });
     }
 
@@ -687,12 +665,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let hash = self.hash_usize(&key);
         let idx = self.determine_shard(hash);
         let shard = unsafe { self._yield_write_shard(idx) };
-        let shard_key = ShardKey::new_hash(hash as u64);
-        if let Some((kptr, vptr)) = shard.get_key_value(&shard_key) {
+        if let Some((kptr, vptr)) = shard.get_key_value(&key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
                 let vptr = &mut *vptr.as_ptr();
-                Entry::Occupied(OccupiedEntry::new(shard, Some(key), (kptr.get(), vptr)))
+                Entry::Occupied(OccupiedEntry::new(shard, Some(key), (kptr, vptr)))
             }
         } else {
             Entry::Vacant(VacantEntry::new(shard, key))
