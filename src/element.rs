@@ -1,8 +1,8 @@
 use crate::util::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::cell::UnsafeCell;
+use std::mem::transmute;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::mem::transmute;
 
 pub struct ElementInner<K, V> {
     pub key: K,
@@ -23,30 +23,21 @@ impl<K, V> Element<K, V> {
             value: UnsafeCell::new(value),
         });
 
-        Self {
-            hash,
-            inner,
-        }
+        Self { hash, inner }
     }
 
     pub fn read(&self) -> ElementReadGuard<K, V> {
         let _lock_guard = unsafe { transmute(self.inner.lock.read()) };
         let data = self.inner.clone();
 
-        ElementReadGuard {
-            _lock_guard,
-            data,
-        }
+        ElementReadGuard { _lock_guard, data }
     }
 
     pub fn write(&self) -> ElementWriteGuard<K, V> {
         let _lock_guard = unsafe { transmute(self.inner.lock.write()) };
         let data = self.inner.clone();
 
-        ElementWriteGuard {
-            _lock_guard,
-            data,
-        }
+        ElementWriteGuard { _lock_guard, data }
     }
 }
 
