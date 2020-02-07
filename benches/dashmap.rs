@@ -2,12 +2,11 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Through
 use dashmap::DashMap;
 use rayon::prelude::*;
 
-const ITER: u64 = 2 * 1024;
+const ITER: u64 = 4 * 1024;
 
 fn task_insert_dashmap_u64_u64() -> DashMap<u64, u64> {
     let map = DashMap::with_capacity(ITER as usize);
     (0..ITER).into_par_iter().for_each(|i| {
-        dbg!(i);
         map.insert(i, i + 7);
     });
     map
