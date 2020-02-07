@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use dashmap::DashMap;
-use rayon::prelude::*;
 use fnv::FnvBuildHasher;
+use rayon::prelude::*;
 
 const ITER: u32 = 8 * 1024;
 
