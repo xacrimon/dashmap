@@ -260,7 +260,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 return false;
             }
             let elem = unsafe { shared.as_ref().unwrap() };
-            if hash == elem.hash && key == elem.key.borrow() {
+            if key == elem.key.borrow() {
                 if self.buckets[idx]
                     .compare_and_set(
                         shared,
@@ -319,7 +319,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 return None;
             }
             let elem = unsafe { shared.as_ref().unwrap() };
-            if hash == elem.hash && key == elem.key.borrow() {
+            if key == elem.key.borrow() {
                 return Some(elem);
             } else {
                 idx = incr_idx(self, idx);
