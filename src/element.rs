@@ -1,5 +1,5 @@
+use crate::util::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use crossbeam_epoch::Guard;
-use spin::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::cell::UnsafeCell;
 use std::ops::{Deref, DerefMut};
 
