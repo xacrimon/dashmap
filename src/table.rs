@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::iter;
 use std::mem;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{fence, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 const REDIRECT_TAG: usize = 5;
@@ -53,14 +53,15 @@ enum InsertResult {
 
 impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
-        let guard = pin();
-        for atomic in &*self.buckets {
-            let shared = atomic.load(Ordering::SeqCst, &guard);
-            if !shared.is_null() {
-                unsafe {
-                    guard.defer_destroy(shared);
-                }
+        let guard = &pin();
+        let mut garbage = Vec::with_capacity(self.buckets.len());
+        fence(Ordering::SeqCst);
+        unsafe {
+            for bucket in &*self.buckets {
+                let ptr = bucket.load(Ordering::Relaxed, guard).into_owned();
+                garbage.push(ptr);
             }
+            guard.defer_unchecked(|| drop(garbage));
         }
     }
 }
@@ -107,7 +108,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
 
         loop {
             //dbg!("loop start");
-            let e_current = self.buckets[idx].load(Ordering::SeqCst, guard);
+            let e_current = self.buckets[idx].load(Ordering::Acquire, guard);
             match e_current.tag() {
                 REDIRECT_TAG => {
                     //dbg!("was redirect, delegating");
@@ -125,7 +126,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                         self.buckets[idx].compare_and_set(
                             e_current,
                             node.take().unwrap(),
-                            Ordering::SeqCst,
+                            Ordering::AcqRel,
                             guard,
                         )
                     } {
@@ -148,7 +149,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                         self.buckets[idx].compare_and_set(
                             e_current,
                             node.take().unwrap(),
-                            Ordering::SeqCst,
+                            Ordering::AcqRel,
                             guard,
                         )
                     } {
@@ -165,12 +166,11 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
             } else {
                 //dbg!("was null, cas 1");
-
                 match {
                     self.buckets[idx].compare_and_set(
                         e_current,
                         node.take().unwrap(),
-                        Ordering::SeqCst,
+                        Ordering::AcqRel,
                         guard,
                     )
                 } {
@@ -227,7 +227,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 
     fn get_next<'a>(&self, guard: &'a Guard) -> Option<&'a Self> {
-        unsafe { self.next.load(Ordering::SeqCst, guard).as_ref() }
+        unsafe { self.next.load(Ordering::Acquire, guard).as_ref() }
     }
 
     fn remove<Q>(&self, guard: &Guard, key: &Q) -> bool
@@ -345,6 +345,16 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 }
 
+impl<K, V, S> Drop for Table<K, V, S> {
+    fn drop(&mut self) {
+        let guard = pin();
+        let shared = self.root.load(Ordering::Acquire, &guard);
+        unsafe {
+            guard.defer_destroy(shared);
+        }
+    }
+}
+
 pub struct Table<K, V, S> {
     hash_builder: Arc<S>,
     root: Atomic<BucketArray<K, V, S>>,
@@ -357,7 +367,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
     }
 
     fn root<'a>(&self, guard: &'a Guard) -> &'a BucketArray<K, V, S> {
-        unsafe { self.root.load(Ordering::SeqCst, guard).deref() }
+        unsafe { self.root.load(Ordering::Acquire, guard).deref() }
     }
 
     pub fn insert(&self, key: K, hash: u64, value: V) {

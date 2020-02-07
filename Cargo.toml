@@ -20,6 +20,7 @@ spin = "0.5.2"
 criterion = "0.3.0"
 rayon = "1.2.1"
 num_cpus = "1.12.0"
+fnv = "1.0.6"
 
 [[bench]]
 name = "dashmap"
