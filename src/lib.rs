@@ -2,6 +2,7 @@
 
 pub mod element;
 pub mod table;
+mod util;
 
 use crossbeam_epoch::pin;
 use element::ElementReadGuard;

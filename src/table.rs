@@ -1,6 +1,6 @@
 use super::element::*;
+use crate::util::CachePadded;
 use crossbeam_epoch::{pin, unprotected as unsafe_pin, Atomic, Guard, Owned, Shared};
-use crossbeam_utils::CachePadded;
 use std::borrow::Borrow;
 use std::cmp;
 use std::fmt::Debug;
