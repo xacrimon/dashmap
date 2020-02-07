@@ -1,58 +1,63 @@
 use crate::util::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use crossbeam_epoch::Guard;
 use std::cell::UnsafeCell;
 use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
+use std::mem::transmute;
+
+pub struct ElementInner<K, V> {
+    pub key: K,
+    lock: RwLock<()>,
+    value: UnsafeCell<V>,
+}
 
 pub struct Element<K, V> {
-    pub lock: RwLock<()>,
-    pub key: K,
     pub hash: u64,
-    pub value: UnsafeCell<V>,
+    pub inner: Arc<ElementInner<K, V>>,
 }
 
 impl<K, V> Element<K, V> {
     pub fn new(key: K, hash: u64, value: V) -> Self {
-        Self {
-            lock: RwLock::new(()),
+        let inner = Arc::new(ElementInner {
             key,
-            hash,
+            lock: RwLock::new(()),
             value: UnsafeCell::new(value),
+        });
+
+        Self {
+            hash,
+            inner,
         }
     }
 
-    pub fn read(&self, guard: Guard) -> ElementReadGuard<'_, K, V> {
-        unsafe {
-            ElementReadGuard {
-                _lock_guard: self.lock.read(),
-                _mem_guard: guard,
-                key: &self.key,
-                value: &*self.value.get(),
-            }
+    pub fn read(&self) -> ElementReadGuard<K, V> {
+        let _lock_guard = unsafe { transmute(self.inner.lock.read()) };
+        let data = self.inner.clone();
+
+        ElementReadGuard {
+            _lock_guard,
+            data,
         }
     }
 
-    pub fn write(&self, guard: Guard) -> ElementWriteGuard<'_, K, V> {
-        unsafe {
-            ElementWriteGuard {
-                _lock_guard: self.lock.write(),
-                _mem_guard: guard,
-                key: &self.key,
-                value: &mut *self.value.get(),
-            }
+    pub fn write(&self) -> ElementWriteGuard<K, V> {
+        let _lock_guard = unsafe { transmute(self.inner.lock.write()) };
+        let data = self.inner.clone();
+
+        ElementWriteGuard {
+            _lock_guard,
+            data,
         }
     }
 }
 
-pub struct ElementReadGuard<'a, K, V> {
-    _lock_guard: RwLockReadGuard<'a, ()>,
-    _mem_guard: Guard,
-    key: &'a K,
-    value: &'a V,
+pub struct ElementReadGuard<K, V> {
+    _lock_guard: RwLockReadGuard<'static, ()>,
+    data: Arc<ElementInner<K, V>>,
 }
 
-impl<'a, K, V> ElementReadGuard<'a, K, V> {
+impl<K, V> ElementReadGuard<K, V> {
     pub fn pair(&self) -> (&K, &V) {
-        (self.key, self.value)
+        unsafe { (&self.data.key, &*self.data.value.get()) }
     }
 
     pub fn key(&self) -> &K {
@@ -64,24 +69,22 @@ impl<'a, K, V> ElementReadGuard<'a, K, V> {
     }
 }
 
-impl<'a, K, V> Deref for ElementReadGuard<'a, K, V> {
+impl<K, V> Deref for ElementReadGuard<K, V> {
     type Target = V;
 
     fn deref(&self) -> &Self::Target {
-        self.value
+        self.value()
     }
 }
 
-pub struct ElementWriteGuard<'a, K, V> {
-    _lock_guard: RwLockWriteGuard<'a, ()>,
-    _mem_guard: Guard,
-    key: &'a K,
-    value: &'a mut V,
+pub struct ElementWriteGuard<K, V> {
+    _lock_guard: RwLockWriteGuard<'static, ()>,
+    data: Arc<ElementInner<K, V>>,
 }
 
-impl<'a, K, V> ElementWriteGuard<'a, K, V> {
+impl<K, V> ElementWriteGuard<K, V> {
     pub fn pair(&self) -> (&K, &V) {
-        (self.key, self.value)
+        unsafe { (&self.data.key, &*self.data.value.get()) }
     }
 
     pub fn key(&self) -> &K {
@@ -93,7 +96,7 @@ impl<'a, K, V> ElementWriteGuard<'a, K, V> {
     }
 
     pub fn pair_mut(&mut self) -> (&K, &mut V) {
-        (self.key, self.value)
+        unsafe { (&self.data.key, &mut *self.data.value.get()) }
     }
 
     pub fn value_mut(&mut self) -> &mut V {
@@ -101,16 +104,16 @@ impl<'a, K, V> ElementWriteGuard<'a, K, V> {
     }
 }
 
-impl<'a, K, V> Deref for ElementWriteGuard<'a, K, V> {
+impl<K, V> Deref for ElementWriteGuard<K, V> {
     type Target = V;
 
     fn deref(&self) -> &Self::Target {
-        self.value
+        self.value()
     }
 }
 
-impl<'a, K, V> DerefMut for ElementWriteGuard<'a, K, V> {
+impl<K, V> DerefMut for ElementWriteGuard<K, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.value
+        self.value_mut()
     }
 }

@@ -55,7 +55,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> DashMap<K, V, S> {
         self.table.insert(key, hash, value);
     }
 
-    pub fn get<'a, Q>(&'a self, key: &Q) -> Option<ElementReadGuard<'a, K, V>>
+    pub fn get<Q>(&self, key: &Q) -> Option<ElementReadGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
