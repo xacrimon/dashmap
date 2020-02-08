@@ -64,8 +64,8 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
                     garbage.push(Sanic::from_shared(ptr));
                 }
             }
-            std::mem::forget(garbage);
-            //guard.defer_unchecked(move || drop(garbage));
+            //std::mem::forget(garbage);
+            guard.defer_unchecked(move || drop(garbage));
         }
     }
 }
@@ -116,9 +116,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         loop {
             //println!("loop start");
             //dbg!(idx);
-            //dbg!(self.buckets.len());
-            let e_current = self.buckets[0].load(Ordering::Acquire, guard);
-            //dbg!(e_current);
+            let e_current = self.buckets[idx].load(Ordering::Acquire, guard);
             //println!("loaded pointer");
             match e_current.tag() {
                 REDIRECT_TAG => {
@@ -289,7 +287,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 {
                     self.remaining_cells.fetch_add(1, Ordering::Relaxed);
                     unsafe {
-                        //guard.defer_unchecked(move || drop(Sanic::from_shared(shared)))
+                        guard.defer_unchecked(move || drop(Sanic::from_shared(shared)))
                     }
                     return true;
                 } else {
@@ -362,7 +360,7 @@ impl<K, V, S> Drop for Table<K, V, S> {
         let guard = pin();
         let shared = self.root.load(Ordering::SeqCst, &guard);
         unsafe {
-            //guard.defer_unchecked(move || Sanic::from_shared(shared));
+            guard.defer_unchecked(move || Sanic::from_shared(shared));
         }
     }
 }
@@ -390,7 +388,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
             self.root.store(new_root, Ordering::SeqCst);
             unsafe {
                 let prev_shared: Shared<'_, BucketArray<K, V, S>> = mem::transmute(root);
-                //guard.defer_unchecked(move || Sanic::from_shared(prev_shared));
+                guard.defer_unchecked(move || Sanic::from_shared(prev_shared));
             }
         }
     }
