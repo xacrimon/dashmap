@@ -1,3 +1,3 @@
 #!/bin/sh
 
-RUSTFLAGS="-Z sanitizer=thread" cargo +nightly test -- --nocapture
+RUSTFLAGS="-Z sanitizer=${1}" cargo +nightly test -- --nocapture
