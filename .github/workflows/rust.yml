@@ -25,5 +25,5 @@ jobs:
     - uses: actions/checkout@v1
     - name: Install nightly
       run: rustup install nightly
-    - name: Run tsan
+    - name: Run msan
       run: ./sanitize.sh memory
