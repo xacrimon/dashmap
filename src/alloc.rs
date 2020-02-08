@@ -82,8 +82,7 @@ const COUNTER_SIZE: usize = mem::size_of::<AtomicUsize>();
 const SEGMENT_USABLE: usize = SEGMENT_SIZE - COUNTER_SIZE;
 
 thread_local! {
-    //Lazy::new(|| RefCell::new(Segment::new()))
-    static CURRENT_SEGMENT: Lazy<RefCell<Segment>> = unimplemented!();
+    static CURRENT_SEGMENT: Lazy<RefCell<Segment>> = Lazy::new(|| RefCell::new(Segment::new()));
 }
 
 fn local_alloc(layout: Layout) -> *mut u8 {
