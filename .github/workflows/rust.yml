@@ -7,5 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
+    - name: Install nightly
+      run: rustup install nightly
     - name: Run tests
       run: cargo test --verbose
+    - name: Run TSAN
+      run: ./sanitize.sh

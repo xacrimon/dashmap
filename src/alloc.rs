@@ -1,11 +1,11 @@
+use crossbeam_epoch::{Atomic, Guard, Pointer, Shared};
 use once_cell::unsync::Lazy;
 use std::alloc::{alloc, dealloc, Layout};
 use std::cell::RefCell;
 use std::mem;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use crossbeam_epoch::{Pointer, Shared, Guard, Atomic};
-use std::ptr;
 use std::ops::{Deref, DerefMut};
+use std::ptr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct Sanic<T> {
     ptr: *mut T,
@@ -14,7 +14,9 @@ pub struct Sanic<T> {
 impl<T> Sanic<T> {
     pub fn new(v: T) -> Self {
         let ptr = local_alloc(Layout::new::<T>()) as _;
-        unsafe { ptr::write(ptr, v); }
+        unsafe {
+            ptr::write(ptr, v);
+        }
         debug_assert_ne!(ptr as usize, 0);
         //dbg!(ptr as usize);
         Self { ptr }
@@ -33,7 +35,9 @@ impl<T> Sanic<T> {
     }
 
     pub unsafe fn from_shared<'a>(s: Shared<'a, T>) -> Self {
-        Self { ptr: s.into_usize() as _ }
+        Self {
+            ptr: s.into_usize() as _,
+        }
     }
 }
 
@@ -53,7 +57,9 @@ impl<T> DerefMut for Sanic<T> {
 
 impl<T> Drop for Sanic<T> {
     fn drop(&mut self) {
-        unsafe { ptr::drop_in_place(self.ptr); }
+        unsafe {
+            ptr::drop_in_place(self.ptr);
+        }
         local_dealloc(self.ptr as _, Layout::new::<T>());
     }
 }
@@ -87,7 +93,7 @@ fn local_alloc(layout: Layout) -> *mut u8 {
         panic!("ded");
         CURRENT_SEGMENT.with(|l| {
             let mut r = l.borrow_mut();
-    
+
             loop {
                 if let Some(ptr) = r.alloc(layout) {
                     break ptr;
