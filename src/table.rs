@@ -100,28 +100,28 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         guard: &'a Guard,
         node: Shared<Element<K, V>>,
     ) -> Option<Shared<'a, Self>> {
-        println!("entering function");
+        //println!("entering function");
         if let Some(next) = self.get_next(guard) {
             return next.insert_node(guard, node);
         }
 
         let inner = unsafe { node.deref() };
-        dbg!(&inner.inner.key);
+        //dbg!(&inner.inner.key);
 
         let mut idx = hash2idx(inner.hash, self.shift);
         let mut node = Some(node);
-        println!("before loop");
+        //println!("before loop");
 
         loop {
-            println!("loop start");
-            dbg!(idx);
-            dbg!(self.buckets.len());
+            //println!("loop start");
+            //dbg!(idx);
+            //dbg!(self.buckets.len());
             let e_current = self.buckets[0].load(Ordering::Acquire, guard);
-            dbg!(e_current);
-            println!("loaded pointer");
+            //dbg!(e_current);
+            //println!("loaded pointer");
             match e_current.tag() {
                 REDIRECT_TAG => {
-                    dbg!("was redirect, delegating");
+                    //dbg!("was redirect, delegating");
                     self.get_next(guard)
                         .unwrap()
                         .insert_node(guard, node.take().unwrap());
@@ -130,7 +130,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
 
                 TOMBSTONE_TAG => {
-                    dbg!("was tombstone");
+                    //dbg!("was tombstone");
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
@@ -150,9 +150,9 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 _ => (),
             }
             if let Some(e_current_node) = unsafe { e_current.as_ref() } {
-                dbg!("encountered filled bucket");
+                //dbg!("encountered filled bucket");
                 if e_current_node.inner.key == inner.inner.key {
-                    dbg!("bucket key matched");
+                    //dbg!("bucket key matched");
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
@@ -175,11 +175,11 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     }
                 } else {
                     idx = incr_idx(self, idx);
-                    dbg!("bucket key did not match", idx);
+                    //dbg!("bucket key did not match", idx);
                     continue;
                 }
             } else {
-                dbg!("was null, cas 1");
+                //dbg!("was null, cas 1");
                 match {
                     self.buckets[idx].compare_and_set(
                         e_current,
@@ -190,7 +190,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 } {
                     Ok(_) => cell_maybe_return!(self, guard),
                     Err(err) => {
-                        dbg!("cas 1 failed");
+                        //dbg!("cas 1 failed");
                         node = Some(err.new);
                         continue;
                     }

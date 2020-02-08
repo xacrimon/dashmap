@@ -16,7 +16,7 @@ impl<T> Sanic<T> {
         let ptr = local_alloc(Layout::new::<T>()) as _;
         unsafe { ptr::write(ptr, v); }
         debug_assert_ne!(ptr as usize, 0);
-        dbg!(ptr as usize);
+        //dbg!(ptr as usize);
         Self { ptr }
     }
 
