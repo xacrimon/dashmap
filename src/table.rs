@@ -1,4 +1,5 @@
 use super::element::*;
+use crate::alloc::Sanic;
 use crate::util::CachePadded;
 use crossbeam_epoch::{pin, Atomic, Guard, Owned, Shared};
 use std::borrow::Borrow;
@@ -9,7 +10,6 @@ use std::iter;
 use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use crate::alloc::Sanic;
 
 const REDIRECT_TAG: usize = 5;
 const TOMBSTONE_TAG: usize = 7;
@@ -82,7 +82,8 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
         capacity = 2 * capacity;
         //dbg!(capacity);
-        let remaining_cells = CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
+        let remaining_cells =
+            CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
         let shift = make_shift(capacity);
         let buckets = make_buckets(capacity);
 
@@ -167,7 +168,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                             }
 
                             cell_maybe_return!(self, guard)
-                        },
+                        }
                         Err(err) => {
                             node = Some(err.new);
                             continue;
