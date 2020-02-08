@@ -1,0 +1,29 @@
+name: Rust
+
+on: [push]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Run tests
+      run: cargo test --verbose
+
+  tsan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install nightly
+      run: rustup install nightly
+    - name: Run tsan
+      run: ./sanitize.sh thread
+
+  msan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install nightly
+      run: rustup install nightly
+    - name: Run tsan
+      run: ./sanitize.sh memory
