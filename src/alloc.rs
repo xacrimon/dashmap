@@ -3,7 +3,7 @@ use std::alloc::{alloc, dealloc, Layout};
 use std::cell::RefCell;
 use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use crossbeam_epoch::{Pointer, Shared, Guard};
+use crossbeam_epoch::{Pointer, Shared, Guard, Atomic};
 use std::ptr;
 use std::ops::{Deref, DerefMut};
 
@@ -15,11 +15,21 @@ impl<T> Sanic<T> {
     pub fn new(v: T) -> Self {
         let ptr = local_alloc(Layout::new::<T>()) as _;
         unsafe { ptr::write(ptr, v); }
+        debug_assert_ne!(ptr as usize, 0);
+        dbg!(ptr as usize);
         Self { ptr }
     }
 
+    pub fn atomic(v: T) -> Atomic<T> {
+        let atomic = Atomic::null();
+        atomic.store(Self::new(v), Ordering::Relaxed);
+        atomic
+    }
+
     pub fn into_shared<'a>(self, _: &'a Guard) -> Shared<'a, T> {
-        unsafe { Shared::from_usize(self.ptr as usize) }
+        let ptr = unsafe { Shared::from_usize(self.ptr as usize) };
+        mem::forget(self);
+        ptr
     }
 
     pub unsafe fn from_shared<'a>(s: Shared<'a, T>) -> Self {
@@ -50,7 +60,9 @@ impl<T> Drop for Sanic<T> {
 
 impl<T> Pointer<T> for Sanic<T> {
     fn into_usize(self) -> usize {
-        self.ptr as usize
+        let u = self.ptr as usize;
+        mem::forget(self);
+        u
     }
 
     unsafe fn from_usize(data: usize) -> Self {
@@ -58,46 +70,49 @@ impl<T> Pointer<T> for Sanic<T> {
     }
 }
 
-const SEGMENT_SIZE: usize = 64;
+const SEGMENT_SIZE: usize = 16;
 const GLOBAL_THRESHOLD: usize = SEGMENT_SIZE / 2;
 const COUNTER_SIZE: usize = mem::size_of::<AtomicUsize>();
 const SEGMENT_USABLE: usize = SEGMENT_SIZE - COUNTER_SIZE;
 
 thread_local! {
-    static CURRENT_SEGMENT: Lazy<RefCell<Segment>> = Lazy::new(|| RefCell::new(Segment::new()));
+    //Lazy::new(|| RefCell::new(Segment::new()))
+    static CURRENT_SEGMENT: Lazy<RefCell<Segment>> = unimplemented!();
 }
 
 fn local_alloc(layout: Layout) -> *mut u8 {
     if layout.size() > GLOBAL_THRESHOLD {
-        return unsafe { alloc(layout) };
-    }
-
-    CURRENT_SEGMENT.with(|l| {
-        let mut r = l.borrow_mut();
-
-        loop {
-            if let Some(ptr) = r.alloc(layout) {
-                break ptr;
-            } else {
-                *r = Segment::new();
+        unsafe { alloc(layout) }
+    } else {
+        panic!("ded");
+        CURRENT_SEGMENT.with(|l| {
+            let mut r = l.borrow_mut();
+    
+            loop {
+                if let Some(ptr) = r.alloc(layout) {
+                    break ptr;
+                } else {
+                    *r = Segment::new();
+                }
             }
-        }
-    })
+        })
+    }
 }
 
 fn local_dealloc(ptr: *mut u8, layout: Layout) {
     unsafe {
         if layout.size() > GLOBAL_THRESHOLD {
-            return dealloc(ptr, layout);
-        }
+            dealloc(ptr, layout);
+        } else {
+            panic!("ded");
+            let mut segment_ptr = ptr as usize;
+            while segment_ptr % SEGMENT_SIZE != 0 {
+                segment_ptr -= 1;
+            }
 
-        let mut segment_ptr = ptr as usize;
-        while segment_ptr % SEGMENT_SIZE != 0 {
-            segment_ptr -= 1;
+            let segment_ptr = segment_ptr as *mut Segment;
+            (&*segment_ptr).decr();
         }
-
-        let segment_ptr = segment_ptr as *mut Segment;
-        (&*segment_ptr).decr();
     }
 }
 
