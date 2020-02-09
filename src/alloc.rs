@@ -76,7 +76,7 @@ impl<T> Pointer<T> for Sanic<T> {
     }
 }
 
-const SEGMENT_SIZE: usize = 16;
+const SEGMENT_SIZE: usize = 64 * 1024;
 const GLOBAL_THRESHOLD: usize = SEGMENT_SIZE / 2;
 const COUNTER_SIZE: usize = mem::size_of::<AtomicUsize>();
 const SEGMENT_USABLE: usize = SEGMENT_SIZE - COUNTER_SIZE;
@@ -89,8 +89,7 @@ fn local_alloc(layout: Layout) -> *mut u8 {
     if layout.size() > GLOBAL_THRESHOLD {
         unsafe { alloc(layout) }
     } else {
-        panic!("ded");
-        CURRENT_SEGMENT.with(|l| {
+        let ptr = CURRENT_SEGMENT.with(|l| {
             let mut r = l.borrow_mut();
 
             loop {
@@ -100,7 +99,8 @@ fn local_alloc(layout: Layout) -> *mut u8 {
                     *r = Segment::new();
                 }
             }
-        })
+        });
+        ptr
     }
 }
 
@@ -109,16 +109,18 @@ fn local_dealloc(ptr: *mut u8, layout: Layout) {
         if layout.size() > GLOBAL_THRESHOLD {
             dealloc(ptr, layout);
         } else {
-            panic!("ded");
-            let mut segment_ptr = ptr as usize;
-            while segment_ptr % SEGMENT_SIZE != 0 {
-                segment_ptr -= 1;
+            let base_ptr = align_down(ptr as usize, SEGMENT_SIZE) as *const AtomicUsize;
+            
+            if (&*base_ptr).fetch_sub(1, Ordering::SeqCst) == 1 {
+                dealloc(base_ptr as _, segment_layout());
             }
-
-            let segment_ptr = segment_ptr as *mut Segment;
-            (&*segment_ptr).decr();
         }
     }
+}
+
+fn align_down(addr: usize, align: usize) -> usize {
+    assert!(align.is_power_of_two(), "`align` must be a power of two");
+    addr & !(align - 1)
 }
 
 fn segment_layout() -> Layout {
@@ -170,20 +172,6 @@ impl Segment {
     fn incr(&self) {
         unsafe {
             (&*self.base).fetch_add(1, Ordering::SeqCst);
-        }
-    }
-
-    fn decr(&self) {
-        unsafe {
-            if (&*self.base).fetch_sub(1, Ordering::SeqCst) == 1 {
-                self.dealloc();
-            }
-        }
-    }
-
-    fn dealloc(&self) {
-        unsafe {
-            dealloc(self.base as _, segment_layout());
         }
     }
 }
