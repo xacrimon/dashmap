@@ -7,6 +7,81 @@ use std::ops::{Deref, DerefMut};
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+struct ABox<T> {
+    refs: AtomicUsize,
+    data: T,
+}
+
+pub struct Sarc<T> {
+    ptr: *const ABox<T>,
+}
+
+impl<T> Sarc<T> {
+    pub fn new(v: T) -> Self {
+        unsafe {
+            let ptr = local_alloc(Layout::new::<ABox<T>>()) as *mut ABox<T>;
+            ptr::write(ptr, ABox { refs: AtomicUsize::new(0), data: v });
+            Self { ptr }
+        }
+    }
+
+    pub fn into_shared<'a>(self, _: &'a Guard) -> Shared<'a, T> {
+        let ptr = unsafe { Shared::from_usize(self.ptr as usize) };
+        mem::forget(self);
+        ptr
+    }
+
+    pub unsafe fn from_shared<'a>(s: Shared<'a, T>) -> Self {
+        Self {
+            ptr: s.into_usize() as _,
+        }
+    }
+}
+
+unsafe impl<T: Send> Send for Sarc<T> {}
+unsafe impl<T: Sync> Sync for Sarc<T> {}
+
+impl<T> Clone for Sarc<T> {
+    fn clone(&self) -> Self {
+        unsafe {
+            (&*self.ptr).refs.fetch_add(1, Ordering::SeqCst);
+        }
+
+        Self { ptr: self.ptr }
+    }
+}
+
+impl<T> Drop for Sarc<T> {
+    fn drop(&mut self) {
+        unsafe {
+            if (&*self.ptr).refs.fetch_sub(1, Ordering::SeqCst) == 1 {
+                ptr::read(&(&*self.ptr).data);
+                local_dealloc(self.ptr as _, Layout::new::<ABox<T>>());
+            }
+        }
+    }
+}
+
+impl<T> Deref for Sarc<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &(&*self.ptr).data }
+    }
+}
+
+impl<T> Pointer<T> for Sarc<T> {
+    fn into_usize(self) -> usize {
+        let u = self.ptr as usize;
+        mem::forget(self);
+        u
+    }
+
+    unsafe fn from_usize(data: usize) -> Self {
+        Self { ptr: data as _ }
+    }
+}
+
 pub struct Sanic<T> {
     ptr: *mut T,
 }
