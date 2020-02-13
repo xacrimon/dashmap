@@ -17,6 +17,11 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher> {
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized;
+    fn _remove_with_cond<Q, C>(&self, key: &Q, matches: C) -> Option<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+        C: FnOnce(&V) -> bool;
     fn _iter(&'a self) -> Iter<'a, K, V, S, Self>
     where
         Self: Sized;

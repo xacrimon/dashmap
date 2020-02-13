@@ -293,6 +293,29 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._remove(key)
     }
 
+    /// Removes an entry from the map if the value match the condition, return the key and value
+    /// if the value existed and matched the cond.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    ///  use dashmap::DashMap;
+    ///
+    ///  let dm = DashMap::new();
+    ///  dm.insert(10, 10);
+    ///  assert_eq!(true, dm.remove_with_cond(&10, |v| v == &10).is_some());
+    ///  assert_eq!(false, dm.remove_with_cond(&10, |v| v == &10).is_some());
+    /// ```
+    #[inline]
+    pub fn remove_with_cond<Q, C>(&self, key: &Q, matches: C) -> Option<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+        C: FnOnce(&V) -> bool,
+    {
+        self._remove_with_cond(key, matches)
+    }
+
     /// Creates an iterator over a DashMap yielding immutable references.
     ///
     /// # Examples
@@ -569,6 +592,23 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     }
 
     #[inline]
+    fn _remove_with_cond<Q, C>(&self, key: &Q, matches: C) -> Option<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+        C: FnOnce(&V) -> bool,
+    {
+        let hash = self.hash_usize(&key);
+        let idx = self.determine_shard(hash);
+        let mut shard = unsafe { self._yield_write_shard(idx) };
+        if let Some(val) = shard.get(key) {
+            if matches(val.get()) {
+                return shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()));
+            }
+        }
+        None
+    }
+    #[inline]
     fn _iter(&'a self) -> Iter<'a, K, V, S, DashMap<K, V, S>> {
         Iter::new(self)
     }
@@ -838,5 +878,13 @@ mod tests {
             dm_hm_default.insert(i, i);
             assert_eq!(i, *dm_hm_default.get(&i).unwrap().value());
         }
+    }
+
+    #[test]
+    fn test_remove_with_cond() {
+        let dm = DashMap::new();
+        dm.insert(10, 10);
+        assert_eq!(true, dm.remove_with_cond(&10, |v| v == &10).is_some());
+        assert_eq!(false, dm.remove_with_cond(&10, |v| v == &10).is_some());
     }
 }
