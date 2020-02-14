@@ -36,6 +36,22 @@ impl<T> Sarc<T> {
             ptr: s.into_usize() as _,
         }
     }
+
+    pub unsafe fn from_shared_maybe<'a>(s: Shared<'a, T>) -> Option<Self> {
+        if !s.with_tag(0).is_null() {
+            Some(Self {
+                ptr: s.into_usize() as _,
+            })
+        } else {
+            None
+        }
+    }
+
+    pub unsafe fn nd_data(self) -> &'static T {
+        let r = transmute(&*self);
+        mem::forget(self);
+        r
+    }
 }
 
 unsafe impl<T: Send> Send for Sarc<T> {}
