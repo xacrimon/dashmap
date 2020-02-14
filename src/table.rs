@@ -61,7 +61,7 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
             for bucket in &*self.buckets {
                 let ptr = bucket.load(Ordering::SeqCst, guard);
                 if !ptr.with_tag(0).is_null() {
-                    garbage.push(Sanic::from_shared(ptr));
+                    garbage.push(Sarc::from_shared(ptr));
                 }
             }
             //std::mem::forget(garbage);
@@ -106,7 +106,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
             return next.insert_node(guard, node);
         }
 
-        let inner = unsafe { node.deref() };
+        let inner = unsafe { Sarc::from_shared(node) };
         //dbg!(&inner.inner.key);
 
         let mut idx = hash2idx(inner.hash, self.shift);
@@ -148,9 +148,9 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
 
                 _ => (),
             }
-            if let Some(e_current_node) = unsafe { e_current.as_ref() } {
+            if let Some(e_current_node) = unsafe { Sarc::from_shared_maybe(e_current) } {
                 //dbg!("encountered filled bucket");
-                if e_current_node.inner.key == inner.inner.key {
+                if e_current_node.key == inner.key {
                     //dbg!("bucket key matched");
                     match {
                         self.buckets[idx].compare_and_set(
@@ -162,7 +162,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     } {
                         Ok(_) => {
                             unsafe {
-                                guard.defer_unchecked(move || drop(Sanic::from_shared(e_current)))
+                                guard.defer_unchecked(move || drop(Sarc::from_shared(e_current)))
                             }
 
                             cell_maybe_return!(self, guard)
