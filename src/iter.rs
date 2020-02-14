@@ -34,12 +34,21 @@ pub struct Iter<'a, K, V, S, M> {
     current: Option<GuardIter<'a, K, V, S>>,
 }
 
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: 'a + BuildHasher, M: Map<'a, K, V, S>> Send
-    for Iter<'a, K, V, S, M>
+unsafe impl<'a, 'i, K, V, S, M> Send for Iter<'i, K, V, S, M>
+where
+    K: 'a + Eq + Hash + Send,
+    V: 'a + Send,
+    S: 'a + BuildHasher,
+    M: Map<'a, K, V, S>,
 {
 }
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: 'a + BuildHasher, M: Map<'a, K, V, S>>
-    Sync for Iter<'a, K, V, S, M>
+
+unsafe impl<'a, 'i, K, V, S, M> Sync for Iter<'i, K, V, S, M>
+where
+    K: 'a + Eq + Hash + Sync,
+    V: 'a + Sync,
+    S: 'a + BuildHasher,
+    M: Map<'a, K, V, S>,
 {
 }
 
@@ -99,12 +108,21 @@ pub struct IterMut<'a, K, V, S, M> {
     current: Option<GuardIterMut<'a, K, V, S>>,
 }
 
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: 'a + BuildHasher, M: Map<'a, K, V, S>> Send
-    for IterMut<'a, K, V, S, M>
+unsafe impl<'a, 'i, K, V, S, M> Send for IterMut<'i, K, V, S, M>
+where
+    K: 'a + Eq + Hash + Send,
+    V: 'a + Send,
+    S: 'a + BuildHasher,
+    M: Map<'a, K, V, S>,
 {
 }
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: 'a + BuildHasher, M: Map<'a, K, V, S>>
-    Sync for IterMut<'a, K, V, S, M>
+
+unsafe impl<'a, 'i, K, V, S, M> Sync for IterMut<'i, K, V, S, M>
+where
+    K: 'a + Eq + Hash + Sync,
+    V: 'a + Sync,
+    S: 'a + BuildHasher,
+    M: Map<'a, K, V, S>,
 {
 }
 
