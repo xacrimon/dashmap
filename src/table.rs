@@ -1,5 +1,5 @@
 use super::element::*;
-use crate::alloc::Sanic;
+use crate::alloc::{Sanic, Sarc};
 use crate::util::CachePadded;
 use crossbeam_epoch::{pin, Atomic, Guard, Owned, Shared};
 use std::borrow::Borrow;
@@ -99,17 +99,17 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn insert_node<'a>(
         &self,
         guard: &'a Guard,
-        node: Shared<Element<K, V>>,
+        node: Sarc<Element<K, V>>,
     ) -> Option<Shared<'a, Self>> {
         //println!("entering function");
         if let Some(next) = self.get_next(guard) {
             return next.insert_node(guard, node);
         }
 
-        let inner = unsafe { Sarc::from_shared(node) };
         //dbg!(&inner.inner.key);
 
-        let mut idx = hash2idx(inner.hash, self.shift);
+        let mut idx = hash2idx(node.hash, self.shift);
+        let inner = node.clone();
         let mut node = Some(node);
         //println!("before loop");
 
@@ -133,14 +133,14 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
-                            node.take().unwrap(),
+                            node.take().unwrap().into_shared(guard),
                             Ordering::AcqRel,
                             guard,
                         )
                     } {
                         Ok(_) => cell_maybe_return!(self, guard),
                         Err(err) => {
-                            node = Some(err.new);
+                            node = Some(Sarc::from_shared(err.new));
                             continue;
                         }
                     }
@@ -155,7 +155,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
-                            node.take().unwrap(),
+                            node.take().unwrap().into_shared(),
                             Ordering::AcqRel,
                             guard,
                         )
@@ -182,7 +182,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 match {
                     self.buckets[idx].compare_and_set(
                         e_current,
-                        node.take().unwrap(),
+                        node.take().unwrap().into_shared(),
                         Ordering::AcqRel,
                         guard,
                     )
@@ -190,7 +190,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     Ok(_) => cell_maybe_return!(self, guard),
                     Err(err) => {
                         //dbg!("cas 1 failed");
-                        node = Some(err.new);
+                        node = Some(Sarc::from_shared(err.new, guard));
                         continue;
                     }
                 }
