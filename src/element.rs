@@ -1,5 +1,5 @@
-use crate::util::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use crate::alloc::Sarc;
+use crate::util::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::cell::UnsafeCell;
 use std::mem::transmute;
 use std::ops::{Deref, DerefMut};

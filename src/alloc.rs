@@ -20,7 +20,13 @@ impl<T> Sarc<T> {
     pub fn new(v: T) -> Self {
         unsafe {
             let ptr = local_alloc(Layout::new::<ABox<T>>()) as *mut ABox<T>;
-            ptr::write(ptr, ABox { refs: AtomicUsize::new(0), data: v });
+            ptr::write(
+                ptr,
+                ABox {
+                    refs: AtomicUsize::new(0),
+                    data: v,
+                },
+            );
             Self { ptr }
         }
     }
@@ -54,9 +60,7 @@ impl<T> Sarc<T> {
     }
 
     pub fn decr(&self) -> bool {
-        unsafe {
-            (*self.ptr).refs.fetch_sub(1, Ordering::SeqCst) == 1
-        }
+        unsafe { (*self.ptr).refs.fetch_sub(1, Ordering::SeqCst) == 1 }
     }
 
     pub unsafe fn nd_data(self) -> &'static T {
@@ -213,7 +217,7 @@ fn local_dealloc(ptr: *mut u8, layout: Layout) {
             dealloc(ptr, layout);
         } else {
             let base_ptr = align_down(ptr as usize, SEGMENT_SIZE) as *const AtomicUsize;
-            
+
             if (&*base_ptr).fetch_sub(1, Ordering::SeqCst) == 1 {
                 dealloc(base_ptr as _, segment_layout());
             }

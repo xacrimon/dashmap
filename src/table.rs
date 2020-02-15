@@ -286,9 +286,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     .is_ok()
                 {
                     self.remaining_cells.fetch_add(1, Ordering::Relaxed);
-                    unsafe {
-                        guard.defer_unchecked(move || drop(Sanic::from_shared(shared)))
-                    }
+                    unsafe { guard.defer_unchecked(move || drop(Sanic::from_shared(shared))) }
                     return true;
                 } else {
                     continue;

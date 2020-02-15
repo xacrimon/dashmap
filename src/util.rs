@@ -96,14 +96,13 @@ unsafe impl<T: ?Sized + Send> Send for RwLock<T> {}
 unsafe impl<T: ?Sized + Send + Sync> Sync for RwLock<T> {}
 
 impl<T> RwLock<T> {
-    #[inline]
     pub const fn new(user_data: T) -> RwLock<T> {
         RwLock {
             lock: AtomicUsize::new(0),
             data: UnsafeCell::new(user_data),
         }
     }
-    #[inline]
+
     pub fn into_inner(self) -> T {
         let RwLock { data, .. } = self;
         data.into_inner()
@@ -111,7 +110,6 @@ impl<T> RwLock<T> {
 }
 
 impl<T: ?Sized> RwLock<T> {
-    #[inline]
     pub fn read(&self) -> RwLockReadGuard<T> {
         loop {
             match self.try_read() {
@@ -121,7 +119,6 @@ impl<T: ?Sized> RwLock<T> {
         }
     }
 
-    #[inline]
     pub fn try_read(&self) -> Option<RwLockReadGuard<T>> {
         let value = self.lock.fetch_add(READER, Ordering::Acquire);
 
@@ -139,19 +136,16 @@ impl<T: ?Sized> RwLock<T> {
         }
     }
 
-    #[inline]
     pub unsafe fn force_read_decrement(&self) {
         debug_assert!(self.lock.load(Ordering::Relaxed) & !WRITER > 0);
         self.lock.fetch_sub(READER, Ordering::Release);
     }
 
-    #[inline]
     pub unsafe fn force_write_unlock(&self) {
         debug_assert_eq!(self.lock.load(Ordering::Relaxed) & !(WRITER | UPGRADED), 0);
         self.lock.fetch_and(!(WRITER | UPGRADED), Ordering::Release);
     }
 
-    #[inline(always)]
     fn try_write_internal(&self, strong: bool) -> Option<RwLockWriteGuard<T>> {
         if compare_exchange(
             &self.lock,
@@ -173,7 +167,6 @@ impl<T: ?Sized> RwLock<T> {
         }
     }
 
-    #[inline]
     pub fn write(&self) -> RwLockWriteGuard<T> {
         loop {
             match self.try_write_internal(false) {
@@ -183,12 +176,10 @@ impl<T: ?Sized> RwLock<T> {
         }
     }
 
-    #[inline]
     pub fn try_write(&self) -> Option<RwLockWriteGuard<T>> {
         self.try_write_internal(true)
     }
 
-    #[inline]
     pub fn upgradeable_read(&self) -> RwLockUpgradeableGuard<T> {
         loop {
             match self.try_upgradeable_read() {
@@ -198,7 +189,6 @@ impl<T: ?Sized> RwLock<T> {
         }
     }
 
-    #[inline]
     pub fn try_upgradeable_read(&self) -> Option<RwLockUpgradeableGuard<T>> {
         if self.lock.fetch_or(UPGRADED, Ordering::Acquire) & (WRITER | UPGRADED) == 0 {
             Some(RwLockUpgradeableGuard {
@@ -234,7 +224,6 @@ impl<T: ?Sized + Default> Default for RwLock<T> {
 }
 
 impl<'rwlock, T: ?Sized> RwLockUpgradeableGuard<'rwlock, T> {
-    #[inline(always)]
     fn try_upgrade_internal(self, strong: bool) -> Result<RwLockWriteGuard<'rwlock, T>, Self> {
         if compare_exchange(
             &self.lock,
@@ -260,7 +249,6 @@ impl<'rwlock, T: ?Sized> RwLockUpgradeableGuard<'rwlock, T> {
         }
     }
 
-    #[inline]
     pub fn upgrade(mut self) -> RwLockWriteGuard<'rwlock, T> {
         loop {
             self = match self.try_upgrade_internal(false) {
@@ -272,12 +260,10 @@ impl<'rwlock, T: ?Sized> RwLockUpgradeableGuard<'rwlock, T> {
         }
     }
 
-    #[inline]
     pub fn try_upgrade(self) -> Result<RwLockWriteGuard<'rwlock, T>, Self> {
         self.try_upgrade_internal(true)
     }
 
-    #[inline]
     pub fn downgrade(self) -> RwLockReadGuard<'rwlock, T> {
         self.lock.fetch_add(READER, Ordering::Acquire);
 
@@ -289,7 +275,6 @@ impl<'rwlock, T: ?Sized> RwLockUpgradeableGuard<'rwlock, T> {
 }
 
 impl<'rwlock, T: ?Sized> RwLockWriteGuard<'rwlock, T> {
-    #[inline]
     pub fn downgrade(self) -> RwLockReadGuard<'rwlock, T> {
         self.lock.fetch_add(READER, Ordering::Acquire);
 
@@ -354,7 +339,6 @@ impl<'rwlock, T: ?Sized> Drop for RwLockWriteGuard<'rwlock, T> {
     }
 }
 
-#[inline(always)]
 fn compare_exchange(
     atomic: &AtomicUsize,
     current: usize,
