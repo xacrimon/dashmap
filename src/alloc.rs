@@ -47,8 +47,20 @@ impl<T> Sarc<T> {
         }
     }
 
+    pub fn incr(&self) {
+        unsafe {
+            (*self.ptr).refs.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    pub fn decr(&self) -> bool {
+        unsafe {
+            (*self.ptr).refs.fetch_sub(1, Ordering::SeqCst) == 1
+        }
+    }
+
     pub unsafe fn nd_data(self) -> &'static T {
-        let r = transmute(&*self);
+        let r = mem::transmute(&*self);
         mem::forget(self);
         r
     }
