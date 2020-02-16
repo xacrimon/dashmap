@@ -140,7 +140,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     } {
                         Ok(_) => cell_maybe_return!(self, guard),
                         Err(err) => {
-                            node = Some(Sarc::from_shared(err.new));
+                            node = unsafe { Some(Sarc::from_shared(err.new)) };
                             continue;
                         }
                     }
@@ -155,7 +155,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
-                            node.take().unwrap().into_shared(),
+                            node.take().unwrap().into_shared(guard),
                             Ordering::AcqRel,
                             guard,
                         )
@@ -168,7 +168,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                             cell_maybe_return!(self, guard)
                         }
                         Err(err) => {
-                            node = Some(err.new);
+                            node = unsafe { Some(Sarc::from_shared(err.new)) };
                             continue;
                         }
                     }
@@ -182,7 +182,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 match {
                     self.buckets[idx].compare_and_set(
                         e_current,
-                        node.take().unwrap().into_shared(),
+                        node.take().unwrap().into_shared(guard),
                         Ordering::AcqRel,
                         guard,
                     )
@@ -190,7 +190,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     Ok(_) => cell_maybe_return!(self, guard),
                     Err(err) => {
                         //dbg!("cas 1 failed");
-                        node = Some(Sarc::from_shared(err.new, guard));
+                        node = unsafe { Some(Sarc::from_shared(err.new)) };
                         continue;
                     }
                 }
@@ -232,7 +232,11 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 {
                     continue;
                 }
-                new_i.insert_node(guard, maybe_node);
+                if !maybe_node.is_null() {
+                    let n = unsafe { Sarc::from_shared(maybe_node) };
+                    n.incr();
+                    new_i.insert_node(guard, n);
+                }
                 break;
             }
         }
@@ -274,8 +278,8 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
             if shared.is_null() {
                 return false;
             }
-            let elem = unsafe { shared.as_ref().unwrap() };
-            if key == elem.inner.key.borrow() {
+            let elem = unsafe { Sarc::from_shared(shared) };
+            if key == elem.key.borrow() {
                 if self.buckets[idx]
                     .compare_and_set(
                         shared,
@@ -286,9 +290,10 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     .is_ok()
                 {
                     self.remaining_cells.fetch_add(1, Ordering::Relaxed);
-                    unsafe { guard.defer_unchecked(move || drop(Sanic::from_shared(shared))) }
+                    unsafe { guard.defer_unchecked(move || drop(elem)) }
                     return true;
                 } else {
+                    mem::forget(elem);
                     continue;
                 }
             } else {
@@ -297,7 +302,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn get_elem<'a, Q>(&'a self, guard: &'a Guard, key: &Q) -> Option<&'a Element<K, V>>
+    fn get_elem<'a, Q>(&'a self, guard: &'a Guard, key: &Q) -> Option<Sarc<Element<K, V>>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -327,10 +332,12 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
             if shared.is_null() {
                 return None;
             }
-            let elem = unsafe { shared.as_ref().unwrap() };
-            if key == elem.inner.key.borrow() {
+            let elem = unsafe { Sarc::from_shared(shared) };
+            if key == elem.key.borrow() {
+                elem.incr();
                 return Some(elem);
             } else {
+                mem::forget(elem);
                 idx = incr_idx(self, idx);
             }
         }
@@ -341,7 +348,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        self.get_elem(&guard, key).map(|e| e.read())
+        self.get_elem(&guard, key).map(|e| Element::read(e))
     }
 
     fn get_mut<Q>(&self, guard: Guard, key: &Q) -> Option<ElementWriteGuard<K, V>>
@@ -349,7 +356,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        self.get_elem(&guard, key).map(|e| e.write())
+        self.get_elem(&guard, key).map(|e| Element::write(e))
     }
 }
 
@@ -380,7 +387,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
 
     pub fn insert(&self, key: K, hash: u64, value: V) {
         let guard = pin();
-        let node = Sanic::new(Element::new(key, hash, value)).into_shared(&guard);
+        let node = Sarc::new(Element::new(key, hash, value));
         let root = self.root(&guard);
         if let Some(new_root) = root.insert_node(&guard, node) {
             self.root.store(new_root, Ordering::SeqCst);
