@@ -78,6 +78,7 @@ where
     K: Eq + Hash,
     S: Default + BuildHasher + Clone,
 {
+    #[inline]
     fn default() -> Self {
         Self::with_hasher(Default::default())
     }

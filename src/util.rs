@@ -67,6 +67,7 @@ unsafe impl<T: Sync> Sync for SharedValue<T> {}
 
 impl<T> SharedValue<T> {
     /// Create a new `SharedValue<T>`
+    #[inline]
     pub const fn new(value: T) -> Self {
         Self {
             value: UnsafeCell::new(value),
@@ -74,21 +75,25 @@ impl<T> SharedValue<T> {
     }
 
     /// Get a shared reference to `T`
+    #[inline]
     pub fn get(&self) -> &T {
         unsafe { &*self.value.get() }
     }
 
     /// Get an unique reference to `T`
+    #[inline]
     pub fn get_mut(&mut self) -> &mut T {
         unsafe { &mut *self.value.get() }
     }
 
     /// Unwraps the value
+    #[inline]
     pub fn into_inner(self) -> T {
         self.value.into_inner()
     }
 
     /// Get a mutable raw pointer to the underlying value
+    #[inline]
     pub(crate) fn as_ptr(&self) -> *mut T {
         self.value.get()
     }
@@ -97,6 +102,7 @@ impl<T> SharedValue<T> {
 struct AbortOnPanic;
 
 impl Drop for AbortOnPanic {
+    #[inline]
     fn drop(&mut self) {
         if std::thread::panicking() {
             std::process::abort()

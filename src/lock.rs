@@ -180,6 +180,7 @@ impl<T: ?Sized + fmt::Debug> fmt::Debug for RwLock<T> {
 }
 
 impl<T: ?Sized + Default> Default for RwLock<T> {
+    #[inline]
     fn default() -> RwLock<T> {
         RwLock::new(Default::default())
     }
@@ -255,6 +256,7 @@ impl<'rwlock, T: ?Sized> RwLockWriteGuard<'rwlock, T> {
 impl<'rwlock, T: ?Sized> Deref for RwLockReadGuard<'rwlock, T> {
     type Target = T;
 
+    #[inline]
     fn deref(&self) -> &T {
         unsafe { self.data.as_ref() }
     }
@@ -263,6 +265,7 @@ impl<'rwlock, T: ?Sized> Deref for RwLockReadGuard<'rwlock, T> {
 impl<'rwlock, T: ?Sized> Deref for RwLockUpgradeableGuard<'rwlock, T> {
     type Target = T;
 
+    #[inline]
     fn deref(&self) -> &T {
         unsafe { self.data.as_ref() }
     }
@@ -271,18 +274,21 @@ impl<'rwlock, T: ?Sized> Deref for RwLockUpgradeableGuard<'rwlock, T> {
 impl<'rwlock, T: ?Sized> Deref for RwLockWriteGuard<'rwlock, T> {
     type Target = T;
 
+    #[inline]
     fn deref(&self) -> &T {
         unsafe { self.data.as_ref() }
     }
 }
 
 impl<'rwlock, T: ?Sized> DerefMut for RwLockWriteGuard<'rwlock, T> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut T {
         unsafe { self.data.as_mut() }
     }
 }
 
 impl<'rwlock, T: ?Sized> Drop for RwLockReadGuard<'rwlock, T> {
+    #[inline]
     fn drop(&mut self) {
         debug_assert!(self.lock.load(Ordering::Relaxed) & !(WRITER | UPGRADED) > 0);
         self.lock.fetch_sub(READER, Ordering::Release);
@@ -290,6 +296,7 @@ impl<'rwlock, T: ?Sized> Drop for RwLockReadGuard<'rwlock, T> {
 }
 
 impl<'rwlock, T: ?Sized> Drop for RwLockUpgradeableGuard<'rwlock, T> {
+    #[inline]
     fn drop(&mut self) {
         debug_assert_eq!(
             self.lock.load(Ordering::Relaxed) & (WRITER | UPGRADED),
@@ -300,6 +307,7 @@ impl<'rwlock, T: ?Sized> Drop for RwLockUpgradeableGuard<'rwlock, T> {
 }
 
 impl<'rwlock, T: ?Sized> Drop for RwLockWriteGuard<'rwlock, T> {
+    #[inline]
     fn drop(&mut self) {
         debug_assert_eq!(self.lock.load(Ordering::Relaxed) & WRITER, WRITER);
         self.lock.fetch_and(!(WRITER | UPGRADED), Ordering::Release);
