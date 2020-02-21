@@ -11,7 +11,7 @@ mod serde;
 
 use ahash::RandomState;
 use cfg_if::cfg_if;
-use iter::{Iter, IterMut};
+use iter::{Iter, IterMut, OwningIter};
 use lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
@@ -676,6 +676,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             Entry::Vacant(VacantEntry::new(shard, key))
         }
     }
+
+    #[inline]
+    fn _hasher(&self) -> S {
+        self.hasher.clone()
+    }
 }
 
 impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debug
@@ -749,6 +754,15 @@ where
     #[inline]
     fn bitand(self, key: &Q) -> Self::Output {
         self.contains_key(key)
+    }
+}
+
+impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> {
+    type Item = (K, V);
+    type IntoIter = OwningIter<K, V, S>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        OwningIter::new(self)
     }
 }
 

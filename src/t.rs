@@ -8,7 +8,7 @@ use crate::HashMap;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash};
 
-pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher> {
+pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
     fn _shard_count(&self) -> usize;
     unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, S>>;
     unsafe fn _yield_write_shard(&'a self, i: usize) -> RwLockWriteGuard<'a, HashMap<K, V, S>>;
@@ -41,6 +41,7 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher> {
         Q: Hash + Eq + ?Sized;
     fn _alter_all(&self, f: impl FnMut(&K, V) -> V);
     fn _entry(&'a self, key: K) -> Entry<'a, K, V, S>;
+    fn _hasher(&self) -> S;
 
     // provided
 
