@@ -570,6 +570,26 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     }
 
     #[inline]
+    fn _remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        let hash = self.hash_usize(&key);
+        let idx = self.determine_shard(hash);
+        let mut shard = unsafe { self._yield_write_shard(idx) };
+        if let Some((k, v)) = shard.get_key_value(key) {
+            if f(k, v.get()) {
+                shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    #[inline]
     fn _iter(&'a self) -> Iter<'a, K, V, S, DashMap<K, V, S>> {
         Iter::new(self)
     }
