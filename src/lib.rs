@@ -22,7 +22,7 @@ use std::hash::Hasher;
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
-use t::Map;
+pub use t::Map;
 
 cfg_if! {
     if #[cfg(feature = "raw-api")] {
