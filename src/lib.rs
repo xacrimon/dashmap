@@ -11,7 +11,7 @@ mod serde;
 
 use ahash::RandomState;
 use cfg_if::cfg_if;
-use iter::{Iter, IterMut};
+use iter::{Iter, IterMut, OwningIter};
 use lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
@@ -22,7 +22,7 @@ use std::hash::Hasher;
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
-use t::Map;
+pub use t::Map;
 
 cfg_if! {
     if #[cfg(feature = "raw-api")] {
@@ -570,6 +570,26 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     }
 
     #[inline]
+    fn _remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        let hash = self.hash_usize(&key);
+        let idx = self.determine_shard(hash);
+        let mut shard = unsafe { self._yield_write_shard(idx) };
+        if let Some((k, v)) = shard.get_key_value(key) {
+            if f(k, v.get()) {
+                shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    #[inline]
     fn _iter(&'a self) -> Iter<'a, K, V, S, DashMap<K, V, S>> {
         Iter::new(self)
     }
@@ -676,6 +696,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             Entry::Vacant(VacantEntry::new(shard, key))
         }
     }
+
+    #[inline]
+    fn _hasher(&self) -> S {
+        self.hasher.clone()
+    }
 }
 
 impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debug
@@ -749,6 +774,15 @@ where
     #[inline]
     fn bitand(self, key: &Q) -> Self::Output {
         self.contains_key(key)
+    }
+}
+
+impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> {
+    type Item = (K, V);
+    type IntoIter = OwningIter<K, V, S>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        OwningIter::new(self)
     }
 }
 
