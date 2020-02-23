@@ -17,13 +17,13 @@ fn insert_contrie_u64_u64(c: &mut Criterion) {
     group.throughput(Throughput::Elements(ITER as u64));
     let max = num_cpus::get();
 
-    for threads in 1..=max {
+    for threads in &[1, max] {
         group.bench_with_input(
             BenchmarkId::from_parameter(threads),
             &threads,
             |b, &threads| {
                 let pool = rayon::ThreadPoolBuilder::new()
-                    .num_threads(threads)
+                    .num_threads(*threads)
                     .build()
                     .unwrap();
                 pool.install(|| b.iter(|| task_insert_contrie_u64_u64()));
@@ -45,7 +45,7 @@ fn get_contrie_u64_u64(c: &mut Criterion) {
     group.throughput(Throughput::Elements(ITER as u64));
     let max = num_cpus::get();
 
-    for threads in 1..=max {
+    for threads in &[1, max] {
         let map = task_insert_contrie_u64_u64();
 
         group.bench_with_input(
@@ -53,7 +53,7 @@ fn get_contrie_u64_u64(c: &mut Criterion) {
             &threads,
             |b, &threads| {
                 let pool = rayon::ThreadPoolBuilder::new()
-                    .num_threads(threads)
+                    .num_threads(*threads)
                     .build()
                     .unwrap();
                 pool.install(|| b.iter(|| task_get_contrie_u64_u64(&map)));

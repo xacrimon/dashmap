@@ -1,11 +1,14 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use dashmap::DashMap;
+use dashmap::DashMap as DMF;
+use fxhash::FxBuildHasher;
 use rayon::prelude::*;
+
+type DashMap<K, V> = DMF<K, V, FxBuildHasher>;
 
 const ITER: u64 = 32 * 1024;
 
 fn task_insert_dashmap_u64_u64() -> DashMap<u64, u64> {
-    let map = DashMap::with_capacity(ITER as usize);
+    let map = DashMap::with_capacity_and_hasher(ITER as usize, FxBuildHasher::default());
     (0..ITER).into_par_iter().for_each(|i| {
         map.insert(i, i + 7);
     });
@@ -17,13 +20,13 @@ fn insert_dashmap_u64_u64(c: &mut Criterion) {
     group.throughput(Throughput::Elements(ITER as u64));
     let max = num_cpus::get();
 
-    for threads in 1..=max {
+    for threads in &[1, max] {
         group.bench_with_input(
             BenchmarkId::from_parameter(threads),
             &threads,
             |b, &threads| {
                 let pool = rayon::ThreadPoolBuilder::new()
-                    .num_threads(threads)
+                    .num_threads(*threads)
                     .build()
                     .unwrap();
                 pool.install(|| b.iter(|| task_insert_dashmap_u64_u64()));
@@ -45,7 +48,7 @@ fn get_dashmap_u64_u64(c: &mut Criterion) {
     group.throughput(Throughput::Elements(ITER as u64));
     let max = num_cpus::get();
 
-    for threads in 1..=max {
+    for threads in &[1, max] {
         let map = task_insert_dashmap_u64_u64();
 
         group.bench_with_input(
@@ -53,7 +56,7 @@ fn get_dashmap_u64_u64(c: &mut Criterion) {
             &threads,
             |b, &threads| {
                 let pool = rayon::ThreadPoolBuilder::new()
-                    .num_threads(threads)
+                    .num_threads(*threads)
                     .build()
                     .unwrap();
                 pool.install(|| b.iter(|| task_get_dashmap_u64_u64(&map)));
