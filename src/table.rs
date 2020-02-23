@@ -80,7 +80,7 @@ pub struct BucketArray<K, V, S> {
 
 impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
-        capacity = 2 * capacity;
+        capacity = 2 * capacity; // TO-DO: remove this
         //dbg!(capacity);
         let remaining_cells =
             CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
