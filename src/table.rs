@@ -7,7 +7,7 @@ use std::cmp;
 use std::fmt::Debug;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::iter;
-use std::mem;
+use std::mem::{self, ManuallyDrop};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -36,11 +36,17 @@ pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
 
 macro_rules! cell_maybe_return {
     ($s:expr, $g:expr) => {
-        return if $s.remaining_cells.fetch_sub(1, Ordering::Relaxed) == 1 {
-            $s.grow($g)
-        } else {
-            None
-        };
+        {
+            println!("running cell_maybe_return fetch sub atomic op");
+            let should_grow = $s.remaining_cells.fetch_sub(1, Ordering::Relaxed) == 1;
+            println!("atomic dec done, {}", should_grow);
+            if should_grow {
+                return $s.grow($g);
+            } else {
+                dbg!("returning none");
+                return None;
+            }
+        }
     };
 }
 
@@ -81,7 +87,7 @@ pub struct BucketArray<K, V, S> {
 impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
         capacity = 2 * capacity; // TO-DO: remove this
-        //dbg!(capacity);
+        dbg!(capacity);
         let remaining_cells =
             CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
         let shift = make_shift(capacity);
@@ -99,28 +105,28 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn insert_node<'a>(
         &self,
         guard: &'a Guard,
-        node: Sarc<Element<K, V>>,
+        node: ManuallyDrop<Sarc<Element<K, V>>>,
     ) -> Option<Shared<'a, Self>> {
-        //println!("entering function");
+        println!("entering insert_node function");
         if let Some(next) = self.get_next(guard) {
             return next.insert_node(guard, node);
         }
 
-        //dbg!(&inner.inner.key);
+        dbg!(&node.key);
 
         let mut idx = hash2idx(node.hash, self.shift);
         let inner = node.clone();
         let mut node = Some(node);
-        //println!("before loop");
+        println!("before loop");
 
         loop {
-            //println!("loop start");
-            //dbg!(idx);
+            println!("loop start");
+            dbg!(idx);
             let e_current = self.buckets[idx].load(Ordering::Acquire, guard);
-            //println!("loaded pointer");
+            println!("loaded pointer");
             match e_current.tag() {
                 REDIRECT_TAG => {
-                    //dbg!("was redirect, delegating");
+                    dbg!("was redirect, delegating");
                     self.get_next(guard)
                         .unwrap()
                         .insert_node(guard, node.take().unwrap());
@@ -129,18 +135,18 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
 
                 TOMBSTONE_TAG => {
-                    //dbg!("was tombstone");
+                    dbg!("was tombstone");
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
-                            node.take().unwrap().into_shared(guard),
+                            ManuallyDrop::into_inner(node.take().unwrap()).into_shared(guard),
                             Ordering::AcqRel,
                             guard,
                         )
                     } {
                         Ok(_) => cell_maybe_return!(self, guard),
                         Err(err) => {
-                            node = unsafe { Some(Sarc::from_shared(err.new)) };
+                            node = unsafe { Some(ManuallyDrop::new(Sarc::from_shared(err.new))) };
                             continue;
                         }
                     }
@@ -149,13 +155,13 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 _ => (),
             }
             if let Some(e_current_node) = unsafe { Sarc::from_shared_maybe(e_current) } {
-                //dbg!("encountered filled bucket");
+                dbg!("encountered filled bucket");
                 if e_current_node.key == inner.key {
-                    //dbg!("bucket key matched");
+                    dbg!("bucket key matched");
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
-                            node.take().unwrap().into_shared(guard),
+                            ManuallyDrop::into_inner(node.take().unwrap()).into_shared(guard),
                             Ordering::AcqRel,
                             guard,
                         )
@@ -168,29 +174,34 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                             cell_maybe_return!(self, guard)
                         }
                         Err(err) => {
-                            node = unsafe { Some(Sarc::from_shared(err.new)) };
+                            node = unsafe { Some(ManuallyDrop::new(Sarc::from_shared(err.new))) };
                             continue;
                         }
                     }
                 } else {
                     idx = incr_idx(self, idx);
-                    //dbg!("bucket key did not match", idx);
+                    dbg!("bucket key did not match", idx);
                     continue;
                 }
             } else {
-                //dbg!("was null, cas 1");
+                dbg!("was null, cas 1");
+                let s_new = ManuallyDrop::into_inner(node.take().unwrap()).into_shared(guard);
                 match {
                     self.buckets[idx].compare_and_set(
                         e_current,
-                        node.take().unwrap().into_shared(guard),
+                        s_new,
                         Ordering::AcqRel,
                         guard,
                     )
                 } {
-                    Ok(_) => cell_maybe_return!(self, guard),
+                    Ok(_) => {
+                        dbg!("cas one success");
+                        cell_maybe_return!(self, guard);
+                        dbg!("we should not get here, ever");
+                    },
                     Err(err) => {
-                        //dbg!("cas 1 failed");
-                        node = unsafe { Some(Sarc::from_shared(err.new)) };
+                        dbg!("cas 1 failed");
+                        node = unsafe { Some(ManuallyDrop::new(Sarc::from_shared(err.new))) };
                         continue;
                     }
                 }
@@ -199,7 +210,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 
     fn grow<'a>(&self, guard: &'a Guard) -> Option<Shared<'a, Self>> {
-        panic!("grow call");
+        unimplemented!();
         let shared = self.next.load(Ordering::SeqCst, guard);
 
         if unsafe { shared.as_ref().is_some() } {
@@ -235,7 +246,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 if !maybe_node.is_null() {
                     let n = unsafe { Sarc::from_shared(maybe_node) };
                     n.incr();
-                    new_i.insert_node(guard, n);
+                    new_i.insert_node(guard, ManuallyDrop::new(n));
                 }
                 break;
             }
@@ -389,7 +400,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         let guard = pin();
         let node = Sarc::new(Element::new(key, hash, value));
         let root = self.root(&guard);
-        if let Some(new_root) = root.insert_node(&guard, node) {
+        if let Some(new_root) = root.insert_node(&guard, ManuallyDrop::new(node)) {
             self.root.store(new_root, Ordering::SeqCst);
             unsafe {
                 let prev_shared: Shared<'_, BucketArray<K, V, S>> = mem::transmute(root);
