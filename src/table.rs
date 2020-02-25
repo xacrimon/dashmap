@@ -24,7 +24,7 @@ fn make_buckets<K, V>(x: usize) -> Box<[Atomic<Element<K, V>>]> {
 }
 
 pub fn hash2idx(hash: u64, shift: usize) -> usize {
-    //dbg!(hash as usize % shift);
+    ////dbg!(hash as usize % shift);
     hash as usize % shift
 }
 
@@ -35,19 +35,17 @@ pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
 }
 
 macro_rules! cell_maybe_return {
-    ($s:expr, $g:expr) => {
-        {
-            println!("running cell_maybe_return fetch sub atomic op");
-            let should_grow = $s.remaining_cells.fetch_sub(1, Ordering::Relaxed) == 1;
-            println!("atomic dec done, {}", should_grow);
-            if should_grow {
-                return $s.grow($g);
-            } else {
-                dbg!("returning none");
-                return None;
-            }
+    ($s:expr, $g:expr) => {{
+        //println!("running cell_maybe_return fetch sub atomic op");
+        let should_grow = $s.remaining_cells.fetch_sub(1, Ordering::Relaxed) == 1;
+        //println!("atomic dec done, {}", should_grow);
+        if should_grow {
+            return $s.grow($g);
+        } else {
+            //dbg!("returning none");
+            return None;
         }
-    };
+    }};
 }
 
 fn incr_idx<K, V, S>(s: &BucketArray<K, V, S>, i: usize) -> usize {
@@ -87,7 +85,7 @@ pub struct BucketArray<K, V, S> {
 impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
         capacity = 2 * capacity; // TO-DO: remove this
-        dbg!(capacity);
+                                 //dbg!(capacity);
         let remaining_cells =
             CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
         let shift = make_shift(capacity);
@@ -107,26 +105,26 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         guard: &'a Guard,
         node: ManuallyDrop<Sarc<Element<K, V>>>,
     ) -> Option<Shared<'a, Self>> {
-        println!("entering insert_node function");
+        //println!("entering insert_node function");
         if let Some(next) = self.get_next(guard) {
             return next.insert_node(guard, node);
         }
 
-        dbg!(&node.key);
+        //dbg!(&node.key);
 
         let mut idx = hash2idx(node.hash, self.shift);
         let inner = node.clone();
         let mut node = Some(node);
-        println!("before loop");
+        //println!("before loop");
 
         loop {
-            println!("loop start");
-            dbg!(idx);
+            //println!("loop start");
+            //dbg!(idx);
             let e_current = self.buckets[idx].load(Ordering::Acquire, guard);
-            println!("loaded pointer");
+            //println!("loaded pointer");
             match e_current.tag() {
                 REDIRECT_TAG => {
-                    dbg!("was redirect, delegating");
+                    //dbg!("was redirect, delegating");
                     self.get_next(guard)
                         .unwrap()
                         .insert_node(guard, node.take().unwrap());
@@ -135,7 +133,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
 
                 TOMBSTONE_TAG => {
-                    dbg!("was tombstone");
+                    //dbg!("was tombstone");
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
@@ -155,9 +153,9 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 _ => (),
             }
             if let Some(e_current_node) = unsafe { Sarc::from_shared_maybe(e_current) } {
-                dbg!("encountered filled bucket");
+                //dbg!("encountered filled bucket");
                 if e_current_node.key == inner.key {
-                    dbg!("bucket key matched");
+                    //dbg!("bucket key matched");
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
@@ -180,27 +178,22 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     }
                 } else {
                     idx = incr_idx(self, idx);
-                    dbg!("bucket key did not match", idx);
+                    //dbg!("bucket key did not match", idx);
                     continue;
                 }
             } else {
-                dbg!("was null, cas 1");
+                //dbg!("was null, cas 1");
                 let s_new = ManuallyDrop::into_inner(node.take().unwrap()).into_shared(guard);
                 match {
-                    self.buckets[idx].compare_and_set(
-                        e_current,
-                        s_new,
-                        Ordering::AcqRel,
-                        guard,
-                    )
+                    self.buckets[idx].compare_and_set(e_current, s_new, Ordering::AcqRel, guard)
                 } {
                     Ok(_) => {
-                        dbg!("cas one success");
+                        //dbg!("cas one success");
                         cell_maybe_return!(self, guard);
-                        dbg!("we should not get here, ever");
-                    },
+                        //dbg!("we should not get here, ever");
+                    }
                     Err(err) => {
-                        dbg!("cas 1 failed");
+                        //dbg!("cas 1 failed");
                         node = unsafe { Some(ManuallyDrop::new(Sarc::from_shared(err.new))) };
                         continue;
                     }

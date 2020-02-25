@@ -200,7 +200,7 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
-version = "3.4.3"
+version = "3.5.0"
 dependencies = [
  "crossbeam-epoch",
  "once_cell",
