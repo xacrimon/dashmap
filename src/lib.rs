@@ -266,7 +266,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     /// use dashmap::DashMap;
     ///
-    /// let map = DashMap::with_capacity(2);
+    /// let map = DashMap::new();
     /// map.insert("I am the key!", "And I am the value!");
     /// ```
     #[inline]
@@ -281,7 +281,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     /// use dashmap::DashMap;
     ///
-    /// let soccer_team = DashMap::with_capacity(2);
+    /// let soccer_team = DashMap::new();
     /// soccer_team.insert("Jack", "Goalie");
     /// assert_eq!(soccer_team.remove("Jack").unwrap().1, "Goalie");
     /// ```
@@ -292,6 +292,34 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         Q: Hash + Eq + ?Sized,
     {
         self._remove(key)
+    }
+
+    /// Removes an entry from the map, returning the key and value
+    /// if the entry existed and the provided conditional function returned true.
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let soccer_team = DashMap::new();
+    /// soccer_team.insert("Sam", "Forward");
+    /// soccer_team.remove_if("Sam", |_, position| position == &"Goalie");
+    /// assert!(soccer_team.contains_key("Sam"));
+    /// ```
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let soccer_team = DashMap::new();
+    /// soccer_team.insert("Sam", "Forward");
+    /// soccer_team.remove_if("Sam", |_, position| position == &"Forward");
+    /// assert!(!soccer_team.contains_key("Sam"));
+    /// ```
+    #[inline]
+    pub fn remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self._remove_if(key, f)
     }
 
     /// Creates an iterator over a DashMap yielding immutable references.
