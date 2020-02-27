@@ -9,10 +9,3 @@ jobs:
     - uses: actions/checkout@v1
     - name: Run tests
       run: cargo test --verbose
-
-  miri:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v1
-    - name: Run miri
-      run: ./miri.sh
