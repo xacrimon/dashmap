@@ -2,6 +2,7 @@ use std::sync::{Mutex, Arc};
 use std::mem::{swap, take};
 use std::thread::{ThreadId, current};
 use std::collections::HashMap;
+use std::thread;
 
 type GarbageList = Vec<Box<dyn FnOnce()>>;
 
@@ -18,6 +19,11 @@ impl Gc {
         Self {
             state: Arc::new(Mutex::new(GcState::new())),
         }
+    }
+
+    pub fn defer(&self, f: impl FnOnce() + 'static) {
+        let f = Box::new(f);
+        self.state.lock().unwrap().add_callback(f);
     }
 
     pub fn register_thread(&self) {
