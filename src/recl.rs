@@ -1,7 +1,7 @@
 //! Simple QSBR garbage collector.
 //! This probably isn't the optimal model for memory reclamation. Stamp-it, Hazard Eras and EBR should be considered.
 
-use std::sync::{Mutex, Arc};
+use std::sync::{Mutex, MutexGuard, Arc};
 use std::mem::{swap, take};
 use std::thread::{ThreadId, current};
 use std::collections::HashMap;
@@ -12,32 +12,85 @@ fn id() -> ThreadId {
     current().id()
 }
 
+fn collect<'a>(mut state: MutexGuard<'a, GcState>) {
+    let state = &mut *state;
+    let previous_interval = take(&mut state.previous_interval);
+
+    previous_interval
+        .into_iter()
+        .for_each(|callback| callback());
+    
+    swap(&mut state.previous_interval, &mut state.current_interval);
+
+    state.thread_was_quiescent
+        .iter_mut()
+        .for_each(|(_, flag)| *flag = false);
+        
+    state.num_remaining = state.thread_was_quiescent.len();
+}
+
 pub struct Gc {
     state: Arc<Mutex<GcState>>,
 }
 
+struct GcState {
+    thread_was_quiescent: HashMap<ThreadId, bool>,
+    current_interval: GarbageList,
+    previous_interval: GarbageList,
+    num_remaining: usize,
+}
+
 impl Gc {
     pub fn new() -> Self {
+        let state = GcState {
+            thread_was_quiescent: HashMap::new(),
+            current_interval: Vec::new(),
+            previous_interval: Vec::new(),
+            num_remaining: 0,
+        };
+
         Self {
-            state: Arc::new(Mutex::new(GcState::new())),
+            state: Arc::new(Mutex::new(state)),
         }
     }
 
     pub fn defer(&self, f: impl FnOnce() + 'static) {
+        let mut state = self.state.lock().unwrap();
         let f = Box::new(f);
-        self.state.lock().unwrap().add_callback(f);
+        state.current_interval.push(f);
     }
 
     pub fn register_thread(&self) {
-        self.state.lock().unwrap().register_thread();
+        let mut state = self.state.lock().unwrap();
+        let id = id();
+        state.thread_was_quiescent.insert(id, false);
+        state.num_remaining += 1;
     }
 
     pub fn unregister_thread(&self) {
-        self.state.lock().unwrap().unregister_thread();
+        let mut state = self.state.lock().unwrap();
+        let id = id();
+        state.thread_was_quiescent.remove(&id);
+        state.num_remaining -= 1;
+        
+        if state.num_remaining == 0 {
+            collect(state);
+        }
     }
 
     pub fn on_quiescent_state(&self) {
-        self.state.lock().unwrap().on_quiescent_state();
+        let mut state = self.state.lock().unwrap();
+        let id = id();
+        let flag = state.thread_was_quiescent.get_mut(&id).unwrap();
+
+        if !*flag {
+            *flag = true;
+            state.num_remaining -= 1;
+
+            if state.num_remaining == 0 {
+                collect(state);
+            }
+        }
     }
 }
 
@@ -52,73 +105,5 @@ impl Drop for Gc {
         take(&mut state.current_interval)
             .into_iter()
             .for_each(|callback| callback());
-    }
-}
-
-struct GcState {
-    thread_was_quiescent: HashMap<ThreadId, bool>,
-    current_interval: GarbageList,
-    previous_interval: GarbageList,
-    num_remaining: usize,
-}
-
-impl GcState {
-    fn new() -> Self {
-        Self {
-            thread_was_quiescent: HashMap::new(),
-            current_interval: Vec::new(),
-            previous_interval: Vec::new(),
-            num_remaining: 0,
-        }
-    }
-
-    fn collect(&mut self) {
-        let previous_interval = take(&mut self.previous_interval);
-
-        previous_interval
-            .into_iter()
-            .for_each(|callback| callback());
-        
-        swap(&mut self.previous_interval, &mut self.current_interval);
-
-        self.thread_was_quiescent
-            .iter_mut()
-            .for_each(|(_, flag)| *flag = false);
-        
-        self.num_remaining = self.thread_was_quiescent.len();
-    }
-
-    fn register_thread(&mut self) {
-        let id = id();
-        self.thread_was_quiescent.insert(id, false);
-        self.num_remaining += 1;
-    }
-
-    fn unregister_thread(&mut self) {
-        let id = id();
-        self.thread_was_quiescent.remove(&id);
-        self.num_remaining -= 1;
-        
-        if self.num_remaining == 0 {
-            self.collect();
-        }
-    }
-
-    fn add_callback(&mut self, callback: Box<dyn FnOnce()>) {
-        self.current_interval.push(callback);
-    }
-
-    fn on_quiescent_state(&mut self) {
-        let id = id();
-        let flag = self.thread_was_quiescent.get_mut(&id).unwrap();
-
-        if !*flag {
-            *flag = true;
-            self.num_remaining -= 1;
-
-            if self.num_remaining == 0 {
-                self.collect();
-            }
-        }
     }
 }
