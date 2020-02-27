@@ -5,7 +5,6 @@ use std::sync::{Mutex, Arc};
 use std::mem::{swap, take};
 use std::thread::{ThreadId, current};
 use std::collections::HashMap;
-use std::thread;
 
 type GarbageList = Vec<Box<dyn FnOnce()>>;
 
@@ -39,6 +38,20 @@ impl Gc {
 
     pub fn on_quiescent_state(&self) {
         self.state.lock().unwrap().on_quiescent_state();
+    }
+}
+
+impl Drop for Gc {
+    fn drop(&mut self) {
+        let mut state = self.state.lock().unwrap();
+        
+        take(&mut state.previous_interval)
+            .into_iter()
+            .for_each(|callback| callback());
+
+        take(&mut state.current_interval)
+            .into_iter()
+            .for_each(|callback| callback());
     }
 }
 
