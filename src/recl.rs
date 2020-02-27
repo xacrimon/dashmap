@@ -12,13 +12,9 @@ fn id() -> ThreadId {
     current().id()
 }
 
-fn collect<'a>(mut state: MutexGuard<'a, GcState>) {
+fn collect<'a>(mut state: MutexGuard<'a, GcState>) -> GarbageList {
     let state = &mut *state;
     let previous_interval = take(&mut state.previous_interval);
-
-    previous_interval
-        .into_iter()
-        .for_each(|callback| callback());
     
     swap(&mut state.previous_interval, &mut state.current_interval);
 
@@ -27,6 +23,7 @@ fn collect<'a>(mut state: MutexGuard<'a, GcState>) {
         .for_each(|(_, flag)| *flag = false);
         
     state.num_remaining = state.thread_was_quiescent.len();
+    previous_interval
 }
 
 pub struct Gc {
@@ -74,7 +71,9 @@ impl Gc {
         state.num_remaining -= 1;
         
         if state.num_remaining == 0 {
-            collect(state);
+            collect(state)
+                .into_iter()
+                .for_each(|callback| callback());
         }
     }
 
@@ -88,7 +87,9 @@ impl Gc {
             state.num_remaining -= 1;
 
             if state.num_remaining == 0 {
-                collect(state);
+                collect(state)
+                    .into_iter()
+                    .for_each(|callback| callback());
             }
         }
     }
