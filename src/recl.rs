@@ -12,7 +12,7 @@ fn id() -> ThreadId {
     current().id()
 }
 
-fn collect<'a>(mut state: MutexGuard<'a, GcState>) -> GarbageList {
+fn next_era<'a>(mut state: MutexGuard<'a, GcState>) -> GarbageList {
     let state = &mut *state;
     let previous_interval = take(&mut state.previous_interval);
     
@@ -71,7 +71,7 @@ impl Gc {
         state.num_remaining -= 1;
         
         if state.num_remaining == 0 {
-            collect(state)
+            next_era(state)
                 .into_iter()
                 .for_each(|callback| callback());
         }
@@ -87,7 +87,7 @@ impl Gc {
             state.num_remaining -= 1;
 
             if state.num_remaining == 0 {
-                collect(state)
+                next_era(state)
                     .into_iter()
                     .for_each(|callback| callback());
             }
