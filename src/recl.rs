@@ -1,3 +1,6 @@
+//! Simple QSBR garbage collector.
+//! This probably isn't the optimal model for memory reclamation. Stamp-it, Hazard Eras and EBR should be considered.
+
 use std::sync::{Mutex, Arc};
 use std::mem::{swap, take};
 use std::thread::{ThreadId, current};
