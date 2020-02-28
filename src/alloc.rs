@@ -15,7 +15,7 @@ pub struct ABox<T> {
 pub fn sarc_new<T>(v: T) -> *const ABox<T> {
     let layout = Layout::new::<ABox<T>>();
     let a = ABox {
-        refs: AtomicUsize::new(0),
+        refs: AtomicUsize::new(1),
         data: v,
     };
     let p = local_alloc(layout);

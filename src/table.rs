@@ -1,6 +1,8 @@
 use super::element::*;
 use crate::alloc::{ABox, sarc_add_copy, sarc_deref, sarc_remove_copy};
 use crate::util::CachePadded;
+use crate::recl::{enter_critical, exit_critical, defer, collect};
+use crate::pointer::{p_tag, p_set_tag};
 use std::borrow::Borrow;
 use std::cmp;
 use std::fmt::Debug;
@@ -18,8 +20,8 @@ pub fn make_shift(x: usize) -> usize {
     x
 }
 
-fn make_buckets<K, V>(x: usize) -> Box<[Atomic<Element<K, V>>]> {
-    iter::repeat(Atomic::null()).take(x).collect()
+fn make_buckets<K, V>(x: usize) -> Box<[AtomicPtr<ABox<Element<K, V>>>]> {
+    iter::repeat(AtomicPtr::new(0 as _)).take(x).collect()
 }
 
 pub fn hash2idx(hash: u64, len: usize) -> usize {
@@ -54,34 +56,37 @@ enum InsertResult {
 
 impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
-        let guard = &pin();
+        enter_critical();
         let mut garbage = Vec::with_capacity(self.buckets.len());
         unsafe {
             for bucket in &*self.buckets {
-                let ptr = bucket.load(Ordering::SeqCst, guard);
-                if !ptr.with_tag(0).is_null() {
-                    garbage.push(Sarc::from_shared(ptr));
+                let ptr = p_set_tag(bucket.load(Ordering::SeqCst), 0);
+                if !ptr.is_null() {
+                    garbage.push(ptr);
                 }
             }
-            guard.defer_unchecked(move || drop(garbage));
+            defer(|| {
+                for ptr in garbage {
+                    sarc_remove_copy(ptr);
+                }
+            });
         }
+        exit_critical();
     }
 }
 
 pub struct BucketArray<K, V, S> {
     remaining_cells: CachePadded<AtomicUsize>,
-    next: Atomic<Self>,
+    next: AtomicPtr<Self>,
     shift: usize,
     hash_builder: Arc<S>,
-    buckets: Box<[Atomic<Element<K, V>>]>,
+    buckets: Box<[AtomicPtr<ABox<Element<K, V>>>]>,
 }
 
 impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
-        capacity = 2 * capacity; // TO-DO: remove this
-                                 //dbg!(capacity);
-        let remaining_cells =
-            CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
+        capacity = 2 * capacity; // TO-DO: remove this once grow works
+        let remaining_cells = CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
         let shift = make_shift(capacity);
         let buckets = make_buckets(capacity);
 
@@ -97,28 +102,20 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn insert_node<'a>(
         &self,
         guard: &'a Guard,
-        node: ManuallyDrop<Sarc<Element<K, V>>>,
-    ) -> Option<Shared<'a, Self>> {
-        //println!("entering insert_node function");
+        node: *const ABox<Element<K, V>>,
+    ) {
         if let Some(next) = self.get_next(guard) {
             return next.insert_node(guard, node);
         }
 
-        //dbg!(&node.key);
-
         let mut idx = hash2idx(node.hash, self.shift);
         let inner = node.clone();
         let mut node = Some(node);
-        //println!("before loop");
 
         loop {
-            //println!("loop start");
-            //dbg!(idx);
             let e_current = self.buckets[idx].load(Ordering::SeqCst, guard);
-            //println!("loaded pointer");
             match e_current.tag() {
                 REDIRECT_TAG => {
-                    //dbg!("was redirect, delegating");
                     self.get_next(guard)
                         .unwrap()
                         .insert_node(guard, node.take().unwrap());
@@ -127,7 +124,6 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
 
                 TOMBSTONE_TAG => {
-                    //dbg!("was tombstone");
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
@@ -147,9 +143,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                 _ => (),
             }
             if let Some(e_current_node) = unsafe { Sarc::from_shared_maybe(e_current) } {
-                //dbg!("encountered filled bucket");
                 if e_current_node.key == inner.key {
-                    //dbg!("bucket key matched");
                     match {
                         self.buckets[idx].compare_and_set(
                             e_current,
@@ -172,22 +166,17 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     }
                 } else {
                     idx = incr_idx(self, idx);
-                    //dbg!("bucket key did not match", idx);
                     continue;
                 }
             } else {
-                //dbg!("was null, cas 1");
                 let s_new = ManuallyDrop::into_inner(node.take().unwrap()).into_shared(guard);
                 match {
                     self.buckets[idx].compare_and_set(e_current, s_new, Ordering::AcqRel, guard)
                 } {
                     Ok(_) => {
-                        //dbg!("cas one success");
                         cell_maybe_return!(self, guard);
-                        //dbg!("we should not get here, ever");
                     }
                     Err(err) => {
-                        //dbg!("cas 1 failed");
                         node = unsafe { Some(ManuallyDrop::new(Sarc::from_shared(err.new))) };
                         continue;
                     }
@@ -197,49 +186,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 
     fn grow<'a>(&self, guard: &'a Guard) -> Option<Shared<'a, Self>> {
-        unimplemented!();
-        let shared = self.next.load(Ordering::SeqCst, guard);
-
-        if unsafe { shared.as_ref().is_some() } {
-            return None;
-        }
-
-        let new_cap = self.buckets.len() * 2;
-        let new = Owned::new(Self::new(new_cap, self.hash_builder.clone())).into_shared(guard);
-        let new_i = unsafe { new.deref() };
-
-        if self
-            .next
-            .compare_and_set(shared, new, Ordering::SeqCst, guard)
-            .is_err()
-        {
-            return None;
-        }
-
-        for atomic in &*self.buckets {
-            loop {
-                let maybe_node = atomic.load(Ordering::SeqCst, guard);
-                if atomic
-                    .compare_and_set(
-                        maybe_node,
-                        maybe_node.with_tag(REDIRECT_TAG),
-                        Ordering::SeqCst,
-                        guard,
-                    )
-                    .is_err()
-                {
-                    continue;
-                }
-                if !maybe_node.is_null() {
-                    let n = unsafe { Sarc::from_shared(maybe_node) };
-                    n.incr();
-                    new_i.insert_node(guard, ManuallyDrop::new(n));
-                }
-                break;
-            }
-        }
-
-        Some(new)
+        unimplemented!()
     }
 
     fn get_next<'a>(&self, guard: &'a Guard) -> Option<&'a Self> {

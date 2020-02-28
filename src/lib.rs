@@ -5,6 +5,7 @@ pub mod element;
 mod recl;
 pub mod table;
 mod util;
+mod pointer;
 
 use crossbeam_epoch::pin;
 use element::ElementReadGuard;
