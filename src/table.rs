@@ -247,36 +247,37 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn get<Q>(&self, guard: Guard, key: &Q) -> Option<ElementReadGuard<K, V>>
+    fn get<Q>(&self, key: &Q) -> Option<ElementReadGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        self.get_elem(&guard, key).map(|e| Element::read(e))
+        self.get_elem(key).map(|ptr| Element::read(ptr))
     }
 
-    fn get_mut<Q>(&self, guard: Guard, key: &Q) -> Option<ElementWriteGuard<K, V>>
+    fn get_mut<Q>(&self, key: &Q) -> Option<ElementWriteGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        self.get_elem(&guard, key).map(|e| Element::write(e))
+        self.get_elem(key).map(|ptr| Element::write(ptr))
     }
 }
 
 impl<K, V, S> Drop for Table<K, V, S> {
     fn drop(&mut self) {
-        let guard = pin();
-        let shared = self.root.load(Ordering::SeqCst, &guard);
+        enter_critical();
+        let root_ptr = self.root.load(Ordering::SeqCst);
         unsafe {
-            guard.defer_unchecked(move || Sanic::from_shared(shared));
+            defer(|| Box::from_raw(root_ptr));
         }
+        exit_critical();
     }
 }
 
 pub struct Table<K, V, S> {
     hash_builder: Arc<S>,
-    root: Atomic<BucketArray<K, V, S>>,
+    root: AtomicPtr<BucketArray<K, V, S>>,
 }
 
 impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
