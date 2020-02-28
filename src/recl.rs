@@ -1,5 +1,5 @@
 //! Simple EBR garbage collector.
-//! TO-DO: Research Stamp-it and Debra, optimize this garbage collector.
+//! TO-DO: Research Stamp-it and DEBRA, optimize this garbage collector.
 //! https://arxiv.org/abs/1805.08639
 //! https://arxiv.org/pdf/1712.01044.pdf
 
