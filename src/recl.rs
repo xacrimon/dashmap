@@ -49,7 +49,7 @@ impl Global {
                 epoch: 0,
                 deferred: [Vec::new(), Vec::new(), Vec::new()],
                 locals: Vec::new(),
-            })
+            }),
         }
     }
 
@@ -58,7 +58,11 @@ impl Global {
     }
 
     fn remove_local(self, local: *const Local) {
-        self.state.lock().unwrap().locals.retain(|maybe_this| *maybe_this != local);
+        self.state
+            .lock()
+            .unwrap()
+            .locals
+            .retain(|maybe_this| *maybe_this != local);
     }
 
     fn collect(&self) {
@@ -70,7 +74,7 @@ impl Global {
             unsafe {
                 let local = &**local_ptr;
                 let local_state = local.state.lock().unwrap();
-                if local_state.active {
+                if local_state.active > 0 {
                     if local_state.epoch != state.epoch {
                         can_collect = false;
                     }
@@ -96,7 +100,7 @@ struct Local {
 
 struct LocalState {
     // Active flag.
-    active: bool,
+    active: usize,
 
     // Local epoch. This value is always 0, 1 or 2.
     epoch: usize,
@@ -109,30 +113,29 @@ impl Local {
     fn new(global: Arc<Global>) -> Self {
         Self {
             state: Mutex::new(LocalState {
-                active: false,
+                active: 0,
                 epoch: 0,
                 global,
-            })
+            }),
         }
     }
 
     fn enter_critical(&self) {
         let mut state = self.state.lock().unwrap();
-        assert!(!state.active);
-        state.active = true;
+        state.active += 1;
         let global = state.global.state.lock().unwrap().epoch;
         state.epoch = global;
     }
 
     fn exit_critical(&self) {
         let mut state = self.state.lock().unwrap();
-        assert!(state.active);
-        state.active = false;
+        assert!(state.active > 0);
+        state.active -= 1;
     }
 
     fn defer(&self, f: Deferred) {
         let local_state = self.state.lock().unwrap();
-        assert!(local_state.active);
+        assert!(local_state.active > 0);
         let mut global_state = local_state.global.state.lock().unwrap();
         let global_epoch = global_state.epoch;
         global_state.deferred[global_epoch].push(f);
