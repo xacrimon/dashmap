@@ -2,25 +2,27 @@
 //! TO-DO: Optimize this garbage collector.
 //!        Research Stamp-it, DEBRA, Hazard Eras.
 
-use std::mem::take;
+use std::mem::{take, transmute};
 use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
 use once_cell::unsync::Lazy as UnsyncLazy;
 use std::ops::Deref;
 
-pub fn enter_critical() {
-    PARTICIPANT_HANDLE.enter_critical();
+/// Execute a closure in protected mode. This permits it to load protected pointers.
+pub fn protected<T>(f: impl FnOnce() -> T) -> T {
+    PARTICIPANT_HANDLE.with(|key| key.enter_critical());
+    let r = f();
+    PARTICIPANT_HANDLE.with(|key| key.exit_critical());
+    r
 }
 
-pub fn exit_critical() {
-    PARTICIPANT_HANDLE.exit_critical();
-}
-
-pub fn defer(f: impl FnOnce() + 'static) {
+/// Defer a function.
+pub fn defer(f: impl FnOnce()) {
     let deferred = Deferred::new(f);
-    PARTICIPANT_HANDLE.defer(deferred);
+    PARTICIPANT_HANDLE.with(|key| key.defer(deferred));
 }
 
+/// Collect garbage.
 pub fn collect() {
     GC.collect();
 }
@@ -28,16 +30,16 @@ pub fn collect() {
 static GC: Lazy<Arc<Global>> = Lazy::new(|| Arc::new(Global::new()));
 
 thread_local! {
-    static PARTICIPANT_HANDLE: UnsyncLazy<TSLocal> = UnsyncLazy::new(|| TSLocal::new(Arc::clone(GC)));
+    pub static PARTICIPANT_HANDLE: UnsyncLazy<TSLocal> = UnsyncLazy::new(|| TSLocal::new(Arc::clone(&GC)));
 }
 
-struct TSLocal {
+pub struct TSLocal {
     local: Box<Local>,
 }
 
 impl TSLocal {
     fn new(global: Arc<Global>) -> TSLocal {
-        let local = Box::new(Local::new(Arc::clone(global)));
+        let local = Box::new(Local::new(Arc::clone(&global)));
         let local_ptr = &*local as *const Local;
         global.add_local(local_ptr);
         Self { local }
@@ -54,7 +56,7 @@ impl Deref for TSLocal {
 
 impl Drop for TSLocal {
     fn drop(&mut self) {
-        let global = Arc::clone(self.local.state.lock().unwrap().global);
+        let global = Arc::clone(&self.local.state.lock().unwrap().global);
         let local_ptr = &*self.local as *const Local;
         global.remove_local(local_ptr);
     }
@@ -65,8 +67,9 @@ struct Deferred {
 }
 
 impl Deferred {
-    fn new(f: impl FnOnce() + 'static) -> Self {
-        Self { task: Box::new(f) }
+    fn new<'a>(f: impl FnOnce() + 'a) -> Self {
+        let boxed: Box<dyn FnOnce() + 'a> = Box::new(f);
+        Self { task: unsafe { transmute(boxed) } }
     }
 
     fn run(self) {
@@ -84,6 +87,9 @@ fn calc_free_epoch(a: usize) -> usize {
 struct Global {
     state: Mutex<GlobalState>,
 }
+
+unsafe impl Send for Global {}
+unsafe impl Sync for Global {}
 
 struct GlobalState {
     // Global epoch. This value is always 0, 1 or 2.
@@ -111,7 +117,7 @@ impl Global {
         self.state.lock().unwrap().locals.push(local);
     }
 
-    fn remove_local(self, local: *const Local) {
+    fn remove_local(&self, local: *const Local) {
         self.state
             .lock()
             .unwrap()
@@ -148,7 +154,7 @@ impl Global {
     }
 }
 
-struct Local {
+pub struct Local {
     state: Mutex<LocalState>,
 }
 
@@ -174,7 +180,7 @@ impl Local {
         }
     }
 
-    fn enter_critical(&self) {
+    pub fn enter_critical(&self) {
         let mut state = self.state.lock().unwrap();
         state.active += 1;
         if state.active == 1 {
@@ -183,7 +189,7 @@ impl Local {
         }
     }
 
-    fn exit_critical(&self) {
+    pub fn exit_critical(&self) {
         let mut state = self.state.lock().unwrap();
         debug_assert!(state.active > 0);
         state.active -= 1;

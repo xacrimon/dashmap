@@ -1,4 +1,3 @@
-use crossbeam_epoch::{Atomic, Guard, Pointer, Shared};
 use once_cell::unsync::Lazy;
 use std::alloc::{alloc, dealloc, Layout};
 use std::cell::RefCell;
@@ -12,7 +11,7 @@ pub struct ABox<T> {
     data: T,
 }
 
-pub fn sarc_new<T>(v: T) -> *const ABox<T> {
+pub fn sarc_new<T>(v: T) -> *mut ABox<T> {
     let layout = Layout::new::<ABox<T>>();
     let a = ABox {
         refs: AtomicUsize::new(1),
@@ -23,17 +22,17 @@ pub fn sarc_new<T>(v: T) -> *const ABox<T> {
     p as _
 }
 
-pub fn sarc_deref<'a, T>(p: *const ABox<T>) -> &'a T {
+pub fn sarc_deref<'a, T>(p: *mut ABox<T>) -> &'a T {
     unsafe { &(*p).data }
 }
 
-pub fn sarc_add_copy<T>(p: *const ABox<T>) {
+pub fn sarc_add_copy<T>(p: *mut ABox<T>) {
     unsafe {
         (*p).refs.fetch_add(1, Ordering::SeqCst);
     }
 }
 
-pub fn sarc_remove_copy<T>(p: *const ABox<T>) {
+pub fn sarc_remove_copy<T>(p: *mut ABox<T>) {
     unsafe {
         if (*p).refs.fetch_sub(1, Ordering::SeqCst) == 1 {
             sarc_dealloc(p);
@@ -41,8 +40,8 @@ pub fn sarc_remove_copy<T>(p: *const ABox<T>) {
     }
 }
 
-unsafe fn sarc_dealloc<T>(p: *const ABox<T>) {
-    ptr::drop_in_place(mem::transmute(sarc_deref(p)));
+unsafe fn sarc_dealloc<T>(p: *mut ABox<T>) {
+    ptr::drop_in_place::<T>(mem::transmute(sarc_deref(p)));
     let layout = Layout::new::<ABox<T>>();
     local_dealloc(p as _, layout);
 }
@@ -80,7 +79,7 @@ unsafe fn local_dealloc(ptr: *mut u8, layout: Layout) {
         if layout.size() > GLOBAL_THRESHOLD {
             dealloc(ptr, layout);
         } else {
-            let base_ptr = align_down(ptr as usize, SEGMENT_SIZE) as *const AtomicUsize;
+            let base_ptr = align_down(ptr as usize, SEGMENT_SIZE) as *mut AtomicUsize;
 
             if (&*base_ptr).fetch_sub(1, Ordering::SeqCst) == 1 {
                 dealloc(base_ptr as _, segment_layout());

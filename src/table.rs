@@ -1,7 +1,7 @@
 use super::element::*;
-use crate::alloc::{ABox, sarc_add_copy, sarc_deref, sarc_remove_copy};
+use crate::alloc::{ABox, sarc_add_copy, sarc_deref, sarc_remove_copy, sarc_new};
 use crate::util::CachePadded;
-use crate::recl::{enter_critical, exit_critical, defer, collect};
+use crate::recl::{protected, defer, collect};
 use crate::pointer::{p_tag, p_set_tag};
 use std::borrow::Borrow;
 use std::cmp;
@@ -16,7 +16,7 @@ const REDIRECT_TAG: usize = 5;
 const TOMBSTONE_TAG: usize = 7;
 
 fn make_buckets<K, V>(x: usize) -> Box<[AtomicPtr<ABox<Element<K, V>>>]> {
-    iter::repeat(AtomicPtr::new(0 as _)).take(x).collect()
+    iter::repeat(0 as _).map(|p| AtomicPtr::new(p)).take(x).collect()
 }
 
 pub fn hash2idx(hash: u64, len: usize) -> usize {
@@ -51,22 +51,22 @@ enum InsertResult {
 
 impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
-        enter_critical();
-        let mut garbage = Vec::with_capacity(self.buckets.len());
-        unsafe {
-            for bucket in &*self.buckets {
-                let ptr = p_set_tag(bucket.load(Ordering::SeqCst), 0);
-                if !ptr.is_null() {
-                    garbage.push(ptr);
+        protected(|| {
+            let mut garbage = Vec::with_capacity(self.buckets.len());
+            unsafe {
+                for bucket in &*self.buckets {
+                    let ptr = p_set_tag(bucket.load(Ordering::SeqCst), 0);
+                    if !ptr.is_null() {
+                        garbage.push(ptr);
+                    }
                 }
+                defer(|| {
+                    for ptr in garbage {
+                        sarc_remove_copy(ptr);
+                    }
+                });
             }
-            defer(|| {
-                for ptr in garbage {
-                    sarc_remove_copy(ptr);
-                }
-            });
-        }
-        exit_critical();
+        });
     }
 }
 
@@ -87,27 +87,26 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
             remaining_cells,
             hash_builder,
             buckets,
-            next: Atomic::null(),
+            next: AtomicPtr::new(0 as _),
         }
     }
 
     fn insert_node<'a>(
         &self,
-        guard: &'a Guard,
-        node: *const ABox<Element<K, V>>,
+        node: *mut ABox<Element<K, V>>,
     ) -> Option<*const Self> {
         if let Some(next) = self.get_next() {
             return next.insert_node(node);
         }
 
-        let mut idx = hash2idx(node.hash, self.buckets.len());
         let node_data = sarc_deref(node);
+        let mut idx = hash2idx(node_data.hash, self.buckets.len());
 
         loop {
             let current_bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
             match p_tag(current_bucket_ptr) {
                 REDIRECT_TAG => {
-                    return self.get_next(guard)
+                    return self.get_next()
                         .unwrap()
                         .insert_node(node);
                 }
@@ -150,7 +149,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         unimplemented!()
     }
 
-    fn get_next(&self) -> Option<&'static Self> {
+    fn get_next<'a>(&self) -> Option<&'a Self> {
         unsafe {
             let p = self.next.load(Ordering::SeqCst);
             if !p.is_null() {
@@ -161,13 +160,13 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn remove<Q>(&self, guard: key: &Q) -> bool
+    fn remove<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
         let hash = do_hash(&*self.hash_builder, key);
-        let mut idx = hash2idx(hash, self.shift);
+        let mut idx = hash2idx(hash, self.buckets.len());
 
         loop {
             let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
@@ -193,7 +192,8 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
             }
             let bucket_data = sarc_deref(bucket_ptr);
             if key == bucket_data.key.borrow() {
-                if self.buckets[idx].compare_and_swap(bucket_ptr, p_set_tag(0 as_, TOMBSTONE_TAG), Ordering::SeqCst) == bucket_ptr {
+                let null = p_set_tag::<()>(0 as _, TOMBSTONE_TAG);
+                if self.buckets[idx].compare_and_swap(bucket_ptr, null as _, Ordering::SeqCst) == bucket_ptr {
                     self.remaining_cells.fetch_add(1, Ordering::SeqCst);
                     defer(|| sarc_remove_copy(bucket_ptr));
                     return true;
@@ -206,13 +206,13 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn get_elem<'a, Q>(&'a self, key: &Q) -> Option<*const ABox<Element<K, V>>>
+    fn get_elem<'a, Q>(&'a self, key: &Q) -> Option<*mut ABox<Element<K, V>>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
         let hash = do_hash(&*self.hash_builder, key);
-        let mut idx = hash2idx(hash, self.shift);
+        let mut idx = hash2idx(hash, self.buckets.len());
 
         loop {
             let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
@@ -252,26 +252,20 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        self.get_elem(key).map(|ptr| Element::read(ptr))
-    }
-
-    fn get_mut<Q>(&self, key: &Q) -> Option<ElementWriteGuard<K, V>>
-    where
-        K: Borrow<Q>,
-        Q: ?Sized + Eq + Hash,
-    {
-        self.get_elem(key).map(|ptr| Element::write(ptr))
+        let r = self.get_elem(key).map(|ptr| Element::read(ptr));
+        collect();
+        r
     }
 }
 
 impl<K, V, S> Drop for Table<K, V, S> {
     fn drop(&mut self) {
-        enter_critical();
-        let root_ptr = self.root.load(Ordering::SeqCst);
-        unsafe {
-            defer(|| Box::from_raw(root_ptr));
-        }
-        exit_critical();
+        protected(|| {
+            let root_ptr = self.root.load(Ordering::SeqCst);
+            unsafe {
+                defer(|| drop(Box::from_raw(root_ptr)));
+            }
+        });
     }
 }
 
@@ -282,25 +276,25 @@ pub struct Table<K, V, S> {
 
 impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
     pub fn new(capacity: usize, hash_builder: Arc<S>) -> Self {
-        let root = Sanic::atomic(BucketArray::new(capacity, hash_builder.clone()));
+        let root = AtomicPtr::new(Box::into_raw(Box::new(BucketArray::new(capacity, hash_builder.clone()))));
         Self { hash_builder, root }
     }
 
-    fn root<'a>(&self, guard: &'a Guard) -> &'a BucketArray<K, V, S> {
-        unsafe { self.root.load(Ordering::Acquire, guard).deref() }
+    fn root<'a>(&self) -> &'a BucketArray<K, V, S> {
+        unsafe { &*self.root.load(Ordering::SeqCst) }
     }
 
     pub fn insert(&self, key: K, hash: u64, value: V) {
-        let guard = pin();
-        let node = Sarc::new(Element::new(key, hash, value));
-        let root = self.root(&guard);
-        if let Some(new_root) = root.insert_node(&guard, ManuallyDrop::new(node)) {
-            self.root.store(new_root, Ordering::SeqCst);
-            unsafe {
-                let prev_shared: Shared<'_, BucketArray<K, V, S>> = mem::transmute(root);
-                guard.defer_unchecked(move || Sanic::from_shared(prev_shared));
+        protected(|| {
+            let node = sarc_new(Element::new(key, hash, value));
+            let root = self.root();
+            if let Some(new_root) = root.insert_node(node) {
+                self.root.store(new_root as _, Ordering::SeqCst);
+                defer(|| unsafe {
+                    drop(Box::from_raw(root as *const BucketArray<K, V, S> as *mut BucketArray<K, V, S>));
+                });
             }
-        }
+        });
     }
 
     pub fn get<Q>(&self, key: &Q) -> Option<ElementReadGuard<K, V>>
@@ -308,23 +302,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        let guard = pin();
-        unsafe {
-            let root: &'_ BucketArray<K, V, S> = mem::transmute(self.root(&guard));
-            mem::transmute(root.get(guard, key))
-        }
-    }
-
-    pub fn get_mut<Q>(&self, key: &Q) -> Option<ElementWriteGuard<K, V>>
-    where
-        K: Borrow<Q>,
-        Q: ?Sized + Eq + Hash,
-    {
-        let guard = pin();
-        unsafe {
-            let root: &'_ BucketArray<K, V, S> = mem::transmute(self.root(&guard));
-            mem::transmute(root.get_mut(guard, key))
-        }
+        protected(|| self.root().get(key))
     }
 
     pub fn remove<'a, Q>(&'a self, key: &Q)
@@ -332,8 +310,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        let guard = pin();
-        self.root(&guard).remove(&guard, key);
+        protected(|| self.root().remove(key));
     }
 }
 

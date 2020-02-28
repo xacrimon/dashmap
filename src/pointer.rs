@@ -15,10 +15,10 @@ fn decompose_data<T>(data: usize) -> (*mut T, usize) {
 }
 
 pub fn p_tag<T>(p: *const T) -> usize {
-    let (_, tag) = decompose_data::<T>(p);
+    let (_, tag) = decompose_data::<T>(p as usize);
     tag
 }
 
 pub fn p_set_tag<T>(p: *const T, tag: usize) -> *mut T {
-    data_with_tag(p as usize, tag) as _
+    data_with_tag::<T>(p as usize, tag) as _
 }
