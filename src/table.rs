@@ -263,9 +263,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        let r = self.get_elem(key).map(|ptr| Element::read(ptr));
-        collect();
-        r
+        self.get_elem(key).map(|ptr| Element::read(ptr))
     }
 }
 
@@ -311,6 +309,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
                 });
             }
         });
+        collect();
     }
 
     pub fn get<Q>(&self, key: &Q) -> Option<ElementReadGuard<K, V>>
@@ -318,7 +317,9 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        protected(|| self.root().get(key))
+        let r = protected(|| self.root().get(key));
+        collect();
+        r
     }
 
     pub fn remove<'a, Q>(&'a self, key: &Q)
@@ -327,6 +328,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         protected(|| self.root().remove(key));
+        collect();
     }
 }
 
