@@ -80,9 +80,8 @@ pub struct BucketArray<K, V, S> {
 
 impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
-        capacity = 2 * capacity; // TO-DO: remove this once grow works
-        let remaining_cells =
-            CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
+        capacity = cmp::max(2 * capacity, 16); // TO-DO: remove this once grow works
+        let remaining_cells = CachePadded::new(AtomicUsize::new(capacity * 3 / 4));
         let buckets = make_buckets(capacity);
 
         Self {
@@ -309,7 +308,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
                 });
             }
         });
-        collect();
+        //collect();
     }
 
     pub fn get<Q>(&self, key: &Q) -> Option<ElementReadGuard<K, V>>
@@ -318,7 +317,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         let r = protected(|| self.root().get(key));
-        collect();
+        //collect();
         r
     }
 
@@ -328,7 +327,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         protected(|| self.root().remove(key));
-        collect();
+        //collect();
     }
 }
 
