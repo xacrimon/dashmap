@@ -1,8 +1,6 @@
 //! Simple EBR garbage collector.
 //! TO-DO: Optimize this garbage collector.
 //!        Research Stamp-it, DEBRA, Hazard Eras and Hazard Pointers.
-//!        Investigate combining EBR or DEBRA with Hazard Pointers or Hazard Eras for
-//!        cases like iterators where we don't want to have long lived critical sections.
 
 use std::mem::take;
 use std::sync::{Arc, Mutex};
