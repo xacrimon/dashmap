@@ -161,7 +161,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn remove<Q>(&self, guard: &Guard, key: &Q) -> bool
+    fn remove<Q>(&self, guard: key: &Q) -> bool
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -170,10 +170,10 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         let mut idx = hash2idx(hash, self.shift);
 
         loop {
-            let shared = self.buckets[idx].load(Ordering::Acquire, guard);
-            match shared.tag() {
+            let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+            match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
-                    if self.get_next(guard).unwrap().remove(guard, key) {
+                    if self.get_next().unwrap().remove(key) {
                         return true;
                     } else {
                         idx = incr_idx(self, idx);
@@ -188,25 +188,16 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
 
                 _ => (),
             }
-            if shared.is_null() {
+            if bucket_ptr.is_null() {
                 return false;
             }
-            let elem = unsafe { Sarc::from_shared(shared) };
-            if key == elem.key.borrow() {
-                if self.buckets[idx]
-                    .compare_and_set(
-                        shared,
-                        Shared::null().with_tag(TOMBSTONE_TAG),
-                        Ordering::AcqRel,
-                        guard,
-                    )
-                    .is_ok()
-                {
-                    self.remaining_cells.fetch_add(1, Ordering::Relaxed);
-                    unsafe { guard.defer_unchecked(move || drop(elem)) }
+            let bucket_data = sarc_deref(bucket_ptr);
+            if key == bucket_data.key.borrow() {
+                if self.buckets[idx].compare_and_swap(bucket_ptr, p_set_tag(0 as_, TOMBSTONE_TAG), Ordering::SeqCst) == bucket_ptr {
+                    self.remaining_cells.fetch_add(1, Ordering::SeqCst);
+                    defer(|| sarc_remove_copy(bucket_ptr));
                     return true;
                 } else {
-                    mem::forget(elem);
                     continue;
                 }
             } else {
