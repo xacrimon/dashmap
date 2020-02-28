@@ -6,6 +6,7 @@ use once_cell::sync::Lazy;
 use once_cell::unsync::Lazy as UnsyncLazy;
 use std::mem::{take, transmute};
 use std::ops::Deref;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 /// Execute a closure in protected mode. This permits it to load protected pointers.
@@ -50,13 +51,13 @@ impl Deref for TSLocal {
     type Target = Local;
 
     fn deref(&self) -> &Self::Target {
-        &*self.local
+        &self.local
     }
 }
 
 impl Drop for TSLocal {
     fn drop(&mut self) {
-        let global = Arc::clone(&self.local.state.lock().unwrap().global);
+        let global = Arc::clone(&self.local.global);
         let local_ptr = &*self.local as *const Local;
         global.remove_local(local_ptr);
     }
@@ -135,9 +136,8 @@ impl Global {
         for local_ptr in &state.locals {
             unsafe {
                 let local = &**local_ptr;
-                let local_state = local.state.lock().unwrap();
-                if local_state.active > 0 {
-                    if local_state.epoch != state.epoch {
+                if local.active.load(Ordering::SeqCst) > 0 {
+                    if local.epoch.load(Ordering::SeqCst) != state.epoch {
                         can_collect = false;
                     }
                 }
@@ -157,15 +157,11 @@ impl Global {
 }
 
 pub struct Local {
-    state: Mutex<LocalState>,
-}
-
-struct LocalState {
     // Active flag.
-    active: usize,
+    active: AtomicUsize,
 
     // Local epoch. This value is always 0, 1 or 2.
-    epoch: usize,
+    epoch: AtomicUsize,
 
     // Reference to global state.
     global: Arc<Global>,
@@ -174,33 +170,29 @@ struct LocalState {
 impl Local {
     fn new(global: Arc<Global>) -> Self {
         Self {
-            state: Mutex::new(LocalState {
-                active: 0,
-                epoch: 0,
-                global,
-            }),
+            active: AtomicUsize::new(0),
+            epoch: AtomicUsize::new(0),
+            global,
         }
     }
 
     pub fn enter_critical(&self) {
-        let mut state = self.state.lock().unwrap();
-        state.active += 1;
-        if state.active == 1 {
-            let global = state.global.state.lock().unwrap().epoch;
-            state.epoch = global;
+        if self.active.fetch_add(1, Ordering::SeqCst) == 0 {
+            let global_state = self.global.state.lock().unwrap();
+            self.epoch.store(global_state.epoch, Ordering::SeqCst);
         }
     }
 
     pub fn exit_critical(&self) {
-        let mut state = self.state.lock().unwrap();
-        debug_assert!(state.active > 0);
-        state.active -= 1;
+        if self.active.fetch_sub(1, Ordering::SeqCst) == 0 {
+            panic!("uh oh");
+        }
     }
 
     fn defer(&self, f: Deferred) {
-        let local_state = self.state.lock().unwrap();
-        debug_assert!(local_state.active > 0);
-        let mut global_state = local_state.global.state.lock().unwrap();
+        let active = self.active.load(Ordering::SeqCst);
+        debug_assert!(active > 0);
+        let mut global_state = self.global.state.lock().unwrap();
         let global_epoch = global_state.epoch;
         global_state.deferred[global_epoch].push(f);
     }
