@@ -43,6 +43,16 @@ struct GlobalState {
 }
 
 impl Global {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new(GlobalState {
+                epoch: 0,
+                deferred: [Vec::new(), Vec::new(), Vec::new()],
+                locals: Vec::new(),
+            })
+        }
+    }
+
     fn add_local(&self, local: *const Local) {
         self.state.lock().unwrap().locals.push(local);
     }
