@@ -2,7 +2,7 @@ use once_cell::unsync::Lazy;
 use std::alloc::{alloc, dealloc, Layout};
 use std::cell::RefCell;
 use std::mem;
-use std::ops::{Deref, DerefMut};
+
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -18,7 +18,9 @@ pub fn sarc_new<T>(v: T) -> *mut ABox<T> {
         data: v,
     };
     let p = local_alloc(layout);
-    unsafe { ptr::write(p as *mut _, a); }
+    unsafe {
+        ptr::write(p as *mut _, a);
+    }
     p as _
 }
 
@@ -75,15 +77,13 @@ fn local_alloc(layout: Layout) -> *mut u8 {
 }
 
 unsafe fn local_dealloc(ptr: *mut u8, layout: Layout) {
-    unsafe {
-        if layout.size() > GLOBAL_THRESHOLD {
-            dealloc(ptr, layout);
-        } else {
-            let base_ptr = align_down(ptr as usize, SEGMENT_SIZE) as *mut AtomicUsize;
+    if layout.size() > GLOBAL_THRESHOLD {
+        dealloc(ptr, layout);
+    } else {
+        let base_ptr = align_down(ptr as usize, SEGMENT_SIZE) as *mut AtomicUsize;
 
-            if (&*base_ptr).fetch_sub(1, Ordering::SeqCst) == 1 {
-                dealloc(base_ptr as _, segment_layout());
-            }
+        if (&*base_ptr).fetch_sub(1, Ordering::SeqCst) == 1 {
+            dealloc(base_ptr as _, segment_layout());
         }
     }
 }

@@ -1,22 +1,25 @@
 use super::element::*;
-use crate::alloc::{ABox, sarc_add_copy, sarc_deref, sarc_remove_copy, sarc_new};
+use crate::alloc::{sarc_deref, sarc_new, sarc_remove_copy, ABox};
+use crate::pointer::{p_set_tag, p_tag};
+use crate::recl::{collect, defer, protected};
 use crate::util::CachePadded;
-use crate::recl::{protected, defer, collect};
-use crate::pointer::{p_tag, p_set_tag};
 use std::borrow::Borrow;
 use std::cmp;
 use std::fmt::Debug;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::iter;
-use std::mem::{self, ManuallyDrop};
-use std::sync::atomic::{AtomicUsize, Ordering, AtomicPtr};
+
+use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 const REDIRECT_TAG: usize = 5;
 const TOMBSTONE_TAG: usize = 7;
 
 fn make_buckets<K, V>(x: usize) -> Box<[AtomicPtr<ABox<Element<K, V>>>]> {
-    iter::repeat(0 as _).map(|p| AtomicPtr::new(p)).take(x).collect()
+    iter::repeat(0 as _)
+        .map(|p| AtomicPtr::new(p))
+        .take(x)
+        .collect()
 }
 
 pub fn hash2idx(hash: u64, len: usize) -> usize {
@@ -53,19 +56,17 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
         protected(|| {
             let mut garbage = Vec::with_capacity(self.buckets.len());
-            unsafe {
-                for bucket in &*self.buckets {
-                    let ptr = p_set_tag(bucket.load(Ordering::SeqCst), 0);
-                    if !ptr.is_null() {
-                        garbage.push(ptr);
-                    }
+            for bucket in &*self.buckets {
+                let ptr = p_set_tag(bucket.load(Ordering::SeqCst), 0);
+                if !ptr.is_null() {
+                    garbage.push(ptr);
                 }
-                defer(|| {
-                    for ptr in garbage {
-                        sarc_remove_copy(ptr);
-                    }
-                });
             }
+            defer(|| {
+                for ptr in garbage {
+                    sarc_remove_copy(ptr);
+                }
+            });
         });
     }
 }
@@ -80,7 +81,8 @@ pub struct BucketArray<K, V, S> {
 impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
         capacity = 2 * capacity; // TO-DO: remove this once grow works
-        let remaining_cells = CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
+        let remaining_cells =
+            CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
         let buckets = make_buckets(capacity);
 
         Self {
@@ -91,10 +93,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn insert_node<'a>(
-        &self,
-        node: *mut ABox<Element<K, V>>,
-    ) -> Option<*const Self> {
+    fn insert_node<'a>(&self, node: *mut ABox<Element<K, V>>) -> Option<*const Self> {
         if let Some(next) = self.get_next() {
             return next.insert_node(node);
         }
@@ -106,13 +105,16 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
             let current_bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
             match p_tag(current_bucket_ptr) {
                 REDIRECT_TAG => {
-                    return self.get_next()
-                        .unwrap()
-                        .insert_node(node);
+                    return self.get_next().unwrap().insert_node(node);
                 }
 
                 TOMBSTONE_TAG => {
-                    if self.buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst) == current_bucket_ptr {
+                    if self.buckets[idx].compare_and_swap(
+                        current_bucket_ptr,
+                        node,
+                        Ordering::SeqCst,
+                    ) == current_bucket_ptr
+                    {
                         cell_maybe_return!(self);
                     } else {
                         continue;
@@ -125,7 +127,12 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
             if !current_bucket_ptr.is_null() {
                 let current_bucket_data = sarc_deref(current_bucket_ptr);
                 if current_bucket_data.key == node_data.key {
-                    if self.buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst) == current_bucket_ptr {
+                    if self.buckets[idx].compare_and_swap(
+                        current_bucket_ptr,
+                        node,
+                        Ordering::SeqCst,
+                    ) == current_bucket_ptr
+                    {
                         defer(|| sarc_remove_copy(current_bucket_ptr));
                         cell_maybe_return!(self);
                     } else {
@@ -136,7 +143,9 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     continue;
                 }
             } else {
-                if self.buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst) == current_bucket_ptr {
+                if self.buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
+                    == current_bucket_ptr
+                {
                     cell_maybe_return!(self);
                 } else {
                     continue;
@@ -193,7 +202,9 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
             let bucket_data = sarc_deref(bucket_ptr);
             if key == bucket_data.key.borrow() {
                 let null = p_set_tag::<()>(0 as _, TOMBSTONE_TAG);
-                if self.buckets[idx].compare_and_swap(bucket_ptr, null as _, Ordering::SeqCst) == bucket_ptr {
+                if self.buckets[idx].compare_and_swap(bucket_ptr, null as _, Ordering::SeqCst)
+                    == bucket_ptr
+                {
                     self.remaining_cells.fetch_add(1, Ordering::SeqCst);
                     defer(|| sarc_remove_copy(bucket_ptr));
                     return true;
@@ -276,7 +287,10 @@ pub struct Table<K, V, S> {
 
 impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
     pub fn new(capacity: usize, hash_builder: Arc<S>) -> Self {
-        let root = AtomicPtr::new(Box::into_raw(Box::new(BucketArray::new(capacity, hash_builder.clone()))));
+        let root = AtomicPtr::new(Box::into_raw(Box::new(BucketArray::new(
+            capacity,
+            hash_builder.clone(),
+        ))));
         Self { hash_builder, root }
     }
 
@@ -291,7 +305,9 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
             if let Some(new_root) = root.insert_node(node) {
                 self.root.store(new_root as _, Ordering::SeqCst);
                 defer(|| unsafe {
-                    drop(Box::from_raw(root as *const BucketArray<K, V, S> as *mut BucketArray<K, V, S>));
+                    drop(Box::from_raw(
+                        root as *const BucketArray<K, V, S> as *mut BucketArray<K, V, S>,
+                    ));
                 });
             }
         });
