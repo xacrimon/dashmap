@@ -2,9 +2,9 @@
 
 mod alloc;
 pub mod element;
+mod recl;
 pub mod table;
 mod util;
-mod recl;
 
 use crossbeam_epoch::pin;
 use element::ElementReadGuard;
