@@ -33,7 +33,7 @@ pub fn sarc_add_copy<T>(p: *const ABox<T>) {
     }
 }
 
-pub unsafe fn sarc_remove_copy<T>(p: *const ABox<T>) {
+pub fn sarc_remove_copy<T>(p: *const ABox<T>) {
     unsafe {
         if (*p).refs.fetch_sub(1, Ordering::SeqCst) == 1 {
             sarc_dealloc(p);

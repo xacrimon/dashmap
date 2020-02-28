@@ -15,11 +15,6 @@ use std::sync::Arc;
 const REDIRECT_TAG: usize = 5;
 const TOMBSTONE_TAG: usize = 7;
 
-pub fn make_shift(x: usize) -> usize {
-    debug_assert!(x.is_power_of_two());
-    x
-}
-
 fn make_buckets<K, V>(x: usize) -> Box<[AtomicPtr<ABox<Element<K, V>>>]> {
     iter::repeat(AtomicPtr::new(0 as _)).take(x).collect()
 }
@@ -35,10 +30,10 @@ pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
 }
 
 macro_rules! cell_maybe_return {
-    ($s:expr, $g:expr) => {{
+    ($s:expr) => {{
         let should_grow = $s.remaining_cells.fetch_sub(1, Ordering::SeqCst) == 1;
         if should_grow {
-            return $s.grow($g);
+            return $s.grow();
         } else {
             return None;
         }
@@ -46,7 +41,7 @@ macro_rules! cell_maybe_return {
 }
 
 fn incr_idx<K, V, S>(s: &BucketArray<K, V, S>, i: usize) -> usize {
-    hash2idx(i as u64 + 1, s.shift)
+    hash2idx(i as u64 + 1, s.buckets.len())
 }
 
 enum InsertResult {
@@ -78,7 +73,6 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
 pub struct BucketArray<K, V, S> {
     remaining_cells: CachePadded<AtomicUsize>,
     next: AtomicPtr<Self>,
-    shift: usize,
     hash_builder: Arc<S>,
     buckets: Box<[AtomicPtr<ABox<Element<K, V>>>]>,
 }
@@ -87,12 +81,10 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
         capacity = 2 * capacity; // TO-DO: remove this once grow works
         let remaining_cells = CachePadded::new(AtomicUsize::new(cmp::min(capacity * 3 / 4, capacity)));
-        let shift = make_shift(capacity);
         let buckets = make_buckets(capacity);
 
         Self {
             remaining_cells,
-            shift,
             hash_builder,
             buckets,
             next: Atomic::null(),
@@ -103,94 +95,70 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         &self,
         guard: &'a Guard,
         node: *const ABox<Element<K, V>>,
-    ) {
-        if let Some(next) = self.get_next(guard) {
-            return next.insert_node(guard, node);
+    ) -> Option<*const Self> {
+        if let Some(next) = self.get_next() {
+            return next.insert_node(node);
         }
 
-        let mut idx = hash2idx(node.hash, self.shift);
-        let inner = node.clone();
-        let mut node = Some(node);
+        let mut idx = hash2idx(node.hash, self.buckets.len());
+        let node_data = sarc_deref(node);
 
         loop {
-            let e_current = self.buckets[idx].load(Ordering::SeqCst, guard);
-            match e_current.tag() {
+            let current_bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+            match p_tag(current_bucket_ptr) {
                 REDIRECT_TAG => {
-                    self.get_next(guard)
+                    return self.get_next(guard)
                         .unwrap()
-                        .insert_node(guard, node.take().unwrap());
-
-                    return None;
+                        .insert_node(node);
                 }
 
                 TOMBSTONE_TAG => {
-                    match {
-                        self.buckets[idx].compare_and_set(
-                            e_current,
-                            ManuallyDrop::into_inner(node.take().unwrap()).into_shared(guard),
-                            Ordering::SeqCst,
-                            guard,
-                        )
-                    } {
-                        Ok(_) => cell_maybe_return!(self, guard),
-                        Err(err) => {
-                            node = unsafe { Some(ManuallyDrop::new(Sarc::from_shared(err.new))) };
-                            continue;
-                        }
+                    if self.buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst) == current_bucket_ptr {
+                        cell_maybe_return!(self);
+                    } else {
+                        continue;
                     }
                 }
 
                 _ => (),
             }
-            if let Some(e_current_node) = unsafe { Sarc::from_shared_maybe(e_current) } {
-                if e_current_node.key == inner.key {
-                    match {
-                        self.buckets[idx].compare_and_set(
-                            e_current,
-                            ManuallyDrop::into_inner(node.take().unwrap()).into_shared(guard),
-                            Ordering::SeqCst,
-                            guard,
-                        )
-                    } {
-                        Ok(_) => {
-                            unsafe {
-                                guard.defer_unchecked(move || drop(Sarc::from_shared(e_current)))
-                            }
 
-                            cell_maybe_return!(self, guard)
-                        }
-                        Err(err) => {
-                            node = unsafe { Some(ManuallyDrop::new(Sarc::from_shared(err.new))) };
-                            continue;
-                        }
+            if !current_bucket_ptr.is_null() {
+                let current_bucket_data = sarc_deref(current_bucket_ptr);
+                if current_bucket_data.key == node_data.key {
+                    if self.buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst) == current_bucket_ptr {
+                        defer(|| sarc_remove_copy(current_bucket_ptr));
+                        cell_maybe_return!(self);
+                    } else {
+                        continue;
                     }
                 } else {
                     idx = incr_idx(self, idx);
                     continue;
                 }
             } else {
-                let s_new = ManuallyDrop::into_inner(node.take().unwrap()).into_shared(guard);
-                match {
-                    self.buckets[idx].compare_and_set(e_current, s_new, Ordering::AcqRel, guard)
-                } {
-                    Ok(_) => {
-                        cell_maybe_return!(self, guard);
-                    }
-                    Err(err) => {
-                        node = unsafe { Some(ManuallyDrop::new(Sarc::from_shared(err.new))) };
-                        continue;
-                    }
+                if self.buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst) == current_bucket_ptr {
+                    cell_maybe_return!(self);
+                } else {
+                    continue;
                 }
             }
         }
     }
 
-    fn grow<'a>(&self, guard: &'a Guard) -> Option<Shared<'a, Self>> {
+    fn grow<'a>(&self) -> Option<*const Self> {
         unimplemented!()
     }
 
-    fn get_next<'a>(&self, guard: &'a Guard) -> Option<&'a Self> {
-        unsafe { self.next.load(Ordering::Acquire, guard).as_ref() }
+    fn get_next(&self) -> Option<&'static Self> {
+        unsafe {
+            let p = self.next.load(Ordering::SeqCst);
+            if !p.is_null() {
+                Some(&*p)
+            } else {
+                None
+            }
+        }
     }
 
     fn remove<Q>(&self, guard: &Guard, key: &Q) -> bool
