@@ -1,4 +1,4 @@
-use crate::alloc::{ABox, sarc_remove_copy, sarc_add_copy, sarc_deref};
+use crate::alloc::{sarc_add_copy, sarc_deref, sarc_remove_copy, ABox};
 use crate::util::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::cell::UnsafeCell;
 use std::mem::transmute;
@@ -63,9 +63,7 @@ pub struct ElementReadGuard<K, V> {
 
 impl<K, V> Drop for ElementReadGuard<K, V> {
     fn drop(&mut self) {
-        unsafe {
-            sarc_remove_copy(self.mem_guard);
-        }
+        sarc_remove_copy(self.mem_guard);
     }
 }
 
@@ -100,9 +98,7 @@ pub struct ElementWriteGuard<K, V> {
 
 impl<K, V> Drop for ElementWriteGuard<K, V> {
     fn drop(&mut self) {
-        unsafe {
-            sarc_remove_copy(self.mem_guard);
-        }
+        sarc_remove_copy(self.mem_guard);
     }
 }
 

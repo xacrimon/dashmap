@@ -2,13 +2,13 @@
 
 mod alloc;
 pub mod element;
+mod pointer;
 mod recl;
 pub mod table;
 mod util;
-mod pointer;
 
-use recl::{protected, collect};
 use element::ElementReadGuard;
+use recl::protected;
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::fmt::Debug;

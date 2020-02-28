@@ -2,11 +2,11 @@
 //! TO-DO: Optimize this garbage collector.
 //!        Research Stamp-it, DEBRA, Hazard Eras.
 
-use std::mem::{take, transmute};
-use std::sync::{Arc, Mutex};
 use once_cell::sync::Lazy;
 use once_cell::unsync::Lazy as UnsyncLazy;
+use std::mem::{take, transmute};
 use std::ops::Deref;
+use std::sync::{Arc, Mutex};
 
 /// Execute a closure in protected mode. This permits it to load protected pointers.
 pub fn protected<T>(f: impl FnOnce() -> T) -> T {
@@ -69,7 +69,9 @@ struct Deferred {
 impl Deferred {
     fn new<'a>(f: impl FnOnce() + 'a) -> Self {
         let boxed: Box<dyn FnOnce() + 'a> = Box::new(f);
-        Self { task: unsafe { transmute(boxed) } }
+        Self {
+            task: unsafe { transmute(boxed) },
+        }
     }
 
     fn run(self) {
