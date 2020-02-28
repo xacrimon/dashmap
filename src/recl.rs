@@ -129,13 +129,13 @@ impl Local {
 
     fn exit_critical(&self) {
         let mut state = self.state.lock().unwrap();
-        assert!(state.active > 0);
+        debug_assert!(state.active > 0);
         state.active -= 1;
     }
 
     fn defer(&self, f: Deferred) {
         let local_state = self.state.lock().unwrap();
-        assert!(local_state.active > 0);
+        debug_assert!(local_state.active > 0);
         let mut global_state = local_state.global.state.lock().unwrap();
         let global_epoch = global_state.epoch;
         global_state.deferred[global_epoch].push(f);
