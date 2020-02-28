@@ -1,5 +1,8 @@
 //! Simple EBR garbage collector.
-//! TO-DO: Research Stamp-it and DEBRA, optimize this garbage collector.
+//! TO-DO: Optimize this garbage collector.
+//!        Research Stamp-it, DEBRA, Hazard Eras and Hazard Pointers.
+//!        Investigate combining EBR or DEBRA with Hazard Pointers or Hazard Eras for
+//         cases like iterators where we don't want to have long lived critical sections.
 //! https://arxiv.org/abs/1805.08639
 //! https://arxiv.org/pdf/1712.01044.pdf
 
