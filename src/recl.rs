@@ -43,6 +43,14 @@ struct GlobalState {
 }
 
 impl Global {
+    fn add_local(&self, local: *const Local) {
+        self.state.lock().unwrap().locals.push(local);
+    }
+
+    fn remove_local(self, local: *const Local) {
+        self.state.lock().unwrap().locals.retain(|maybe_this| *maybe_this != local);
+    }
+
     fn collect(&self) {
         let mut guard = self.state.lock().unwrap();
         let mut state = &mut *guard;
@@ -88,6 +96,16 @@ struct LocalState {
 }
 
 impl Local {
+    fn new(global: Arc<Global>) -> Self {
+        Self {
+            state: Mutex::new(LocalState {
+                active: false,
+                epoch: 0,
+                global,
+            })
+        }
+    }
+
     fn enter_critical(&self) {
         let mut state = self.state.lock().unwrap();
         assert!(!state.active);
