@@ -13,13 +13,14 @@ pub struct ABox<T> {
 }
 
 pub fn sarc_new<T>(v: T) -> *const ABox<T> {
-    let layout = Layout::new::<Abox<T>>();
+    let layout = Layout::new::<ABox<T>>();
     let a = ABox {
         refs: AtomicUsize::new(0),
+        data: v,
     };
     let p = local_alloc(layout);
     unsafe { ptr::write(p as *mut _, a); }
-    p
+    p as _
 }
 
 pub fn sarc_deref<'a, T>(p: *const ABox<T>) -> &'a T {
@@ -41,7 +42,9 @@ pub unsafe fn sarc_remove_copy<T>(p: *const ABox<T>) {
 }
 
 unsafe fn sarc_dealloc<T>(p: *const ABox<T>) {
-    local_dealloc(p as _);
+    ptr::drop_in_place(mem::transmute(sarc_deref(p)));
+    let layout = Layout::new::<ABox<T>>();
+    local_dealloc(p as _, layout);
 }
 
 const SEGMENT_SIZE: usize = 64 * 1024;
