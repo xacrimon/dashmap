@@ -122,8 +122,10 @@ impl Local {
     fn enter_critical(&self) {
         let mut state = self.state.lock().unwrap();
         state.active += 1;
-        let global = state.global.state.lock().unwrap().epoch;
-        state.epoch = global;
+        if state.active == 1 {
+            let global = state.global.state.lock().unwrap().epoch;
+            state.epoch = global;
+        }
     }
 
     fn exit_critical(&self) {
