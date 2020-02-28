@@ -55,14 +55,15 @@ enum InsertResult {
 impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
         protected(|| {
-            let mut garbage = Vec::with_capacity(self.buckets.len());
+            let cap = self.buckets.len();
+            let mut garbage = Vec::with_capacity(cap);
             for bucket in &*self.buckets {
                 let ptr = p_set_tag(bucket.load(Ordering::SeqCst), 0);
                 if !ptr.is_null() {
                     garbage.push(ptr);
                 }
             }
-            defer(|| {
+            defer(move || {
                 for ptr in garbage {
                     sarc_remove_copy(ptr);
                 }
@@ -132,7 +133,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                         Ordering::SeqCst,
                     ) == current_bucket_ptr
                     {
-                        defer(|| sarc_remove_copy(current_bucket_ptr));
+                        defer(move || sarc_remove_copy(current_bucket_ptr));
                         cell_maybe_return!(self);
                     } else {
                         continue;
@@ -205,7 +206,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                     == bucket_ptr
                 {
                     self.remaining_cells.fetch_add(1, Ordering::SeqCst);
-                    defer(|| sarc_remove_copy(bucket_ptr));
+                    defer(move || sarc_remove_copy(bucket_ptr));
                     return true;
                 } else {
                     continue;
@@ -271,7 +272,9 @@ impl<K, V, S> Drop for Table<K, V, S> {
         protected(|| {
             let root_ptr = self.root.load(Ordering::SeqCst);
             unsafe {
-                defer(|| drop(Box::from_raw(root_ptr)));
+                defer(move || {
+                    drop(Box::from_raw(root_ptr));
+                });
             }
         });
     }
@@ -301,14 +304,14 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
             let root = self.root();
             if let Some(new_root) = root.insert_node(node) {
                 self.root.store(new_root as _, Ordering::SeqCst);
-                defer(|| unsafe {
+                defer(move || unsafe {
                     drop(Box::from_raw(
                         root as *const BucketArray<K, V, S> as *mut BucketArray<K, V, S>,
                     ));
                 });
             }
         });
-        //collect();
+        collect();
     }
 
     pub fn get<Q>(&self, key: &Q) -> Option<ElementReadGuard<K, V>>
@@ -317,7 +320,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         let r = protected(|| self.root().get(key));
-        //collect();
+        collect();
         r
     }
 
@@ -327,7 +330,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         protected(|| self.root().remove(key));
-        //collect();
+        collect();
     }
 }
 

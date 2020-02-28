@@ -16,7 +16,7 @@ fn insert_many() {
         map.insert(i, i + 7);
     }
 
-    //for i in 0..ITER {
-    //    assert_eq!(*map.get(&i).unwrap(), i + 7);
-    //}
+    for i in 0..ITER {
+        assert_eq!(*map.get(&i).unwrap(), i + 7);
+    }
 }

@@ -4,8 +4,9 @@
 
 use once_cell::sync::Lazy;
 use once_cell::unsync::Lazy as UnsyncLazy;
-use std::mem::{take, transmute};
+use std::mem::take;
 use std::ops::Deref;
+use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -64,19 +65,28 @@ impl Drop for TSLocal {
 }
 
 struct Deferred {
-    task: Box<dyn FnOnce()>,
+    task: [usize; 2],
 }
 
 impl Deferred {
     fn new<'a>(f: impl FnOnce() + 'a) -> Self {
         let boxed: Box<dyn FnOnce() + 'a> = Box::new(f);
-        Self {
-            task: unsafe { transmute(boxed) },
-        }
+        let fat_ptr = Box::into_raw(boxed);
+        let mut task = [0; 2];
+        unsafe {
+            ptr::write(&mut task as *mut [usize; 2] as usize as _, fat_ptr);
+        };
+
+        Self { task }
     }
 
-    fn run(self) {
-        (self.task)();
+    fn run(mut self) {
+        unsafe {
+            let fat_ptr: *mut dyn FnOnce() =
+                ptr::read(&mut self.task as *mut [usize; 2] as usize as _);
+            let boxed = Box::from_raw(fat_ptr);
+            boxed();
+        }
     }
 }
 
@@ -88,6 +98,10 @@ fn calc_free_epoch(a: usize) -> usize {
 }
 
 struct Global {
+    // Global epoch. This value is always 0, 1 or 2.
+    epoch: Mutex<usize>,
+
+    // Other state.
     state: Mutex<GlobalState>,
 }
 
@@ -95,9 +109,6 @@ unsafe impl Send for Global {}
 unsafe impl Sync for Global {}
 
 struct GlobalState {
-    // Global epoch. This value is always 0, 1 or 2.
-    epoch: usize,
-
     // Deferred functions.
     deferred: [Vec<Deferred>; 3],
 
@@ -108,8 +119,8 @@ struct GlobalState {
 impl Global {
     fn new() -> Self {
         Self {
+            epoch: Mutex::new(0),
             state: Mutex::new(GlobalState {
-                epoch: 0,
                 deferred: [Vec::new(), Vec::new(), Vec::new()],
                 locals: Vec::new(),
             }),
@@ -129,15 +140,16 @@ impl Global {
     }
 
     fn collect(&self) {
+        let mut global_epoch = self.epoch.lock().unwrap();
         let mut guard = self.state.lock().unwrap();
-        let mut state = &mut *guard;
+        let state = &mut *guard;
         let mut can_collect = true;
 
         for local_ptr in &state.locals {
             unsafe {
                 let local = &**local_ptr;
                 if local.active.load(Ordering::SeqCst) > 0 {
-                    if local.epoch.load(Ordering::SeqCst) != state.epoch {
+                    if local.epoch.load(Ordering::SeqCst) != *global_epoch {
                         can_collect = false;
                     }
                 }
@@ -145,9 +157,10 @@ impl Global {
         }
 
         if can_collect {
-            state.epoch = (state.epoch + 1) % 3;
-            let free_epoch = calc_free_epoch(state.epoch);
+            *global_epoch = (*global_epoch + 1) % 3;
+            let free_epoch = calc_free_epoch(*global_epoch);
             let free_deferred = take(&mut state.deferred[free_epoch]);
+            drop(global_epoch);
 
             for deferred in free_deferred {
                 deferred.run();
@@ -178,8 +191,8 @@ impl Local {
 
     pub fn enter_critical(&self) {
         if self.active.fetch_add(1, Ordering::SeqCst) == 0 {
-            let global_state = self.global.state.lock().unwrap();
-            self.epoch.store(global_state.epoch, Ordering::SeqCst);
+            let global_epoch = self.global.epoch.lock().unwrap();
+            self.epoch.store(*global_epoch, Ordering::SeqCst);
         }
     }
 
@@ -192,8 +205,8 @@ impl Local {
     fn defer(&self, f: Deferred) {
         let active = self.active.load(Ordering::SeqCst);
         debug_assert!(active > 0);
+        let global_epoch = self.global.epoch.lock().unwrap();
         let mut global_state = self.global.state.lock().unwrap();
-        let global_epoch = global_state.epoch;
-        global_state.deferred[global_epoch].push(f);
+        global_state.deferred[*global_epoch].push(f);
     }
 }
