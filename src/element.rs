@@ -21,7 +21,7 @@ impl<K, V> Element<K, V> {
         }
     }
 
-    pub fn read(ptr: *const ABox<Element<K, V>>) -> ElementReadGuard<K, V> {
+    pub fn read(ptr: *mut ABox<Element<K, V>>) -> ElementReadGuard<K, V> {
         unsafe {
             sarc_add_copy(ptr);
             let data = sarc_deref(ptr);
@@ -37,7 +37,7 @@ impl<K, V> Element<K, V> {
         }
     }
 
-    pub fn write(ptr: *const ABox<Element<K, V>>) -> ElementWriteGuard<K, V> {
+    pub fn write(ptr: *mut ABox<Element<K, V>>) -> ElementWriteGuard<K, V> {
         unsafe {
             sarc_add_copy(ptr);
             let data = sarc_deref(ptr);
@@ -56,7 +56,7 @@ impl<K, V> Element<K, V> {
 
 pub struct ElementReadGuard<K, V> {
     _lock_guard: RwLockReadGuard<'static, ()>,
-    mem_guard: *const ABox<Element<K, V>>,
+    mem_guard: *mut ABox<Element<K, V>>,
     key: *const K,
     value: *const V,
 }
@@ -93,7 +93,7 @@ impl<K, V> Deref for ElementReadGuard<K, V> {
 
 pub struct ElementWriteGuard<K, V> {
     _lock_guard: RwLockWriteGuard<'static, ()>,
-    mem_guard: *const ABox<Element<K, V>>,
+    mem_guard: *mut ABox<Element<K, V>>,
     key: *const K,
     value: *mut V,
 }

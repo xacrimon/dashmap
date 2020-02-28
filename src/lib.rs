@@ -7,7 +7,7 @@ pub mod table;
 mod util;
 mod pointer;
 
-use crossbeam_epoch::pin;
+use recl::{protected, collect};
 use element::ElementReadGuard;
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
@@ -47,10 +47,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> DashMap<K, V, S> {
     }
 
     pub fn batch<T>(&self, f: impl FnOnce(&Self) -> T) -> T {
-        let guard = pin();
-        let r = f(self);
-        guard.defer(|| ());
-        r
+        protected(|| f(self))
     }
 
     pub fn insert(&self, key: K, value: V) {
