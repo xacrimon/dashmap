@@ -1,9 +1,64 @@
 //! Simple EBR garbage collector.
 //! TO-DO: Optimize this garbage collector.
-//!        Research Stamp-it, DEBRA, Hazard Eras and Hazard Pointers.
+//!        Research Stamp-it, DEBRA, Hazard Eras.
 
 use std::mem::take;
 use std::sync::{Arc, Mutex};
+use once_cell::sync::Lazy;
+use once_cell::unsync::Lazy as UnsyncLazy;
+use std::ops::Deref;
+
+pub fn enter_critical() {
+    PARTICIPANT_HANDLE.enter_critical();
+}
+
+pub fn exit_critical() {
+    PARTICIPANT_HANDLE.exit_critical();
+}
+
+pub fn defer(f: impl FnOnce() + 'static) {
+    let deferred = Deferred::new(f);
+    PARTICIPANT_HANDLE.defer(deferred);
+}
+
+pub fn collect() {
+    GC.collect();
+}
+
+static GC: Lazy<Arc<Global>> = Lazy::new(|| Arc::new(Global::new()));
+
+thread_local! {
+    static PARTICIPANT_HANDLE: UnsyncLazy<TSLocal> = UnsyncLazy::new(|| TSLocal::new(Arc::clone(GC)));
+}
+
+struct TSLocal {
+    local: Box<Local>,
+}
+
+impl TSLocal {
+    fn new(global: Arc<Global>) -> TSLocal {
+        let local = Box::new(Local::new(Arc::clone(global)));
+        let local_ptr = &*local as *const Local;
+        global.add_local(local_ptr);
+        Self { local }
+    }
+}
+
+impl Deref for TSLocal {
+    type Target = Local;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.local
+    }
+}
+
+impl Drop for TSLocal {
+    fn drop(&mut self) {
+        let global = Arc::clone(self.local.state.lock().unwrap().global);
+        let local_ptr = &*self.local as *const Local;
+        global.remove_local(local_ptr);
+    }
+}
 
 struct Deferred {
     task: Box<dyn FnOnce()>,

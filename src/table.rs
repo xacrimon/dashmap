@@ -1,14 +1,13 @@
 use super::element::*;
-use crate::alloc::{Sanic, Sarc};
+use crate::alloc::{ABox, sarc_add_copy, sarc_deref, sarc_remove_copy};
 use crate::util::CachePadded;
-use crossbeam_epoch::{pin, Atomic, Guard, Owned, Shared};
 use std::borrow::Borrow;
 use std::cmp;
 use std::fmt::Debug;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::iter;
 use std::mem::{self, ManuallyDrop};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering, AtomicPtr};
 use std::sync::Arc;
 
 const REDIRECT_TAG: usize = 5;
@@ -23,9 +22,8 @@ fn make_buckets<K, V>(x: usize) -> Box<[Atomic<Element<K, V>>]> {
     iter::repeat(Atomic::null()).take(x).collect()
 }
 
-pub fn hash2idx(hash: u64, shift: usize) -> usize {
-    ////dbg!(hash as usize % shift);
-    hash as usize % shift
+pub fn hash2idx(hash: u64, len: usize) -> usize {
+    hash as usize % len
 }
 
 pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
@@ -36,13 +34,10 @@ pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
 
 macro_rules! cell_maybe_return {
     ($s:expr, $g:expr) => {{
-        //println!("running cell_maybe_return fetch sub atomic op");
         let should_grow = $s.remaining_cells.fetch_sub(1, Ordering::SeqCst) == 1;
-        //println!("atomic dec done, {}", should_grow);
         if should_grow {
             return $s.grow($g);
         } else {
-            //dbg!("returning none");
             return None;
         }
     }};
@@ -68,7 +63,6 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
                     garbage.push(Sarc::from_shared(ptr));
                 }
             }
-            //std::mem::forget(garbage);
             guard.defer_unchecked(move || drop(garbage));
         }
     }
