@@ -215,7 +215,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn get_elem<'a, Q>(&'a self, guard: &'a Guard, key: &Q) -> Option<Sarc<Element<K, V>>>
+    fn get_elem<'a, Q>(&'a self, key: &Q) -> Option<*const ABox<Element<K, V>>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -224,10 +224,10 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         let mut idx = hash2idx(hash, self.shift);
 
         loop {
-            let shared = self.buckets[idx].load(Ordering::Relaxed, guard);
-            match shared.tag() {
+            let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+            match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
-                    if let Some(elem) = self.get_next(guard).unwrap().get_elem(guard, key) {
+                    if let Some(elem) = self.get_next().unwrap().get_elem(key) {
                         return Some(elem);
                     } else {
                         idx = incr_idx(self, idx);
@@ -242,15 +242,15 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
 
                 _ => (),
             }
-            if shared.is_null() {
+
+            if bucket_ptr.is_null() {
                 return None;
             }
-            let elem = unsafe { Sarc::from_shared(shared) };
-            if key == elem.key.borrow() {
-                elem.incr();
-                return Some(elem);
+
+            let bucket_data = sarc_deref(bucket_ptr);
+            if key == bucket_data.key.borrow() {
+                return Some(bucket_ptr);
             } else {
-                mem::forget(elem);
                 idx = incr_idx(self, idx);
             }
         }
