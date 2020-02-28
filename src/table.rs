@@ -37,7 +37,7 @@ pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
 macro_rules! cell_maybe_return {
     ($s:expr, $g:expr) => {{
         //println!("running cell_maybe_return fetch sub atomic op");
-        let should_grow = $s.remaining_cells.fetch_sub(1, Ordering::Relaxed) == 1;
+        let should_grow = $s.remaining_cells.fetch_sub(1, Ordering::SeqCst) == 1;
         //println!("atomic dec done, {}", should_grow);
         if should_grow {
             return $s.grow($g);
@@ -120,7 +120,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         loop {
             //println!("loop start");
             //dbg!(idx);
-            let e_current = self.buckets[idx].load(Ordering::Acquire, guard);
+            let e_current = self.buckets[idx].load(Ordering::SeqCst, guard);
             //println!("loaded pointer");
             match e_current.tag() {
                 REDIRECT_TAG => {
@@ -138,7 +138,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                         self.buckets[idx].compare_and_set(
                             e_current,
                             ManuallyDrop::into_inner(node.take().unwrap()).into_shared(guard),
-                            Ordering::AcqRel,
+                            Ordering::SeqCst,
                             guard,
                         )
                     } {
@@ -160,7 +160,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
                         self.buckets[idx].compare_and_set(
                             e_current,
                             ManuallyDrop::into_inner(node.take().unwrap()).into_shared(guard),
-                            Ordering::AcqRel,
+                            Ordering::SeqCst,
                             guard,
                         )
                     } {
