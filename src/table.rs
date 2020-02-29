@@ -276,6 +276,7 @@ impl<K, V, S> Drop for Table<K, V, S> {
                 });
             }
         });
+        collect();
     }
 }
 
