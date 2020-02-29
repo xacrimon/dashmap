@@ -9,6 +9,10 @@ use std::ops::Deref;
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+
+static GUARDIAN_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
 /// Execute a closure in protected mode. This permits it to load protected pointers.
 pub fn protected<T>(f: impl FnOnce() -> T) -> T {
@@ -24,12 +28,19 @@ pub fn defer(f: impl FnOnce()) {
     PARTICIPANT_HANDLE.with(|key| key.defer(deferred));
 }
 
-/// Collect garbage.
-pub fn collect() {
-    GC.collect();
+fn guardian_thread_fn(gc: Arc<Global>) {
+    loop {
+        thread::sleep(GUARDIAN_SLEEP_DURATION);
+        gc.collect();
+    }
 }
 
-static GC: Lazy<Arc<Global>> = Lazy::new(|| Arc::new(Global::new()));
+static GC: Lazy<Arc<Global>> = Lazy::new(|| {
+    let state = Arc::new(Global::new());
+    let state2 = Arc::clone(&state);
+    thread::spawn(|| guardian_thread_fn(state2));
+    state
+});
 
 thread_local! {
     pub static PARTICIPANT_HANDLE: UnsyncLazy<TSLocal> = UnsyncLazy::new(|| TSLocal::new(Arc::clone(&GC)));
@@ -202,11 +213,15 @@ impl Local {
     }
 
     pub fn exit_critical(&self) {
-        match self.active.fetch_sub(1, Ordering::SeqCst) {
-            0 => panic!("uh oh"),
-            1 => GC.collect(),
-            _ => (),
+        #[cfg(debug_assertions)]
+        {
+            if self.active.fetch_sub(1, Ordering::SeqCst) == 0 {
+                panic!("uh oh");
+            }
         }
+
+        #[cfg(not(debug_assertions))]
+        self.active.fetch_sub(1, Ordering::SeqCst);
     }
 
     fn defer(&self, f: Deferred) {

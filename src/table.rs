@@ -1,6 +1,6 @@
 use super::element::*;
 use crate::alloc::{sarc_deref, sarc_new, sarc_remove_copy, ABox};
-use crate::recl::{collect, defer, protected};
+use crate::recl::{defer, protected};
 use crate::util::{p_set_tag, p_tag, CachePadded};
 use std::borrow::Borrow;
 use std::cmp;
@@ -276,7 +276,6 @@ impl<K, V, S> Drop for Table<K, V, S> {
                 });
             }
         });
-        collect();
     }
 }
 

@@ -7,7 +7,6 @@ pub mod table;
 mod util;
 
 use element::ElementReadGuard;
-pub use recl::collect as gc_collect;
 use recl::protected;
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
