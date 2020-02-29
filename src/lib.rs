@@ -1,13 +1,12 @@
 #![allow(dead_code)]
 
 mod alloc;
-pub mod element;
+mod element;
 mod recl;
-pub mod table;
+mod table;
 mod util;
 
-use element::ElementGuard;
-use recl::protected;
+pub use element::ElementGuard;
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
