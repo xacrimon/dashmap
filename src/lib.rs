@@ -6,7 +6,7 @@ mod recl;
 pub mod table;
 mod util;
 
-use element::ElementReadGuard;
+use element::ElementGuard;
 use recl::protected;
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
@@ -54,7 +54,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> DashMap<K, V, S> {
         self.table.insert(key, hash, value);
     }
 
-    pub fn get<Q>(&self, key: &Q) -> Option<ElementReadGuard<K, V>>
+    pub fn get<Q>(&self, key: &Q) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
