@@ -2,7 +2,6 @@
 
 mod alloc;
 pub mod element;
-mod pointer;
 mod recl;
 pub mod table;
 mod util;
