@@ -257,7 +257,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn get<Q>(&self, key: &Q) -> Option<ElementReadGuard<K, V>>
+    fn get<Q>(&self, key: &Q) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -312,7 +312,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         });
     }
 
-    pub fn get<Q>(&self, key: &Q) -> Option<ElementReadGuard<K, V>>
+    pub fn get<Q>(&self, key: &Q) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
