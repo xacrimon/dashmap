@@ -2,15 +2,20 @@ use crate::alloc::{sarc_add_copy, sarc_deref, sarc_remove_copy, ABox};
 use std::mem::transmute;
 use std::ops::Deref;
 
+#[derive(Clone)]
 pub struct Element<K, V> {
     pub hash: u64,
     pub key: K,
-    value: V,
+    pub value: V,
 }
 
 impl<K, V> Element<K, V> {
     pub fn new(key: K, hash: u64, value: V) -> Self {
         Self { hash, key, value }
+    }
+
+    pub fn destructure(self) -> (K, u64, V) {
+        (self.key, self.hash, self.value)
     }
 
     pub fn read(ptr: *mut ABox<Element<K, V>>) -> ElementGuard<K, V> {

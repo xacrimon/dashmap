@@ -4,7 +4,6 @@ use crate::recl::{defer, protected};
 use crate::util::{p_set_tag, p_tag, CachePadded};
 use std::borrow::Borrow;
 use std::cmp;
-use std::fmt::Debug;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::iter;
 
@@ -78,7 +77,68 @@ pub struct BucketArray<K, V, S> {
     buckets: Box<[AtomicPtr<ABox<Element<K, V>>>]>,
 }
 
-impl<K: Eq + Hash + Debug, V, S: BuildHasher> BucketArray<K, V, S> {
+impl<K: Eq + Hash + Clone, V: Clone, S: BuildHasher> BucketArray<K, V, S> {
+    fn optimistic_update<Q, F>(&self, search_key: &Q, do_update: &mut F) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+        F: FnMut(&K, V) -> V,
+    {
+        let hash = do_hash(&*self.hash_builder, search_key);
+        let mut idx = hash2idx(hash, self.buckets.len());
+
+        loop {
+            let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+            match p_tag(bucket_ptr) {
+                REDIRECT_TAG => {
+                    if self
+                        .get_next()
+                        .unwrap()
+                        .optimistic_update(search_key, do_update)
+                    {
+                        return true;
+                    } else {
+                        idx = incr_idx(self, idx);
+                        continue;
+                    }
+                }
+
+                TOMBSTONE_TAG => {
+                    idx = incr_idx(self, idx);
+                    continue;
+                }
+
+                _ => (),
+            }
+
+            if bucket_ptr.is_null() {
+                return false;
+            }
+
+            let bucket_data = sarc_deref(bucket_ptr);
+            if search_key == bucket_data.key.borrow() {
+                let (key, hash, value) = bucket_data.clone().destructure();
+                let new_value = do_update(&key, value);
+                let new_element = Element::new(key, hash, new_value);
+                let new_ptr = sarc_new(new_element);
+
+                if self.buckets[idx].compare_and_swap(bucket_ptr, new_ptr, Ordering::SeqCst)
+                    == bucket_ptr
+                {
+                    defer(move || sarc_remove_copy(bucket_ptr));
+                    return true;
+                } else {
+                    sarc_remove_copy(new_ptr);
+                    continue;
+                }
+            } else {
+                idx = incr_idx(self, idx);
+            }
+        }
+    }
+}
+
+impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
         capacity = cmp::max(2 * capacity, 16); // TO-DO: remove this once grow works
         let remaining_cells = CachePadded::new(AtomicUsize::new(capacity * 3 / 4));
@@ -284,7 +344,7 @@ pub struct Table<K, V, S> {
     root: AtomicPtr<BucketArray<K, V, S>>,
 }
 
-impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     pub fn new(capacity: usize, hash_builder: Arc<S>) -> Self {
         let root = AtomicPtr::new(Box::into_raw(Box::new(BucketArray::new(
             capacity,
@@ -326,6 +386,17 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         protected(|| self.root().remove(key));
+    }
+}
+
+impl<K: Eq + Hash + Clone, V: Clone, S: BuildHasher> Table<K, V, S> {
+    pub fn optimistic_update<Q, F>(&self, key: &Q, do_update: &mut F) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+        F: FnMut(&K, V) -> V,
+    {
+        protected(|| self.root().optimistic_update(key, do_update))
     }
 }
 

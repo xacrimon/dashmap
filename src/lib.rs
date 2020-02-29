@@ -8,9 +8,8 @@ mod util;
 
 use element::ElementGuard;
 use recl::protected;
-use std::borrow::Borrow;
+use std::borrow::{Borrow, BorrowMut};
 use std::collections::hash_map::RandomState;
-use std::fmt::Debug;
 use std::hash::{BuildHasher, Hash};
 use std::sync::Arc;
 use table::{do_hash, Table};
@@ -20,7 +19,7 @@ pub struct DashMap<K, V, S = RandomState> {
     hash_builder: Arc<S>,
 }
 
-impl<K: Eq + Hash + Debug, V> DashMap<K, V, RandomState> {
+impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
     pub fn new() -> Self {
         Self::with_hasher(RandomState::new())
     }
@@ -30,7 +29,7 @@ impl<K: Eq + Hash + Debug, V> DashMap<K, V, RandomState> {
     }
 }
 
-impl<K: Eq + Hash + Debug, V, S: BuildHasher> DashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
     pub fn with_hasher(hash_builder: S) -> Self {
         Self::with_capacity_and_hasher(0, hash_builder)
     }
@@ -45,10 +44,6 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> DashMap<K, V, S> {
         }
     }
 
-    pub fn batch<T>(&self, f: impl FnOnce(&Self) -> T) -> T {
-        protected(|| f(self))
-    }
-
     pub fn insert(&self, key: K, value: V) {
         let hash = do_hash(&*self.hash_builder, &key);
         self.table.insert(key, hash, value);
@@ -60,5 +55,17 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> DashMap<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         self.table.get(key)
+    }
+}
+
+impl<K: Eq + Hash + Clone, V: Clone, S: BuildHasher> DashMap<K, V, S> {
+    pub fn update<Q, F>(&self, key: &Q, mut do_update: impl BorrowMut<F>) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+        F: FnMut(&K, V) -> V,
+    {
+        let do_update: &mut F = do_update.borrow_mut();
+        self.table.optimistic_update(key, do_update)
     }
 }
