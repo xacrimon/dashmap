@@ -43,9 +43,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
         }
     }
 
-    pub fn insert(&self, key: K, value: V) {
+    pub fn insert(&self, key: K, value: V) -> bool {
         let hash = do_hash(&*self.hash_builder, &key);
-        self.table.insert(key, hash, value);
+        self.table.insert(key, hash, value)
     }
 
     pub fn get<Q>(&self, key: &Q) -> Option<ElementGuard<K, V>>
@@ -54,6 +54,14 @@ impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         self.table.get(key)
+    }
+
+    pub fn remove<Q>(&self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        self.table.remove(key)
     }
 }
 

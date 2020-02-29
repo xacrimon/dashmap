@@ -31,12 +31,12 @@ pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
 }
 
 macro_rules! cell_maybe_return {
-    ($s:expr) => {{
+    ($s:expr, $b:expr) => {{
         let should_grow = $s.remaining_cells.fetch_sub(1, Ordering::SeqCst) == 1;
         if should_grow {
-            return $s.grow();
+            return ($s.grow(), $b);
         } else {
-            return None;
+            return (None, $b);
         }
     }};
 }
@@ -152,7 +152,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn insert_node<'a>(&self, node: *mut ABox<Element<K, V>>) -> Option<*const Self> {
+    fn insert_node<'a>(&self, node: *mut ABox<Element<K, V>>) -> (Option<*const Self>, bool) {
         if let Some(next) = self.get_next() {
             return next.insert_node(node);
         }
@@ -174,7 +174,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         Ordering::SeqCst,
                     ) == current_bucket_ptr
                     {
-                        cell_maybe_return!(self);
+                        cell_maybe_return!(self, false);
                     } else {
                         continue;
                     }
@@ -193,7 +193,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     ) == current_bucket_ptr
                     {
                         defer(move || sarc_remove_copy(current_bucket_ptr));
-                        cell_maybe_return!(self);
+                        cell_maybe_return!(self, true);
                     } else {
                         continue;
                     }
@@ -205,7 +205,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 if self.buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
                     == current_bucket_ptr
                 {
-                    cell_maybe_return!(self);
+                    cell_maybe_return!(self, false);
                 } else {
                     continue;
                 }
@@ -357,11 +357,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         unsafe { &*self.root.load(Ordering::SeqCst) }
     }
 
-    pub fn insert(&self, key: K, hash: u64, value: V) {
+    pub fn insert(&self, key: K, hash: u64, value: V) -> bool {
         let node = sarc_new(Element::new(key, hash, value));
         protected(|| {
             let root = self.root();
-            if let Some(new_root) = root.insert_node(node) {
+            let (maybe_new_root, did_replace) = root.insert_node(node);
+            if let Some(new_root) = maybe_new_root {
                 self.root.store(new_root as _, Ordering::SeqCst);
                 defer(move || unsafe {
                     drop(Box::from_raw(
@@ -369,7 +370,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
                     ));
                 });
             }
-        });
+            did_replace
+        })
     }
 
     pub fn get<Q>(&self, key: &Q) -> Option<ElementGuard<K, V>>
@@ -380,12 +382,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         protected(|| self.root().get(key))
     }
 
-    pub fn remove<'a, Q>(&'a self, key: &Q)
+    pub fn remove<'a, Q>(&'a self, key: &Q) -> bool
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        protected(|| self.root().remove(key));
+        protected(|| self.root().remove(key))
     }
 }
 
