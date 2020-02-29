@@ -1,5 +1,4 @@
 use crate::alloc::{sarc_add_copy, sarc_deref, sarc_remove_copy, ABox};
-use std::mem::transmute;
 use std::ops::Deref;
 
 #[derive(Clone)]
@@ -19,16 +18,14 @@ impl<K, V> Element<K, V> {
     }
 
     pub fn read(ptr: *mut ABox<Element<K, V>>) -> ElementGuard<K, V> {
-        unsafe {
-            sarc_add_copy(ptr);
-            let data = sarc_deref(ptr);
-            let key = transmute(&data.key);
-            let value = transmute(&data.value);
-            ElementGuard {
-                mem_guard: ptr,
-                key,
-                value,
-            }
+        sarc_add_copy(ptr);
+        let data = sarc_deref(ptr);
+        let key = &data.key;
+        let value = &data.value;
+        ElementGuard {
+            mem_guard: ptr,
+            key,
+            value,
         }
     }
 }
