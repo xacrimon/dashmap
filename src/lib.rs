@@ -56,6 +56,15 @@ impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
         self.table.get(key)
     }
 
+    pub fn extract<T, Q, F>(&self, key: &Q, do_extract: F) -> Option<T>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+        F: FnOnce(&K, &V) -> T,
+    {
+        self.table.extract(key, do_extract)
+    }
+
     pub fn remove<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
