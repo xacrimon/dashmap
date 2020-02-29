@@ -99,70 +99,75 @@ fn calc_free_epoch(a: usize) -> usize {
 
 struct Global {
     // Global epoch. This value is always 0, 1 or 2.
-    epoch: Mutex<usize>,
+    epoch: AtomicUsize,
 
-    // Other state.
-    state: Mutex<GlobalState>,
+    // Deferred functions.
+    deferred: Mutex<[Vec<Deferred>; 3]>,
+
+    // List of participants.
+    locals: Mutex<Vec<*const Local>>,
 }
 
 unsafe impl Send for Global {}
 unsafe impl Sync for Global {}
 
-struct GlobalState {
-    // Deferred functions.
-    deferred: [Vec<Deferred>; 3],
-
-    // List of participants.
-    locals: Vec<*const Local>,
+fn increment_epoch(a: &AtomicUsize) -> usize {
+    loop {
+        let current = a.load(Ordering::SeqCst);
+        let next = (current + 1) % 3;
+        if a.compare_and_swap(current, next, Ordering::SeqCst) == current {
+            break next;
+        }
+    }
 }
 
 impl Global {
     fn new() -> Self {
         Self {
-            epoch: Mutex::new(0),
-            state: Mutex::new(GlobalState {
-                deferred: [Vec::new(), Vec::new(), Vec::new()],
-                locals: Vec::new(),
-            }),
+            epoch: AtomicUsize::new(0),
+            deferred: Mutex::new([Vec::new(), Vec::new(), Vec::new()]),
+            locals: Mutex::new(Vec::new()),
         }
     }
 
     fn add_local(&self, local: *const Local) {
-        self.state.lock().unwrap().locals.push(local);
+        self.locals.lock().unwrap().push(local);
     }
 
     fn remove_local(&self, local: *const Local) {
-        self.state
+        self.locals
             .lock()
             .unwrap()
-            .locals
             .retain(|maybe_this| *maybe_this != local);
     }
 
     fn collect(&self) {
-        let mut global_epoch = self.epoch.lock().unwrap();
-        let mut guard = self.state.lock().unwrap();
-        let state = &mut *guard;
+        let start_global_epoch = self.epoch.load(Ordering::SeqCst);
         let mut can_collect = true;
+        let locals = self.locals.lock().unwrap();
 
-        for local_ptr in &state.locals {
+        for local_ptr in &*locals {
             unsafe {
                 let local = &**local_ptr;
                 if local.active.load(Ordering::SeqCst) > 0 {
-                    if local.epoch.load(Ordering::SeqCst) != *global_epoch {
+                    if local.epoch.load(Ordering::SeqCst) != start_global_epoch {
                         can_collect = false;
                     }
                 }
             }
         }
+        drop(locals);
+
+        if start_global_epoch != self.epoch.load(Ordering::SeqCst) {
+            return;
+        }
 
         if can_collect {
-            *global_epoch = (*global_epoch + 1) % 3;
-            let free_epoch = calc_free_epoch(*global_epoch);
-            let free_deferred = take(&mut state.deferred[free_epoch]);
-            drop(global_epoch);
-
-            for deferred in free_deferred {
+            let next = increment_epoch(&self.epoch);
+            let mut deferred = self.deferred.lock().unwrap();
+            let to_collect = take(&mut deferred[next]);
+            drop(deferred);
+            for deferred in to_collect {
                 deferred.run();
             }
         }
@@ -191,8 +196,8 @@ impl Local {
 
     pub fn enter_critical(&self) {
         if self.active.fetch_add(1, Ordering::SeqCst) == 0 {
-            let global_epoch = self.global.epoch.lock().unwrap();
-            self.epoch.store(*global_epoch, Ordering::SeqCst);
+            let global_epoch = self.global.epoch.load(Ordering::SeqCst);
+            self.epoch.store(global_epoch, Ordering::SeqCst);
         }
     }
 
@@ -203,10 +208,9 @@ impl Local {
     }
 
     fn defer(&self, f: Deferred) {
-        let active = self.active.load(Ordering::SeqCst);
-        debug_assert!(active > 0);
-        let global_epoch = self.global.epoch.lock().unwrap();
-        let mut global_state = self.global.state.lock().unwrap();
-        global_state.deferred[*global_epoch].push(f);
+        debug_assert!(self.active.load(Ordering::SeqCst) > 0);
+        let global_epoch = self.global.epoch.load(Ordering::SeqCst);
+        let mut deferred = self.global.deferred.lock().unwrap();
+        deferred[global_epoch].push(f);
     }
 }
