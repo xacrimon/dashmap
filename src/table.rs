@@ -152,6 +152,18 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
+    fn extract<T, Q, F>(&self, search_key: &Q, do_extract: F) -> Option<T>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+        F: FnOnce(&K, &V) -> T,
+    {
+        self.get_elem(search_key).map(|ptr| {
+            let elem = sarc_deref(ptr);
+            do_extract(&elem.key, &elem.value)
+        })
+    }
+
     fn insert_node<'a>(&self, node: *mut ABox<Element<K, V>>) -> (Option<*const Self>, bool) {
         if let Some(next) = self.get_next() {
             return next.insert_node(node);
@@ -380,6 +392,15 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         protected(|| self.root().get(key))
+    }
+
+    pub fn extract<T, Q, F>(&self, key: &Q, do_extract: F) -> Option<T>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+        F: FnOnce(&K, &V) -> T,
+    {
+        protected(|| self.root().extract(key, do_extract))
     }
 
     pub fn remove<'a, Q>(&'a self, key: &Q) -> bool
