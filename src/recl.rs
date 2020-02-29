@@ -202,8 +202,10 @@ impl Local {
     }
 
     pub fn exit_critical(&self) {
-        if self.active.fetch_sub(1, Ordering::SeqCst) == 0 {
-            panic!("uh oh");
+        match self.active.fetch_sub(1, Ordering::SeqCst) {
+            0 => panic!("uh oh"),
+            1 => GC.collect(),
+            _ => (),
         }
     }
 

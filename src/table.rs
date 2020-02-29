@@ -299,8 +299,8 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
     }
 
     pub fn insert(&self, key: K, hash: u64, value: V) {
+        let node = sarc_new(Element::new(key, hash, value));
         protected(|| {
-            let node = sarc_new(Element::new(key, hash, value));
             let root = self.root();
             if let Some(new_root) = root.insert_node(node) {
                 self.root.store(new_root as _, Ordering::SeqCst);
@@ -311,7 +311,6 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
                 });
             }
         });
-        collect();
     }
 
     pub fn get<Q>(&self, key: &Q) -> Option<ElementReadGuard<K, V>>
@@ -319,9 +318,7 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        let r = protected(|| self.root().get(key));
-        collect();
-        r
+        protected(|| self.root().get(key))
     }
 
     pub fn remove<'a, Q>(&'a self, key: &Q)
@@ -330,7 +327,6 @@ impl<K: Eq + Hash + Debug, V, S: BuildHasher> Table<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         protected(|| self.root().remove(key));
-        collect();
     }
 }
 
