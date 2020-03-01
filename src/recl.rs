@@ -16,10 +16,12 @@ static GUARDIAN_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
 /// Execute a closure in protected mode. This permits it to load protected pointers.
 pub fn protected<T>(f: impl FnOnce() -> T) -> T {
-    PARTICIPANT_HANDLE.with(|key| key.enter_critical());
-    let r = f();
-    PARTICIPANT_HANDLE.with(|key| key.exit_critical());
-    r
+    PARTICIPANT_HANDLE.with(|key| {
+        key.enter_critical();
+        let r = f();
+        key.exit_critical();
+        r
+    })
 }
 
 /// Defer a function.
