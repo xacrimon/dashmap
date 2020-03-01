@@ -28,3 +28,17 @@ fn insert_extract() {
         assert_eq!(v, i + 7);
     }
 }
+
+#[test]
+fn insert_remove() {
+    const ITER: i32 = 1024;
+    let map = DashMap::with_capacity(ITER as usize);
+
+    for i in 0..ITER {
+        map.insert(i, i + 7);
+    }
+
+    for i in 0..ITER {
+        assert!(map.remove(&i));
+    }
+}
