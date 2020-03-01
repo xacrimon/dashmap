@@ -39,6 +39,7 @@ fn insert_remove() {
     }
 
     for i in 0..ITER {
+        dbg!(i);
         assert!(map.remove(&i));
     }
 }

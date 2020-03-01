@@ -1,6 +1,5 @@
 use core::default::Default;
 use core::fmt;
-use core::mem;
 use core::ops::{Deref, DerefMut};
 
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq)]
@@ -51,17 +50,17 @@ impl<T> From<T> for CachePadded<T> {
     }
 }
 
-fn low_bits<T>() -> usize {
-    (1 << mem::align_of::<T>().trailing_zeros()) - 1
+fn low_bits() -> usize {
+    (1 << 8usize.trailing_zeros()) - 1
 }
 
-fn data_with_tag<T>(data: usize, tag: usize) -> usize {
-    (data & !low_bits::<T>()) | (tag & low_bits::<T>())
+fn data_with_tag(data: usize, tag: usize) -> usize {
+    (data & !low_bits()) | (tag & low_bits())
 }
 
 fn decompose_data<T>(data: usize) -> (*mut T, usize) {
-    let raw = (data & !low_bits::<T>()) as *mut T;
-    let tag = data & low_bits::<T>();
+    let raw = (data & !low_bits()) as *mut T;
+    let tag = data & low_bits();
     (raw, tag)
 }
 
@@ -71,5 +70,5 @@ pub fn p_tag<T>(p: *const T) -> usize {
 }
 
 pub fn p_set_tag<T>(p: *const T, tag: usize) -> *mut T {
-    data_with_tag::<T>(p as usize, tag) as _
+    data_with_tag(p as usize, tag) as _
 }
