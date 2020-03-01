@@ -7,7 +7,7 @@ mod table;
 mod util;
 
 pub use element::ElementGuard;
-use std::borrow::{Borrow, BorrowMut};
+use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
 use std::sync::Arc;
@@ -75,13 +75,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
 }
 
 impl<K: Eq + Hash + Clone, V, S: BuildHasher> DashMap<K, V, S> {
-    pub fn update<Q, F>(&self, key: &Q, mut do_update: impl BorrowMut<F>) -> bool
+    pub fn update<Q, F>(&self, key: &Q, mut do_update: F) -> bool
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
         F: FnMut(&K, &V) -> V,
     {
-        let do_update: &mut F = do_update.borrow_mut();
-        self.table.optimistic_update(key, do_update)
+        self.table.optimistic_update(key, &mut do_update)
     }
 }
