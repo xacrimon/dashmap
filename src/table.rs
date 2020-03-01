@@ -248,25 +248,19 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let hash = do_hash(&*self.hash_builder, key);
         let mut idx = hash2idx(hash, self.buckets.len());
 
-        println!("enter remove loop");
         loop {
             let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
-            println!("loaded bucket pointer for idx: {}", idx);
             match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
-                    println!("was redirect");
                     if self.get_next().unwrap().remove(key) {
-                        println!("did find, return true");
                         return true;
                     } else {
-                        println!("did not find, continue search");
                         idx = incr_idx(self, idx);
                         continue;
                     }
                 }
 
                 TOMBSTONE_TAG => {
-                    println!("was tombstone");
                     idx = incr_idx(self, idx);
                     continue;
                 }
@@ -274,27 +268,21 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 _ => (),
             }
             if bucket_ptr.is_null() {
-                println!("found null bucket, return false");
                 return false;
             }
             let bucket_data = sarc_deref(bucket_ptr);
             if key == bucket_data.key.borrow() {
-                println!("keys matched");
                 let tombstone = p_set_tag(0 as *mut u8, TOMBSTONE_TAG);
-                println!("tombstone tag pointer: {:x}", tombstone as usize);
                 if self.buckets[idx].compare_and_swap(bucket_ptr, tombstone as _, Ordering::SeqCst)
                     == bucket_ptr
                 {
-                    println!("cased null, return true");
                     self.remaining_cells.fetch_add(1, Ordering::SeqCst);
                     defer(move || sarc_remove_copy(bucket_ptr));
                     return true;
                 } else {
-                    println!("cas fail, loop again");
                     continue;
                 }
             } else {
-                println!("key was not equal, continue search");
                 idx = incr_idx(self, idx);
             }
         }
