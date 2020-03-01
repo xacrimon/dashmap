@@ -12,10 +12,6 @@ impl<K, V> Element<K, V> {
         Self { hash, key, value }
     }
 
-    pub fn destructure(self) -> (K, u64, V) {
-        (self.key, self.hash, self.value)
-    }
-
     pub fn read(ptr: *mut ABox<Element<K, V>>) -> ElementGuard<K, V> {
         sarc_add_copy(ptr);
         let data = sarc_deref(ptr);
