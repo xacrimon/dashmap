@@ -77,12 +77,12 @@ pub struct BucketArray<K, V, S> {
     buckets: Box<[AtomicPtr<ABox<Element<K, V>>>]>,
 }
 
-impl<K: Eq + Hash + Clone, V: Clone, S: BuildHasher> BucketArray<K, V, S> {
+impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
     fn optimistic_update<Q, F>(&self, search_key: &Q, do_update: &mut F) -> bool
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
-        F: FnMut(&K, V) -> V,
+        F: FnMut(&K, &V) -> V,
     {
         let hash = do_hash(&*self.hash_builder, search_key);
         let mut idx = hash2idx(hash, self.buckets.len());
@@ -117,9 +117,9 @@ impl<K: Eq + Hash + Clone, V: Clone, S: BuildHasher> BucketArray<K, V, S> {
 
             let bucket_data = sarc_deref(bucket_ptr);
             if search_key == bucket_data.key.borrow() {
-                let (key, hash, value) = bucket_data.clone().destructure();
-                let new_value = do_update(&key, value);
-                let new_element = Element::new(key, hash, new_value);
+                let new_value = do_update(&bucket_data.key, &bucket_data.value);
+                let new_element =
+                    Element::new(bucket_data.key.clone(), bucket_data.hash, new_value);
                 let new_ptr = sarc_new(new_element);
 
                 if self.buckets[idx].compare_and_swap(bucket_ptr, new_ptr, Ordering::SeqCst)
@@ -412,12 +412,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash + Clone, V: Clone, S: BuildHasher> Table<K, V, S> {
+impl<K: Eq + Hash + Clone, V, S: BuildHasher> Table<K, V, S> {
     pub fn optimistic_update<Q, F>(&self, key: &Q, do_update: &mut F) -> bool
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
-        F: FnMut(&K, V) -> V,
+        F: FnMut(&K, &V) -> V,
     {
         protected(|| self.root().optimistic_update(key, do_update))
     }
