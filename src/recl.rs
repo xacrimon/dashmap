@@ -1,6 +1,6 @@
-//! Simple EBR garbage collector.
+//! EBR based garbage collector.
 //! TO-DO: Optimize this garbage collector.
-//!        Research Stamp-it, DEBRA, Hazard Eras.
+//!        Research DEBRA, a variant of EBR.
 
 use once_cell::sync::Lazy;
 use once_cell::unsync::Lazy as UnsyncLazy;
