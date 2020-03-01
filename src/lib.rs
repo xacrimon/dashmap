@@ -74,12 +74,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash + Clone, V: Clone, S: BuildHasher> DashMap<K, V, S> {
+impl<K: Eq + Hash + Clone, V, S: BuildHasher> DashMap<K, V, S> {
     pub fn update<Q, F>(&self, key: &Q, mut do_update: impl BorrowMut<F>) -> bool
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
-        F: FnMut(&K, V) -> V,
+        F: FnMut(&K, &V) -> V,
     {
         let do_update: &mut F = do_update.borrow_mut();
         self.table.optimistic_update(key, do_update)

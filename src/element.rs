@@ -1,7 +1,6 @@
 use crate::alloc::{sarc_add_copy, sarc_deref, sarc_remove_copy, ABox};
 use std::ops::Deref;
 
-#[derive(Clone)]
 pub struct Element<K, V> {
     pub hash: u64,
     pub key: K,
