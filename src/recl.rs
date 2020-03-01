@@ -14,6 +14,16 @@ use std::time::Duration;
 
 static GUARDIAN_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
+/// Generate a new GC era.
+pub fn new_era() -> usize {
+    NEXT_ERA.fetch_add(1, Ordering::SeqCst)
+}
+
+/// Purge a GC era.
+pub fn purge_era(era: usize) {
+    GC.purge_era(era);
+}
+
 /// Execute a closure in protected mode. This permits it to load protected pointers.
 pub fn protected<T>(f: impl FnOnce() -> T) -> T {
     PARTICIPANT_HANDLE.with(|key| {
@@ -25,8 +35,8 @@ pub fn protected<T>(f: impl FnOnce() -> T) -> T {
 }
 
 /// Defer a function.
-pub fn defer(f: impl FnOnce()) {
-    let deferred = Deferred::new(f);
+pub fn defer(era: usize, f: impl FnOnce()) {
+    let deferred = Deferred::new(era, f);
     PARTICIPANT_HANDLE.with(|key| key.defer(deferred));
 }
 
@@ -43,6 +53,8 @@ static GC: Lazy<Arc<Global>> = Lazy::new(|| {
     thread::spawn(|| guardian_thread_fn(state2));
     state
 });
+
+static NEXT_ERA: AtomicUsize = AtomicUsize::new(1);
 
 thread_local! {
     pub static PARTICIPANT_HANDLE: UnsyncLazy<TSLocal> = UnsyncLazy::new(|| TSLocal::new(Arc::clone(&GC)));
@@ -78,11 +90,12 @@ impl Drop for TSLocal {
 }
 
 struct Deferred {
+    era: usize,
     task: [usize; 2],
 }
 
 impl Deferred {
-    fn new<'a>(f: impl FnOnce() + 'a) -> Self {
+    fn new<'a>(era: usize, f: impl FnOnce() + 'a) -> Self {
         let boxed: Box<dyn FnOnce() + 'a> = Box::new(f);
         let fat_ptr = Box::into_raw(boxed);
         let mut task = [0; 2];
@@ -90,7 +103,7 @@ impl Deferred {
             ptr::write(&mut task as *mut [usize; 2] as usize as _, fat_ptr);
         };
 
-        Self { task }
+        Self { era, task }
     }
 
     fn run(mut self) {
@@ -152,6 +165,20 @@ impl Global {
             .lock()
             .unwrap()
             .retain(|maybe_this| *maybe_this != local);
+    }
+
+    fn purge_era(&self, era: usize) {
+        let mut deferred = self.deferred.lock().unwrap();
+        for rlist in &mut *deferred {
+            let llist = take(rlist);
+            for deferred in llist {
+                if deferred.era == era {
+                    deferred.run();
+                } else {
+                    rlist.push(deferred);
+                }
+            }
+        }
     }
 
     fn collect(&self) {
