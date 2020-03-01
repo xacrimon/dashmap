@@ -7,6 +7,7 @@ mod table;
 mod util;
 
 pub use element::ElementGuard;
+use recl::{new_era, purge_era};
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
@@ -15,6 +16,7 @@ use table::{do_hash, Table};
 
 pub struct DashMap<K, V, S = RandomState> {
     table: Table<K, V, S>,
+    era: usize,
     hash_builder: Arc<S>,
 }
 
@@ -35,10 +37,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
 
     pub fn with_capacity_and_hasher(capacity: usize, hash_builder: S) -> Self {
         let hash_builder = Arc::new(hash_builder);
-        let table = Table::new(capacity, hash_builder.clone());
+        let era = new_era();
+        let table = Table::new(capacity, hash_builder.clone(), era);
 
         Self {
             table,
+            era,
             hash_builder,
         }
     }
@@ -82,5 +86,11 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> DashMap<K, V, S> {
         F: FnMut(&K, &V) -> V,
     {
         self.table.optimistic_update(key, &mut do_update)
+    }
+}
+
+impl<K, V, S> Drop for DashMap<K, V, S> {
+    fn drop(&mut self) {
+        purge_era(self.era);
     }
 }

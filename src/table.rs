@@ -61,7 +61,7 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
                     garbage.push(ptr);
                 }
             }
-            defer(move || {
+            defer(self.era, move || {
                 for ptr in garbage {
                     sarc_remove_copy(ptr);
                 }
@@ -72,6 +72,7 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
 
 pub struct BucketArray<K, V, S> {
     remaining_cells: CachePadded<AtomicUsize>,
+    era: usize,
     next: AtomicPtr<Self>,
     hash_builder: Arc<S>,
     buckets: Box<[AtomicPtr<ABox<Element<K, V>>>]>,
@@ -125,7 +126,7 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
                 if self.buckets[idx].compare_and_swap(bucket_ptr, new_ptr, Ordering::SeqCst)
                     == bucket_ptr
                 {
-                    defer(move || sarc_remove_copy(bucket_ptr));
+                    defer(self.era, move || sarc_remove_copy(bucket_ptr));
                     return true;
                 } else {
                     sarc_remove_copy(new_ptr);
@@ -139,8 +140,8 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
 }
 
 impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
-    fn new(mut capacity: usize, hash_builder: Arc<S>) -> Self {
-        capacity = cmp::max(2 * capacity, 16); // TO-DO: remove this once grow works
+    fn new(mut capacity: usize, hash_builder: Arc<S>, era: usize) -> Self {
+        capacity = cmp::max(2 * capacity, 16); // TO-DO: remove 2x once grow works
         let remaining_cells = CachePadded::new(AtomicUsize::new(capacity * 3 / 4));
         let buckets = make_buckets(capacity);
 
@@ -148,6 +149,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             remaining_cells,
             hash_builder,
             buckets,
+            era,
             next: AtomicPtr::new(0 as _),
         }
     }
@@ -204,7 +206,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         Ordering::SeqCst,
                     ) == current_bucket_ptr
                     {
-                        defer(move || sarc_remove_copy(current_bucket_ptr));
+                        defer(self.era, move || sarc_remove_copy(current_bucket_ptr));
                         cell_maybe_return!(self, true);
                     } else {
                         continue;
@@ -277,7 +279,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     == bucket_ptr
                 {
                     self.remaining_cells.fetch_add(1, Ordering::SeqCst);
-                    defer(move || sarc_remove_copy(bucket_ptr));
+                    defer(self.era, move || sarc_remove_copy(bucket_ptr));
                     return true;
                 } else {
                     continue;
@@ -343,7 +345,7 @@ impl<K, V, S> Drop for Table<K, V, S> {
         protected(|| {
             let root_ptr = self.root.load(Ordering::SeqCst);
             unsafe {
-                defer(move || {
+                defer(self.era, move || {
                     drop(Box::from_raw(root_ptr));
                 });
             }
@@ -353,16 +355,22 @@ impl<K, V, S> Drop for Table<K, V, S> {
 
 pub struct Table<K, V, S> {
     hash_builder: Arc<S>,
+    era: usize,
     root: AtomicPtr<BucketArray<K, V, S>>,
 }
 
 impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
-    pub fn new(capacity: usize, hash_builder: Arc<S>) -> Self {
+    pub fn new(capacity: usize, hash_builder: Arc<S>, era: usize) -> Self {
         let root = AtomicPtr::new(Box::into_raw(Box::new(BucketArray::new(
             capacity,
             hash_builder.clone(),
+            era,
         ))));
-        Self { hash_builder, root }
+        Self {
+            hash_builder,
+            root,
+            era,
+        }
     }
 
     fn root<'a>(&self) -> &'a BucketArray<K, V, S> {
@@ -376,7 +384,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
             let (maybe_new_root, did_replace) = root.insert_node(node);
             if let Some(new_root) = maybe_new_root {
                 self.root.store(new_root as _, Ordering::SeqCst);
-                defer(move || unsafe {
+                defer(self.era, move || unsafe {
                     drop(Box::from_raw(
                         root as *const BucketArray<K, V, S> as *mut BucketArray<K, V, S>,
                     ));
