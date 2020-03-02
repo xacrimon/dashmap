@@ -375,11 +375,9 @@ impl<K, V, S> Drop for Table<K, V, S> {
     fn drop(&mut self) {
         protected(|| {
             let root_ptr = self.root.load(Ordering::SeqCst);
-            unsafe {
-                defer(self.era, move || {
-                    drop(Box::from_raw(root_ptr));
-                });
-            }
+            defer(self.era, move || {
+                ba_drop(root_ptr);
+            });
         });
     }
 }
