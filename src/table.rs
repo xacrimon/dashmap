@@ -1,24 +1,19 @@
-use super::element::*;
 use crate::alloc::{sarc_deref, sarc_new, sarc_remove_copy, ABox};
+use crate::element::*;
 use crate::recl::{defer, protected};
 use crate::util::{p_set_tag, p_tag, CachePadded};
+use std::alloc::{alloc, dealloc, Layout};
 use std::borrow::Borrow;
 use std::cmp;
 use std::hash::{BuildHasher, Hash, Hasher};
-use std::iter;
-
+use std::mem;
+use std::ptr;
+use std::slice;
 use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 const REDIRECT_TAG: usize = 5;
 const TOMBSTONE_TAG: usize = 7;
-
-fn make_buckets<K, V>(x: usize) -> Box<[AtomicPtr<ABox<Element<K, V>>>]> {
-    iter::repeat(0 as _)
-        .map(|p| AtomicPtr::new(p))
-        .take(x)
-        .collect()
-}
 
 pub fn hash2idx(hash: u64, len: usize) -> usize {
     hash as usize % len
@@ -42,7 +37,7 @@ macro_rules! cell_maybe_return {
 }
 
 fn incr_idx<K, V, S>(s: &BucketArray<K, V, S>, i: usize) -> usize {
-    hash2idx(i as u64 + 1, s.buckets.len())
+    hash2idx(i as u64 + 1, s.capacity)
 }
 
 enum InsertResult {
@@ -53,9 +48,9 @@ enum InsertResult {
 impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
         protected(|| {
-            let cap = self.buckets.len();
-            let mut garbage = Vec::with_capacity(cap);
-            for bucket in &*self.buckets {
+            let mut garbage = Vec::with_capacity(self.capacity);
+            let buckets = self.buckets();
+            for bucket in &*buckets {
                 let ptr = p_set_tag(bucket.load(Ordering::SeqCst), 0);
                 if !ptr.is_null() {
                     garbage.push(ptr);
@@ -75,7 +70,7 @@ pub struct BucketArray<K, V, S> {
     era: usize,
     next: AtomicPtr<Self>,
     hash_builder: Arc<S>,
-    buckets: Box<[AtomicPtr<ABox<Element<K, V>>>]>,
+    capacity: usize,
 }
 
 impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
@@ -85,11 +80,12 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
         Q: ?Sized + Eq + Hash,
         F: FnMut(&K, &V) -> V,
     {
+        let buckets = self.buckets();
         let hash = do_hash(&*self.hash_builder, search_key);
-        let mut idx = hash2idx(hash, self.buckets.len());
+        let mut idx = hash2idx(hash, self.capacity);
 
         loop {
-            let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+            let bucket_ptr = buckets[idx].load(Ordering::SeqCst);
             match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
                     if self
@@ -123,7 +119,7 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
                     Element::new(bucket_data.key.clone(), bucket_data.hash, new_value);
                 let new_ptr = sarc_new(new_element);
 
-                if self.buckets[idx].compare_and_swap(bucket_ptr, new_ptr, Ordering::SeqCst)
+                if buckets[idx].compare_and_swap(bucket_ptr, new_ptr, Ordering::SeqCst)
                     == bucket_ptr
                 {
                     defer(self.era, move || sarc_remove_copy(bucket_ptr));
@@ -139,18 +135,53 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
-    fn new(mut capacity: usize, hash_builder: Arc<S>, era: usize) -> Self {
-        capacity = cmp::max(2 * capacity, 16); // TO-DO: remove 2x once grow works
-        let remaining_cells = CachePadded::new(AtomicUsize::new(capacity * 3 / 4));
-        let buckets = make_buckets(capacity);
+fn ba_layout<K, V, S>(bucket_amount: usize) -> Layout {
+    let start_size = mem::size_of::<BucketArray<K, V, S>>();
+    let align = mem::align_of::<BucketArray<K, V, S>>();
+    let total_size = start_size + bucket_amount * mem::size_of::<usize>();
+    unsafe { Layout::from_size_align_unchecked(total_size, align) }
+}
 
-        Self {
-            remaining_cells,
-            hash_builder,
-            buckets,
-            era,
-            next: AtomicPtr::new(0 as _),
+fn ba_drop<K, V, S>(ba: *mut BucketArray<K, V, S>) {
+    unsafe {
+        let capacity = (*ba).capacity;
+        let layout = ba_layout::<K, V, S>(capacity);
+        ptr::drop_in_place(ba);
+        dealloc(ba as _, layout);
+    }
+}
+
+impl<K, V, S> BucketArray<K, V, S> {
+    fn buckets<'a>(&'a self) -> &'a [AtomicPtr<ABox<Element<K, V>>>] {
+        let self_begin = self as *const _ as usize as *mut u8;
+        unsafe {
+            let array_begin = self_begin.add(mem::size_of::<Self>());
+            slice::from_raw_parts(array_begin as _, self.capacity)
+        }
+    }
+}
+
+impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
+    fn new(mut capacity: usize, hash_builder: Arc<S>, era: usize) -> *mut Self {
+        unsafe {
+            capacity = cmp::max(2 * capacity, 16);
+            let remaining_cells = CachePadded::new(AtomicUsize::new(capacity * 3 / 4));
+            let layout = ba_layout::<K, V, S>(capacity);
+            let p = alloc(layout);
+            let s = Self {
+                remaining_cells,
+                hash_builder,
+                capacity,
+                era,
+                next: AtomicPtr::new(0 as _),
+            };
+            ptr::write(p as _, s);
+            let array_start = p.add(mem::size_of::<Self>());
+            for i in 0..capacity {
+                let p2p = (array_start as *mut AtomicPtr<ABox<Element<K, V>>>).add(i);
+                *p2p = AtomicPtr::new(0 as *mut ABox<Element<K, V>>);
+            }
+            p as _
         }
     }
 
@@ -167,26 +198,25 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 
     fn insert_node<'a>(&self, node: *mut ABox<Element<K, V>>) -> (Option<*const Self>, bool) {
+        let buckets = self.buckets();
+
         if let Some(next) = self.get_next() {
             return next.insert_node(node);
         }
 
         let node_data = sarc_deref(node);
-        let mut idx = hash2idx(node_data.hash, self.buckets.len());
+        let mut idx = hash2idx(node_data.hash, self.capacity);
 
         loop {
-            let current_bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+            let current_bucket_ptr = buckets[idx].load(Ordering::SeqCst);
             match p_tag(current_bucket_ptr) {
                 REDIRECT_TAG => {
                     return self.get_next().unwrap().insert_node(node);
                 }
 
                 TOMBSTONE_TAG => {
-                    if self.buckets[idx].compare_and_swap(
-                        current_bucket_ptr,
-                        node,
-                        Ordering::SeqCst,
-                    ) == current_bucket_ptr
+                    if buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
+                        == current_bucket_ptr
                     {
                         cell_maybe_return!(self, false);
                     } else {
@@ -200,11 +230,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             if !current_bucket_ptr.is_null() {
                 let current_bucket_data = sarc_deref(current_bucket_ptr);
                 if current_bucket_data.key == node_data.key {
-                    if self.buckets[idx].compare_and_swap(
-                        current_bucket_ptr,
-                        node,
-                        Ordering::SeqCst,
-                    ) == current_bucket_ptr
+                    if buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
+                        == current_bucket_ptr
                     {
                         defer(self.era, move || sarc_remove_copy(current_bucket_ptr));
                         cell_maybe_return!(self, true);
@@ -216,7 +243,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     continue;
                 }
             } else {
-                if self.buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
+                if buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
                     == current_bucket_ptr
                 {
                     cell_maybe_return!(self, false);
@@ -247,11 +274,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
+        let buckets = self.buckets();
         let hash = do_hash(&*self.hash_builder, key);
-        let mut idx = hash2idx(hash, self.buckets.len());
+        let mut idx = hash2idx(hash, self.capacity);
 
         loop {
-            let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+            let bucket_ptr = buckets[idx].load(Ordering::SeqCst);
             match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
                     if self.get_next().unwrap().remove(key) {
@@ -275,7 +303,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             let bucket_data = sarc_deref(bucket_ptr);
             if key == bucket_data.key.borrow() {
                 let tombstone = p_set_tag(0 as *mut u8, TOMBSTONE_TAG);
-                if self.buckets[idx].compare_and_swap(bucket_ptr, tombstone as _, Ordering::SeqCst)
+                if buckets[idx].compare_and_swap(bucket_ptr, tombstone as _, Ordering::SeqCst)
                     == bucket_ptr
                 {
                     self.remaining_cells.fetch_add(1, Ordering::SeqCst);
@@ -295,11 +323,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
+        let buckets = self.buckets();
         let hash = do_hash(&*self.hash_builder, key);
-        let mut idx = hash2idx(hash, self.buckets.len());
+        let mut idx = hash2idx(hash, self.capacity);
 
         loop {
-            let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+            let bucket_ptr = buckets[idx].load(Ordering::SeqCst);
             match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
                     if let Some(elem) = self.get_next().unwrap().get_elem(key) {
@@ -361,11 +390,7 @@ pub struct Table<K, V, S> {
 
 impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     pub fn new(capacity: usize, hash_builder: Arc<S>, era: usize) -> Self {
-        let root = AtomicPtr::new(Box::into_raw(Box::new(BucketArray::new(
-            capacity,
-            hash_builder.clone(),
-            era,
-        ))));
+        let root = AtomicPtr::new(BucketArray::new(capacity, hash_builder.clone(), era));
         Self {
             hash_builder,
             root,
@@ -384,10 +409,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
             let (maybe_new_root, did_replace) = root.insert_node(node);
             if let Some(new_root) = maybe_new_root {
                 self.root.store(new_root as _, Ordering::SeqCst);
-                defer(self.era, move || unsafe {
-                    drop(Box::from_raw(
-                        root as *const BucketArray<K, V, S> as *mut BucketArray<K, V, S>,
-                    ));
+                defer(self.era, || {
+                    ba_drop(root as *const BucketArray<K, V, S> as *mut BucketArray<K, V, S>);
                 });
             }
             did_replace

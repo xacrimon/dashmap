@@ -20,6 +20,12 @@ pub struct DashMap<K, V, S = RandomState> {
     hash_builder: Arc<S>,
 }
 
+impl<K: Eq + Hash, V> Default for DashMap<K, V, RandomState> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
     pub fn new() -> Self {
         Self::with_hasher(RandomState::new())
