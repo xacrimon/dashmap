@@ -1,5 +1,4 @@
 use std::alloc::{alloc, dealloc, Layout};
-use std::mem;
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -40,7 +39,7 @@ pub fn sarc_remove_copy<T>(p: *mut ABox<T>) {
 }
 
 unsafe fn sarc_dealloc<T>(p: *mut ABox<T>) {
-    ptr::drop_in_place::<T>(mem::transmute(sarc_deref(p)));
+    ptr::drop_in_place::<T>(sarc_deref(p) as *const _ as *mut _);
     let layout = Layout::new::<ABox<T>>();
     local_dealloc(p as _, layout);
 }

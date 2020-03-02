@@ -1,3 +1,5 @@
+#![allow(clippy::cast_ptr_alignment)]
+
 use crate::alloc::{sarc_deref, sarc_new, sarc_remove_copy, ABox};
 use crate::element::*;
 use crate::recl::{defer, protected};
@@ -179,7 +181,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             let array_start = p.add(mem::size_of::<Self>());
             for i in 0..capacity {
                 let p2p = (array_start as *mut AtomicPtr<ABox<Element<K, V>>>).add(i);
-                *p2p = AtomicPtr::new(0 as *mut ABox<Element<K, V>>);
+                *p2p = AtomicPtr::new(ptr::null_mut::<ABox<Element<K, V>>>());
             }
             p as _
         }
@@ -302,7 +304,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             }
             let bucket_data = sarc_deref(bucket_ptr);
             if key == bucket_data.key.borrow() {
-                let tombstone = p_set_tag(0 as *mut u8, TOMBSTONE_TAG);
+                let tombstone = p_set_tag(ptr::null_mut(), TOMBSTONE_TAG);
                 if buckets[idx].compare_and_swap(bucket_ptr, tombstone as _, Ordering::SeqCst)
                     == bucket_ptr
                 {
@@ -365,7 +367,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        self.get_elem(key).map(|ptr| Element::read(ptr))
+        self.get_elem(key).map(Element::read)
     }
 }
 

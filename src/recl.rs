@@ -189,10 +189,8 @@ impl Global {
         for local_ptr in &*locals {
             unsafe {
                 let local = &**local_ptr;
-                if local.active.load(Ordering::SeqCst) > 0 {
-                    if local.epoch.load(Ordering::SeqCst) != start_global_epoch {
-                        can_collect = false;
-                    }
+                if local.active.load(Ordering::SeqCst) > 0 && local.epoch.load(Ordering::SeqCst) != start_global_epoch {
+                    can_collect = false;
                 }
             }
         }
