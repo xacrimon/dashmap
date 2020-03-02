@@ -4,7 +4,7 @@
 
 use once_cell::sync::Lazy;
 use once_cell::unsync::Lazy as UnsyncLazy;
-use std::mem::take;
+use std::mem::{align_of, size_of, take};
 use std::ops::Deref;
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -103,19 +103,37 @@ fn deferred_exec_external(mut task: [usize; 4]) {
     }
 }
 
-impl Deferred {
-    fn new<'a>(era: usize, f: impl FnOnce() + 'a) -> Self {
-        let boxed: Box<dyn FnOnce() + 'a> = Box::new(f);
-        let fat_ptr = Box::into_raw(boxed);
-        let mut task = [0; 4];
-        unsafe {
-            ptr::write(&mut task as *mut [usize; 4] as usize as _, fat_ptr);
-        };
+fn deferred_exec_internal<F: FnOnce()>(mut task: [usize; 4]) {
+    unsafe {
+        let f: F = ptr::read(task.as_mut_ptr() as *mut F);
+        f();
+    }
+}
 
-        Self {
-            era,
-            task,
-            call: deferred_exec_external,
+impl Deferred {
+    fn new<'a, F: FnOnce() + 'a>(era: usize, f: F) -> Self {
+        let size = size_of::<F>();
+        let align = align_of::<F>();
+        unsafe {
+            if size < size_of::<[usize; 4]>() && align <= align_of::<[usize; 4]>() {
+                let mut task = [0; 4];
+                ptr::write(task.as_mut_ptr() as *mut F, f);
+                Self {
+                    era,
+                    task,
+                    call: deferred_exec_internal::<F>,
+                }
+            } else {
+                let boxed: Box<dyn FnOnce() + 'a> = Box::new(f);
+                let fat_ptr = Box::into_raw(boxed);
+                let mut task = [0; 4];
+                ptr::write(&mut task as *mut [usize; 4] as usize as _, fat_ptr);
+                Self {
+                    era,
+                    task,
+                    call: deferred_exec_external,
+                }
+            }
         }
     }
 
