@@ -91,28 +91,36 @@ impl Drop for TSLocal {
 
 struct Deferred {
     era: usize,
-    task: [usize; 2],
+    call: fn([usize; 4]),
+    task: [usize; 4],
+}
+
+fn deferred_exec_external(mut task: [usize; 4]) {
+    unsafe {
+        let fat_ptr: *mut dyn FnOnce() = ptr::read(&mut task as *mut [usize; 4] as usize as _);
+        let boxed = Box::from_raw(fat_ptr);
+        boxed();
+    }
 }
 
 impl Deferred {
     fn new<'a>(era: usize, f: impl FnOnce() + 'a) -> Self {
         let boxed: Box<dyn FnOnce() + 'a> = Box::new(f);
         let fat_ptr = Box::into_raw(boxed);
-        let mut task = [0; 2];
+        let mut task = [0; 4];
         unsafe {
-            ptr::write(&mut task as *mut [usize; 2] as usize as _, fat_ptr);
+            ptr::write(&mut task as *mut [usize; 4] as usize as _, fat_ptr);
         };
 
-        Self { era, task }
+        Self {
+            era,
+            task,
+            call: deferred_exec_external,
+        }
     }
 
-    fn run(mut self) {
-        unsafe {
-            let fat_ptr: *mut dyn FnOnce() =
-                ptr::read(&mut self.task as *mut [usize; 2] as usize as _);
-            let boxed = Box::from_raw(fat_ptr);
-            boxed();
-        }
+    fn run(self) {
+        (self.call)(self.task);
     }
 }
 
