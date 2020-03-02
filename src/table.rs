@@ -330,7 +330,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let mut idx = hash2idx(hash, self.capacity);
 
         loop {
-            let bucket_ptr = unsafe { buckets.get_unchecked(idx).load(Ordering::SeqCst) };
+            let bucket_ptr = unsafe { buckets.get_unchecked(idx).load(Ordering::Relaxed) };
             match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
                     if let Some(elem) = self.get_next().unwrap().get_elem(key) {
