@@ -96,7 +96,7 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
         let mut idx = hash2idx(hash, self.capacity);
 
         loop {
-            let bucket_ptr = buckets[idx].load(Ordering::SeqCst);
+            let bucket_ptr = unsafe { buckets.get_unchecked(idx).load(Ordering::SeqCst) };
             match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
                     if self
@@ -219,7 +219,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let mut idx = hash2idx(node_data.hash, self.capacity);
 
         loop {
-            let current_bucket_ptr = buckets[idx].load(Ordering::SeqCst);
+            let current_bucket_ptr = unsafe { buckets.get_unchecked(idx).load(Ordering::SeqCst) };
             match p_tag(current_bucket_ptr) {
                 REDIRECT_TAG => {
                     return self.get_next().unwrap().insert_node(node);
@@ -276,7 +276,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let mut idx = hash2idx(node_data.hash, self.capacity);
 
         loop {
-            let current_bucket_ptr = buckets[idx].load(Ordering::SeqCst);
+            let current_bucket_ptr = unsafe { buckets.get_unchecked(idx).load(Ordering::SeqCst) };
             match p_tag(current_bucket_ptr) {
                 REDIRECT_TAG => {
                     return None;
@@ -368,7 +368,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let mut idx = hash2idx(hash, self.capacity);
 
         loop {
-            let bucket_ptr = buckets[idx].load(Ordering::SeqCst);
+            let bucket_ptr = unsafe { buckets.get_unchecked(idx).load(Ordering::SeqCst) };
             match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
                     if self.get_next().unwrap().remove(key) {
