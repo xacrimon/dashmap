@@ -1,6 +1,6 @@
 #![allow(clippy::cast_ptr_alignment)]
 
-use crate::alloc::{sarc_deref, sarc_new, sarc_remove_copy, ABox};
+use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
 use crate::element::*;
 use crate::recl::{defer, protected};
 use crate::util::{p_set_tag, p_tag, CachePadded};
@@ -49,20 +49,18 @@ enum InsertResult {
 
 impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
-        protected(|| {
-            let mut garbage = Vec::with_capacity(self.capacity);
-            let buckets = self.buckets();
-            for bucket in &*buckets {
-                let ptr = p_set_tag(bucket.load(Ordering::SeqCst), 0);
-                if !ptr.is_null() {
-                    garbage.push(ptr);
-                }
+        let mut garbage = Vec::with_capacity(self.capacity);
+        let buckets = self.buckets();
+        for bucket in &*buckets {
+            let ptr = p_set_tag(bucket.load(Ordering::SeqCst), 0);
+            if !ptr.is_null() {
+                garbage.push(ptr);
             }
-            defer(self.era, move || {
-                for ptr in garbage {
-                    sarc_remove_copy(ptr);
-                }
-            });
+        }
+        defer(self.era, move || {
+            for ptr in garbage {
+                sarc_remove_copy(ptr);
+            }
         });
     }
 }
@@ -257,7 +255,26 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 
     fn grow<'a>(&self) -> Option<*const Self> {
-        unimplemented!()
+        if !self.next.load(Ordering::SeqCst).is_null() {
+            return None;
+        }
+        let new_table = BucketArray::new(self.capacity * 2, self.hash_builder.clone(), self.era);
+        if !self
+            .next
+            .compare_and_swap(ptr::null_mut(), new_table, Ordering::SeqCst)
+            .is_null()
+        {
+            return None;
+        }
+        let new_table_ref = unsafe { &mut *new_table };
+        for atomic_bucket in self.buckets() {
+            let bucket_ptr = atomic_bucket.load(Ordering::SeqCst);
+            if !bucket_ptr.is_null() {
+                sarc_add_copy(bucket_ptr);
+                new_table_ref.insert_node(bucket_ptr);
+            }
+        }
+        Some(new_table as _)
     }
 
     fn get_next<'a>(&self) -> Option<&'a Self> {
@@ -409,7 +426,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
             let (maybe_new_root, did_replace) = root.insert_node(node);
             if let Some(new_root) = maybe_new_root {
                 self.root.store(new_root as _, Ordering::SeqCst);
-                defer(self.era, || {
+                defer(self.era, move || {
                     ba_drop(root as *const BucketArray<K, V, S> as *mut BucketArray<K, V, S>);
                 });
             }

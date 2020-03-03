@@ -194,16 +194,21 @@ impl Global {
     }
 
     fn purge_era(&self, era: usize) {
-        let mut deferred = self.deferred.lock().unwrap();
-        for rlist in &mut *deferred {
+        let mut deferred_lists = self.deferred.lock().unwrap();
+        let mut to_collect = Vec::new();
+        for rlist in &mut *deferred_lists {
             let llist = take(rlist);
             for deferred in llist {
                 if deferred.era == era {
-                    deferred.run();
+                    to_collect.push(deferred);
                 } else {
                     rlist.push(deferred);
                 }
             }
+        }
+        drop(deferred_lists);
+        for deferred in to_collect {
+            deferred.run();
         }
     }
 
@@ -280,9 +285,12 @@ impl Local {
     }
 
     fn defer(&self, f: Deferred) {
-        debug_assert!(self.active.load(Ordering::SeqCst) > 0);
+        //debug_assert!(self.active.load(Ordering::SeqCst) > 0);
         let global_epoch = self.global.epoch.load(Ordering::SeqCst);
-        let mut deferred = self.global.deferred.lock().unwrap();
+        let mut deferred = self.global.deferred.lock().unwrap_or_else(|error| {
+            println!("err: {:?}", error);
+            std::process::abort();
+        });
         deferred[global_epoch].push(f);
     }
 }
