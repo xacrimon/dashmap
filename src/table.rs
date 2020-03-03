@@ -268,10 +268,19 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
         let new_table_ref = unsafe { &mut *new_table };
         for atomic_bucket in self.buckets() {
-            let bucket_ptr = atomic_bucket.load(Ordering::SeqCst);
-            if !bucket_ptr.is_null() {
-                sarc_add_copy(bucket_ptr);
-                new_table_ref.insert_node(bucket_ptr);
+            loop {
+                let bucket_ptr = atomic_bucket.load(Ordering::SeqCst);
+                let redirect_variant = p_set_tag(bucket_ptr, REDIRECT_TAG);
+                if atomic_bucket.compare_and_swap(bucket_ptr, redirect_variant, Ordering::SeqCst)
+                    != bucket_ptr
+                {
+                    continue;
+                }
+                if !bucket_ptr.is_null() {
+                    sarc_add_copy(bucket_ptr);
+                    new_table_ref.insert_node(bucket_ptr);
+                }
+                break;
             }
         }
         Some(new_table as _)
