@@ -130,8 +130,11 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
                     Element::new(bucket_data.key.clone(), bucket_data.hash, new_value);
                 let new_ptr = sarc_new(new_element);
 
-                if buckets[idx].compare_and_swap(bucket_ptr, new_ptr, Ordering::SeqCst)
-                    == bucket_ptr
+                if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
+                    bucket_ptr,
+                    new_ptr,
+                    Ordering::SeqCst,
+                ) == bucket_ptr
                 {
                     defer(self.era, move || sarc_remove_copy(bucket_ptr));
                     return true;
@@ -226,8 +229,11 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
 
                 TOMBSTONE_TAG => {
-                    if buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
-                        == current_bucket_ptr
+                    if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
+                        current_bucket_ptr,
+                        node,
+                        Ordering::SeqCst,
+                    ) == current_bucket_ptr
                     {
                         cell_maybe_return!(self, false);
                     } else {
@@ -241,8 +247,11 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             if !current_bucket_ptr.is_null() {
                 let current_bucket_data = sarc_deref(current_bucket_ptr);
                 if current_bucket_data.key == node_data.key {
-                    if buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
-                        == current_bucket_ptr
+                    if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
+                        current_bucket_ptr,
+                        node,
+                        Ordering::SeqCst,
+                    ) == current_bucket_ptr
                     {
                         defer(self.era, move || sarc_remove_copy(current_bucket_ptr));
                         cell_maybe_return!(self, true);
@@ -254,8 +263,11 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     continue;
                 }
             } else {
-                if buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
-                    == current_bucket_ptr
+                if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
+                    current_bucket_ptr,
+                    node,
+                    Ordering::SeqCst,
+                ) == current_bucket_ptr
                 {
                     cell_maybe_return!(self, false);
                 } else {
@@ -283,8 +295,11 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
 
                 TOMBSTONE_TAG => {
-                    if buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
-                        == current_bucket_ptr
+                    if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
+                        current_bucket_ptr,
+                        node,
+                        Ordering::SeqCst,
+                    ) == current_bucket_ptr
                     {
                         cell_maybe_return_k3!(self);
                     } else {
@@ -304,8 +319,11 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     continue;
                 }
             } else {
-                if buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
-                    == current_bucket_ptr
+                if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
+                    current_bucket_ptr,
+                    node,
+                    Ordering::SeqCst,
+                ) == current_bucket_ptr
                 {
                     cell_maybe_return_k3!(self);
                 } else {
@@ -392,8 +410,11 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             let bucket_data = sarc_deref(bucket_ptr);
             if key == bucket_data.key.borrow() {
                 let tombstone = p_set_tag(ptr::null_mut(), TOMBSTONE_TAG);
-                if buckets[idx].compare_and_swap(bucket_ptr, tombstone as _, Ordering::SeqCst)
-                    == bucket_ptr
+                if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
+                    bucket_ptr,
+                    tombstone as _,
+                    Ordering::SeqCst,
+                ) == bucket_ptr
                 {
                     self.remaining_cells.fetch_add(1, Ordering::SeqCst);
                     defer(self.era, move || sarc_remove_copy(bucket_ptr));
