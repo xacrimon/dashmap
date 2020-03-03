@@ -11,20 +11,24 @@ use std::hash::{BuildHasher, Hash, Hasher};
 use std::mem;
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering, AtomicU8};
 use std::sync::Arc;
 
 const REDIRECT_TAG: usize = 5;
 const TOMBSTONE_TAG: usize = 7;
 
-pub fn hash2idx(hash: u64, len: usize) -> usize {
-    hash as usize % len
+pub fn hash2idx(hash: u64, len: usize) -> (usize, usize) {
+    ((hash as usize / 8) % len, hash as usize % 8)
 }
 
 pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
     let mut hasher = f.build_hasher();
     i.hash(&mut hasher);
     hasher.finish()
+}
+
+fn lower8(x: u64) -> u8 {
+    (x & 0xFF) as u8
 }
 
 macro_rules! cell_maybe_return {
@@ -49,10 +53,11 @@ macro_rules! cell_maybe_return_k3 {
     }};
 }
 
-fn incr_idx<K, V, S>(s: &BucketArray<K, V, S>, i: usize, step: &mut usize) -> usize {
-    let add = *step * *step;
-    *step += 1;
-    hash2idx(i as u64 + add as u64, s.capacity)
+fn incr_idx<K, V, S>(s: &BucketArray<K, V, S>, gi: usize, pi: usize) -> (usize, usize) {
+    match pi {
+        7 => ((gi + 1) & (s.groups().len() - 1), 0),
+        pi => (gi, pi + 1),
+    }
 }
 
 enum InsertResult {
@@ -63,11 +68,13 @@ enum InsertResult {
 impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
         let mut garbage = Vec::with_capacity(self.capacity);
-        let buckets = self.buckets();
-        for bucket in &*buckets {
-            let ptr = p_set_tag(bucket.load(Ordering::SeqCst), 0);
-            if !ptr.is_null() {
-                garbage.push(ptr);
+        let groups = self.groups();
+        for group in &*groups {
+            for bucket in &group.buckets {
+                let ptr = p_set_tag(bucket.load(Ordering::SeqCst), 0);
+                if !ptr.is_null() {
+                    garbage.push(ptr);
+                }
             }
         }
         defer(self.era, move || {
@@ -75,6 +82,42 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
                 sarc_remove_copy(ptr);
             }
         });
+    }
+}
+
+struct Group<K, V> {
+    cached_hashes: [AtomicU8; 8],
+    buckets: [AtomicPtr<ABox<Element<K, V>>>; 8],
+}
+
+impl<K, V> Group<K, V> {
+    fn new() -> Self {
+        Self {
+            cached_hashes: [
+                AtomicU8::new(0),
+                AtomicU8::new(0),
+                AtomicU8::new(0),
+                AtomicU8::new(0),
+                AtomicU8::new(0),
+                AtomicU8::new(0),
+                AtomicU8::new(0),
+                AtomicU8::new(0),
+            ],
+            buckets: [
+                AtomicPtr::new(ptr::null_mut()),
+                AtomicPtr::new(ptr::null_mut()),
+                AtomicPtr::new(ptr::null_mut()),
+                AtomicPtr::new(ptr::null_mut()),
+                AtomicPtr::new(ptr::null_mut()),
+                AtomicPtr::new(ptr::null_mut()),
+                AtomicPtr::new(ptr::null_mut()),
+                AtomicPtr::new(ptr::null_mut()),
+            ],
+        }
+    }
+
+    fn fetch(&self, pi: usize) -> (&AtomicPtr<ABox<Element<K, V>>>, &AtomicU8) {
+        (&self.buckets[pi], &self.cached_hashes[pi])
     }
 }
 
@@ -152,10 +195,10 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 }
 
-fn ba_layout<K, V, S>(bucket_amount: usize) -> Layout {
+fn ba_layout<K, V, S>(group_amount: usize) -> Layout {
     let start_size = mem::size_of::<BucketArray<K, V, S>>();
     let align = mem::align_of::<BucketArray<K, V, S>>();
-    let total_size = start_size + bucket_amount * mem::size_of::<usize>();
+    let total_size = start_size + group_amount * mem::size_of::<Group<K, V>>();
     unsafe { Layout::from_size_align_unchecked(total_size, align) }
 }
 
@@ -169,7 +212,7 @@ fn ba_drop<K, V, S>(ba: *mut BucketArray<K, V, S>) {
 }
 
 impl<K, V, S> BucketArray<K, V, S> {
-    fn buckets<'a>(&'a self) -> &'a [AtomicPtr<ABox<Element<K, V>>>] {
+    fn groups<'a>(&'a self) -> &'a [Group<K, V>] {
         let self_begin = self as *const _ as usize as *mut u8;
         unsafe {
             let array_begin = self_begin.add(mem::size_of::<Self>());
@@ -184,10 +227,14 @@ fn calc_cells_remaining(capacity: usize) -> usize {
     (LOAD_FACTOR * capacity as f32) as usize
 }
 
+fn round_8mul(x: usize) -> usize {
+    (x + 7) & !7
+}
+
 impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>, era: usize) -> *mut Self {
         unsafe {
-            capacity = cmp::max(capacity, 16);
+            capacity = round_8mul(cmp::max(capacity, 8));
             let remaining_cells =
                 CachePadded::new(AtomicUsize::new(calc_cells_remaining(capacity)));
             let layout = ba_layout::<K, V, S>(capacity);
@@ -201,9 +248,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             };
             ptr::write(p as _, s);
             let array_start = p.add(mem::size_of::<Self>());
-            for i in 0..capacity {
-                let p2p = (array_start as *mut AtomicPtr<ABox<Element<K, V>>>).add(i);
-                *p2p = AtomicPtr::new(ptr::null_mut::<ABox<Element<K, V>>>());
+            for i in 0..(capacity / 8) {
+                let p2p = (array_start as *mut Group<K, V>).add(i);
+                *p2p = Group::new();
             }
             p as _
         }
@@ -446,40 +493,46 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        let buckets = self.buckets();
-        let mut step = 1;
+        let groups = self.groups();
         let hash = do_hash(&*self.hash_builder, key);
-        let mut idx = hash2idx(hash, self.capacity);
+        let hash_cache = lower8(hash);
+        let mut gipi = hash2idx(hash, self.capacity);
 
         loop {
-            let bucket_ptr = unsafe { buckets.get_unchecked(idx).load(Ordering::SeqCst) };
+            let (atomic_bucket, atomic_cache) = groups[gi].fetch(pi);
+            let cached = atomic_cache.load(Ordering::SeqCst);
+            let bucket_ptr = atomic_bucket.load(Ordering::SeqCst);
             match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
                     if let Some(elem) = self.get_next().unwrap().get_elem(key) {
                         return Some(elem);
                     } else {
-                        idx = incr_idx(self, idx, &mut step);
+                        gipi = incr_idx(self, gipi.0, gipi.1);
                         continue;
                     }
                 }
 
                 TOMBSTONE_TAG => {
-                    idx = incr_idx(self, idx, &mut step);
+                    gipi = incr_idx(self, gipi.0, gipi.1);
                     continue;
                 }
 
                 _ => (),
             }
-
             if bucket_ptr.is_null() {
                 return None;
             }
-
+            if cached != atomic_cache.load(Ordering::SeqCst) { continue; }
+            if cached != hash_cache {
+                gipi = incr_idx(self, gipi.0, gipi.1);
+                continue;
+            }
             let bucket_data = sarc_deref(bucket_ptr);
             if key == bucket_data.key.borrow() {
-                return Some(bucket_ptr);
+                return Some(bucket_ptr as _);
             } else {
-                idx = incr_idx(self, idx, &mut step);
+                gipi = incr_idx(self, gipi.0, gipi.1);
+                continue;
             }
         }
     }
