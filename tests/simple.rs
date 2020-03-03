@@ -3,7 +3,7 @@ use dashmap::DashMap;
 #[test]
 fn insert_get() {
     const ITER: i32 = 1024;
-    let map = DashMap::with_capacity(ITER as usize);
+    let map = DashMap::new();
 
     for i in 0..ITER {
         map.insert(i, i + 7);
