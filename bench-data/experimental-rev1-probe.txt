@@ -1,4 +1,4 @@
-Linear probing.
+Linear probing
 
 [benches/dashmap.rs:59] pfrac = 0.0
 83886080 operations across 8 thread(s) in 1.509583728s; time/op = 17ns

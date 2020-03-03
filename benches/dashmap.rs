@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use bustle::*;
 use dashmap::DashMap as DashMapExperimental;
 use fxhash::FxBuildHasher;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct DashMapExperimentalTable<K>(Arc<DashMapExperimental<K, u32, FxBuildHasher>>);
