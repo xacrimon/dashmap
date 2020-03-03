@@ -49,8 +49,10 @@ macro_rules! cell_maybe_return_k3 {
     }};
 }
 
-fn incr_idx<K, V, S>(s: &BucketArray<K, V, S>, i: usize) -> usize {
-    hash2idx(i as u64 + 1, s.capacity)
+fn incr_idx<K, V, S>(s: &BucketArray<K, V, S>, i: usize, step: &mut usize) -> usize {
+    let add = *step * *step;
+    *step += 1;
+    hash2idx(i as u64 + add as u64, s.capacity)
 }
 
 enum InsertResult {
@@ -92,6 +94,7 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
         F: FnMut(&K, &V) -> V,
     {
         let buckets = self.buckets();
+        let mut step = 1;
         let hash = do_hash(&*self.hash_builder, search_key);
         let mut idx = hash2idx(hash, self.capacity);
 
@@ -106,13 +109,13 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
                     {
                         return true;
                     } else {
-                        idx = incr_idx(self, idx);
+                        idx = incr_idx(self, idx, &mut step);
                         continue;
                     }
                 }
 
                 TOMBSTONE_TAG => {
-                    idx = incr_idx(self, idx);
+                    idx = incr_idx(self, idx, &mut step);
                     continue;
                 }
 
@@ -143,7 +146,7 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
                     continue;
                 }
             } else {
-                idx = incr_idx(self, idx);
+                idx = incr_idx(self, idx, &mut step);
             }
         }
     }
@@ -185,7 +188,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>, era: usize) -> *mut Self {
         unsafe {
             capacity = cmp::max(capacity, 16);
-            let remaining_cells = CachePadded::new(AtomicUsize::new(calc_cells_remaining(capacity)));
+            let remaining_cells =
+                CachePadded::new(AtomicUsize::new(calc_cells_remaining(capacity)));
             let layout = ba_layout::<K, V, S>(capacity);
             let p = alloc(layout);
             let s = Self {
@@ -219,6 +223,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 
     fn insert_node<'a>(&self, node: *mut ABox<Element<K, V>>) -> (Option<*const Self>, bool) {
         let buckets = self.buckets();
+        let mut step = 1;
 
         if let Some(next) = self.get_next() {
             return next.insert_node(node);
@@ -265,7 +270,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         continue;
                     }
                 } else {
-                    idx = incr_idx(self, idx);
+                    idx = incr_idx(self, idx, &mut step);
                     continue;
                 }
             } else {
@@ -285,6 +290,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 
     fn insert_g_grow<'a>(&self, node: *mut ABox<Element<K, V>>) -> Option<*const Self> {
         let buckets = self.buckets();
+        let mut step = 1;
 
         if let Some(next) = self.get_next() {
             return next.insert_g_grow(node);
@@ -321,7 +327,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 if current_bucket_data.key == node_data.key {
                     return None;
                 } else {
-                    idx = incr_idx(self, idx);
+                    idx = incr_idx(self, idx, &mut step);
                     continue;
                 }
             } else {
@@ -388,6 +394,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         let buckets = self.buckets();
+        let mut step = 1;
         let hash = do_hash(&*self.hash_builder, key);
         let mut idx = hash2idx(hash, self.capacity);
 
@@ -398,13 +405,13 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     if self.get_next().unwrap().remove(key) {
                         return true;
                     } else {
-                        idx = incr_idx(self, idx);
+                        idx = incr_idx(self, idx, &mut step);
                         continue;
                     }
                 }
 
                 TOMBSTONE_TAG => {
-                    idx = incr_idx(self, idx);
+                    idx = incr_idx(self, idx, &mut step);
                     continue;
                 }
 
@@ -429,7 +436,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     continue;
                 }
             } else {
-                idx = incr_idx(self, idx);
+                idx = incr_idx(self, idx, &mut step);
             }
         }
     }
@@ -440,6 +447,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         let buckets = self.buckets();
+        let mut step = 1;
         let hash = do_hash(&*self.hash_builder, key);
         let mut idx = hash2idx(hash, self.capacity);
 
@@ -450,13 +458,13 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     if let Some(elem) = self.get_next().unwrap().get_elem(key) {
                         return Some(elem);
                     } else {
-                        idx = incr_idx(self, idx);
+                        idx = incr_idx(self, idx, &mut step);
                         continue;
                     }
                 }
 
                 TOMBSTONE_TAG => {
-                    idx = incr_idx(self, idx);
+                    idx = incr_idx(self, idx, &mut step);
                     continue;
                 }
 
@@ -471,7 +479,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             if key == bucket_data.key.borrow() {
                 return Some(bucket_ptr);
             } else {
-                idx = incr_idx(self, idx);
+                idx = incr_idx(self, idx, &mut step);
             }
         }
     }
