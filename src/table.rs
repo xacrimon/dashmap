@@ -175,11 +175,17 @@ impl<K, V, S> BucketArray<K, V, S> {
     }
 }
 
+static LOAD_FACTOR: f32 = 0.75;
+
+fn calc_cells_remaining(capacity: usize) -> usize {
+    (LOAD_FACTOR * capacity as f32) as usize
+}
+
 impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>, era: usize) -> *mut Self {
         unsafe {
-            capacity = cmp::max(2 * capacity, 16);
-            let remaining_cells = CachePadded::new(AtomicUsize::new(capacity * 3 / 4));
+            capacity = cmp::max(capacity, 16);
+            let remaining_cells = CachePadded::new(AtomicUsize::new(calc_cells_remaining(capacity)));
             let layout = ba_layout::<K, V, S>(capacity);
             let p = alloc(layout);
             let s = Self {
