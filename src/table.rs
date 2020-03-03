@@ -499,7 +499,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let mut gipi = hash2idx(hash, self.capacity);
 
         loop {
-            let (atomic_bucket, atomic_cache) = groups[gi].fetch(pi);
+            let (atomic_bucket, atomic_cache) = groups[gipi.0].fetch(gipi.1);
             let cached = atomic_cache.load(Ordering::SeqCst);
             let bucket_ptr = atomic_bucket.load(Ordering::SeqCst);
             match p_tag(bucket_ptr) {
