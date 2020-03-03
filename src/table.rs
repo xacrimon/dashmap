@@ -38,6 +38,17 @@ macro_rules! cell_maybe_return {
     }};
 }
 
+macro_rules! cell_maybe_return_k3 {
+    ($s:expr) => {{
+        let should_grow = $s.remaining_cells.fetch_sub(1, Ordering::SeqCst) == 1;
+        if should_grow {
+            return $s.grow();
+        } else {
+            return None;
+        }
+    }};
+}
+
 fn incr_idx<K, V, S>(s: &BucketArray<K, V, S>, i: usize) -> usize {
     hash2idx(i as u64 + 1, s.capacity)
 }
@@ -254,6 +265,56 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
+    fn insert_g_grow<'a>(&self, node: *mut ABox<Element<K, V>>) -> Option<*const Self> {
+        let buckets = self.buckets();
+
+        if let Some(next) = self.get_next() {
+            return next.insert_g_grow(node);
+        }
+
+        let node_data = sarc_deref(node);
+        let mut idx = hash2idx(node_data.hash, self.capacity);
+
+        loop {
+            let current_bucket_ptr = buckets[idx].load(Ordering::SeqCst);
+            match p_tag(current_bucket_ptr) {
+                REDIRECT_TAG => {
+                    return None;
+                }
+
+                TOMBSTONE_TAG => {
+                    if buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
+                        == current_bucket_ptr
+                    {
+                        cell_maybe_return_k3!(self);
+                    } else {
+                        continue;
+                    }
+                }
+
+                _ => (),
+            }
+
+            if !current_bucket_ptr.is_null() {
+                let current_bucket_data = sarc_deref(current_bucket_ptr);
+                if current_bucket_data.key == node_data.key {
+                    return None;
+                } else {
+                    idx = incr_idx(self, idx);
+                    continue;
+                }
+            } else {
+                if buckets[idx].compare_and_swap(current_bucket_ptr, node, Ordering::SeqCst)
+                    == current_bucket_ptr
+                {
+                    cell_maybe_return_k3!(self);
+                } else {
+                    continue;
+                }
+            }
+        }
+    }
+
     fn grow<'a>(&self) -> Option<*const Self> {
         if !self.next.load(Ordering::SeqCst).is_null() {
             return None;
@@ -278,7 +339,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
                 if !bucket_ptr.is_null() {
                     sarc_add_copy(bucket_ptr);
-                    new_table_ref.insert_node(bucket_ptr);
+                    new_table_ref.insert_g_grow(bucket_ptr);
                 }
                 break;
             }
