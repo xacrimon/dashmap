@@ -1,6 +1,5 @@
 //! EBR based garbage collector.
-//! TO-DO: Optimize this garbage collector.
-//!        Research DEBRA, a variant of EBR.
+//! TO-DO: Research DEBRA, a variant of EBR.
 
 use once_cell::sync::Lazy;
 use once_cell::unsync::Lazy as UnsyncLazy;
@@ -285,7 +284,6 @@ impl Local {
     }
 
     fn defer(&self, f: Deferred) {
-        //debug_assert!(self.active.load(Ordering::SeqCst) > 0);
         let global_epoch = self.global.epoch.load(Ordering::SeqCst);
         let mut deferred = self.global.deferred.lock().unwrap_or_else(|error| {
             println!("err: {:?}", error);
