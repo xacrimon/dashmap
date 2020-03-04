@@ -56,7 +56,6 @@ macro_rules! cell_maybe_return_k3 {
     }};
 }
 
-// TO-DO: optimize this
 fn incr_idx<K, V, S>(s: &BucketArray<K, V, S>, gi: usize, pi: usize) -> (usize, usize) {
     match pi {
         7 => ((gi + 1) & (s.groups().len() - 1), 0),
@@ -267,29 +266,36 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 
     fn insert_node<'a>(&self, node: *mut ABox<Element<K, V>>) -> (Option<*const Self>, bool) {
-        let buckets = self.buckets();
-        let mut step = 1;
-
         if let Some(next) = self.get_next() {
             return next.insert_node(node);
         }
 
+        let groups = self.groups();
         let node_data = sarc_deref(node);
-        let mut idx = hash2idx(node_data.hash, self.capacity);
+        let hash_cache = lower8(node_data.hash);
+        let mut gipi = hash2idx(node_data.hash, self.capacity);
 
         loop {
-            let current_bucket_ptr = unsafe { buckets.get_unchecked(idx).load(Ordering::SeqCst) };
-            match p_tag(current_bucket_ptr) {
+            let (atomic_bucket, atomic_cache) = groups[gipi.0].fetch(gipi.1);
+            let cached = atomic_cache.load(Ordering::SeqCst);
+            let bucket_ptr = atomic_bucket.load(Ordering::SeqCst);
+            match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
                     return self.get_next().unwrap().insert_node(node);
                 }
 
                 TOMBSTONE_TAG => {
-                    if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
-                        current_bucket_ptr,
-                        node,
-                        Ordering::SeqCst,
-                    ) == current_bucket_ptr
+                    if hash_cache != cached {
+                        gipi = incr_idx(self, gipi.0, gipi.1);
+                        continue;
+                    }
+
+                    if atomic_cache.compare_and_swap(cached, hash_cache, Ordering::SeqCst) != cached
+                    {
+                        continue;
+                    }
+                    if atomic_bucket.compare_and_swap(bucket_ptr, node, Ordering::SeqCst)
+                        == bucket_ptr
                     {
                         cell_maybe_return!(self, false);
                     } else {
@@ -299,17 +305,21 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 
                 _ => (),
             }
-
-            if !current_bucket_ptr.is_null() {
-                let current_bucket_data = sarc_deref(current_bucket_ptr);
-                if current_bucket_data.key == node_data.key {
-                    if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
-                        current_bucket_ptr,
-                        node,
-                        Ordering::SeqCst,
-                    ) == current_bucket_ptr
+            if !bucket_ptr.is_null() {
+                if hash_cache != cached {
+                    gipi = incr_idx(self, gipi.0, gipi.1);
+                    continue;
+                }
+                let bucket_data = sarc_deref(bucket_ptr);
+                if bucket_data.key == node_data.key {
+                    if atomic_cache.compare_and_swap(cached, hash_cache, Ordering::SeqCst) != cached
                     {
-                        defer(self.era, move || sarc_remove_copy(current_bucket_ptr));
+                        continue;
+                    }
+                    if atomic_bucket.compare_and_swap(bucket_ptr, node, Ordering::SeqCst)
+                        == bucket_ptr
+                    {
+                        defer(self.era, move || sarc_remove_copy(bucket_ptr));
                         cell_maybe_return!(self, true);
                     } else {
                         continue;
@@ -319,11 +329,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     continue;
                 }
             } else {
-                if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
-                    current_bucket_ptr,
-                    node,
-                    Ordering::SeqCst,
-                ) == current_bucket_ptr
+                if atomic_cache.compare_and_swap(cached, hash_cache, Ordering::SeqCst) != cached {
+                    continue;
+                }
+                if atomic_bucket.compare_and_swap(bucket_ptr, node, Ordering::SeqCst) == bucket_ptr
                 {
                     cell_maybe_return!(self, false);
                 } else {
@@ -334,29 +343,36 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 
     fn insert_g_grow<'a>(&self, node: *mut ABox<Element<K, V>>) -> Option<*const Self> {
-        let buckets = self.buckets();
-        let mut step = 1;
-
         if let Some(next) = self.get_next() {
             return next.insert_g_grow(node);
         }
 
+        let groups = self.groups();
         let node_data = sarc_deref(node);
-        let mut idx = hash2idx(node_data.hash, self.capacity);
+        let hash_cache = lower8(node_data.hash);
+        let mut gipi = hash2idx(node_data.hash, self.capacity);
 
         loop {
-            let current_bucket_ptr = unsafe { buckets.get_unchecked(idx).load(Ordering::SeqCst) };
-            match p_tag(current_bucket_ptr) {
+            let (atomic_bucket, atomic_cache) = groups[gipi.0].fetch(gipi.1);
+            let cached = atomic_cache.load(Ordering::SeqCst);
+            let bucket_ptr = atomic_bucket.load(Ordering::SeqCst);
+            match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
-                    return None;
+                    return self.get_next().unwrap().insert_g_grow(node);
                 }
 
                 TOMBSTONE_TAG => {
-                    if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
-                        current_bucket_ptr,
-                        node,
-                        Ordering::SeqCst,
-                    ) == current_bucket_ptr
+                    if hash_cache != cached {
+                        gipi = incr_idx(self, gipi.0, gipi.1);
+                        continue;
+                    }
+
+                    if atomic_cache.compare_and_swap(cached, hash_cache, Ordering::SeqCst) != cached
+                    {
+                        continue;
+                    }
+                    if atomic_bucket.compare_and_swap(bucket_ptr, node, Ordering::SeqCst)
+                        == bucket_ptr
                     {
                         cell_maybe_return_k3!(self);
                     } else {
@@ -366,21 +382,23 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 
                 _ => (),
             }
-
-            if !current_bucket_ptr.is_null() {
-                let current_bucket_data = sarc_deref(current_bucket_ptr);
-                if current_bucket_data.key == node_data.key {
+            if !bucket_ptr.is_null() {
+                if hash_cache != cached {
+                    gipi = incr_idx(self, gipi.0, gipi.1);
+                    continue;
+                }
+                let bucket_data = sarc_deref(bucket_ptr);
+                if bucket_data.key == node_data.key {
                     return None;
                 } else {
                     gipi = incr_idx(self, gipi.0, gipi.1);
                     continue;
                 }
             } else {
-                if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
-                    current_bucket_ptr,
-                    node,
-                    Ordering::SeqCst,
-                ) == current_bucket_ptr
+                if atomic_cache.compare_and_swap(cached, hash_cache, Ordering::SeqCst) != cached {
+                    continue;
+                }
+                if atomic_bucket.compare_and_swap(bucket_ptr, node, Ordering::SeqCst) == bucket_ptr
                 {
                     cell_maybe_return_k3!(self);
                 } else {
@@ -403,20 +421,25 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             return None;
         }
         let new_table_ref = unsafe { &mut *new_table };
-        for atomic_bucket in self.buckets() {
-            loop {
-                let bucket_ptr = atomic_bucket.load(Ordering::SeqCst);
-                let redirect_variant = p_set_tag(bucket_ptr, REDIRECT_TAG);
-                if atomic_bucket.compare_and_swap(bucket_ptr, redirect_variant, Ordering::SeqCst)
-                    != bucket_ptr
-                {
-                    continue;
+        for group in self.groups() {
+            for atomic_bucket in &group.buckets {
+                loop {
+                    let bucket_ptr = atomic_bucket.load(Ordering::SeqCst);
+                    let redirect_variant = p_set_tag(bucket_ptr, REDIRECT_TAG);
+                    if atomic_bucket.compare_and_swap(
+                        bucket_ptr,
+                        redirect_variant,
+                        Ordering::SeqCst,
+                    ) != bucket_ptr
+                    {
+                        continue;
+                    }
+                    if !bucket_ptr.is_null() {
+                        sarc_add_copy(bucket_ptr);
+                        new_table_ref.insert_g_grow(bucket_ptr);
+                    }
+                    break;
                 }
-                if !bucket_ptr.is_null() {
-                    sarc_add_copy(bucket_ptr);
-                    new_table_ref.insert_g_grow(bucket_ptr);
-                }
-                break;
             }
         }
         Some(new_table as _)
@@ -440,7 +463,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     {
         let groups = self.groups();
         let hash = do_hash(&*self.hash_builder, key);
-        let hash_cache = lower8(hash);
         let mut gipi = hash2idx(hash, self.capacity);
 
         loop {
