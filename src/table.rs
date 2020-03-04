@@ -11,14 +11,17 @@ use std::hash::{BuildHasher, Hash, Hasher};
 use std::mem;
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering, AtomicU8};
+use std::sync::atomic::{AtomicPtr, AtomicU8, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 const REDIRECT_TAG: usize = 5;
 const TOMBSTONE_TAG: usize = 7;
 
 pub fn hash2idx(hash: u64, len: usize) -> (usize, usize) {
-    ((hash as usize / 8) % len, hash as usize % 8)
+    let group_len = len / 8;
+    let group_idx = (hash as usize / 8) % (group_len + 1);
+    let private_idx = hash as usize % 8;
+    (group_idx, private_idx)
 }
 
 pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
@@ -53,6 +56,7 @@ macro_rules! cell_maybe_return_k3 {
     }};
 }
 
+// TO-DO: optimize this
 fn incr_idx<K, V, S>(s: &BucketArray<K, V, S>, gi: usize, pi: usize) -> (usize, usize) {
     match pi {
         7 => ((gi + 1) & (s.groups().len() - 1), 0),
@@ -136,13 +140,13 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
         Q: ?Sized + Eq + Hash,
         F: FnMut(&K, &V) -> V,
     {
-        let buckets = self.buckets();
-        let mut step = 1;
+        let groups = self.groups();
         let hash = do_hash(&*self.hash_builder, search_key);
-        let mut idx = hash2idx(hash, self.capacity);
+        let mut gipi = hash2idx(hash, self.capacity);
 
         loop {
-            let bucket_ptr = unsafe { buckets.get_unchecked(idx).load(Ordering::SeqCst) };
+            let (atomic_bucket, _) = groups[gipi.0].fetch(gipi.1);
+            let bucket_ptr = atomic_bucket.load(Ordering::SeqCst);
             match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
                     if self
@@ -152,44 +156,38 @@ impl<K: Eq + Hash + Clone, V, S: BuildHasher> BucketArray<K, V, S> {
                     {
                         return true;
                     } else {
-                        idx = incr_idx(self, idx, &mut step);
+                        gipi = incr_idx(self, gipi.0, gipi.1);
                         continue;
                     }
                 }
 
                 TOMBSTONE_TAG => {
-                    idx = incr_idx(self, idx, &mut step);
+                    gipi = incr_idx(self, gipi.0, gipi.1);
                     continue;
                 }
 
                 _ => (),
             }
-
             if bucket_ptr.is_null() {
                 return false;
             }
-
             let bucket_data = sarc_deref(bucket_ptr);
             if search_key == bucket_data.key.borrow() {
-                let new_value = do_update(&bucket_data.key, &bucket_data.value);
-                let new_element =
-                    Element::new(bucket_data.key.clone(), bucket_data.hash, new_value);
-                let new_ptr = sarc_new(new_element);
-
-                if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
-                    bucket_ptr,
-                    new_ptr,
-                    Ordering::SeqCst,
-                ) == bucket_ptr
+                let v = do_update(&bucket_data.key, &bucket_data.value);
+                let k = bucket_data.key.clone();
+                let new_node = sarc_new(Element::new(k, bucket_data.hash, v));
+                if atomic_bucket.compare_and_swap(bucket_ptr, new_node, Ordering::SeqCst)
+                    == bucket_ptr
                 {
                     defer(self.era, move || sarc_remove_copy(bucket_ptr));
                     return true;
                 } else {
-                    sarc_remove_copy(new_ptr);
+                    sarc_remove_copy(new_node);
                     continue;
                 }
             } else {
-                idx = incr_idx(self, idx, &mut step);
+                gipi = incr_idx(self, gipi.0, gipi.1);
+                continue;
             }
         }
     }
@@ -317,7 +315,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         continue;
                     }
                 } else {
-                    idx = incr_idx(self, idx, &mut step);
+                    gipi = incr_idx(self, gipi.0, gipi.1);
                     continue;
                 }
             } else {
@@ -374,7 +372,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 if current_bucket_data.key == node_data.key {
                     return None;
                 } else {
-                    idx = incr_idx(self, idx, &mut step);
+                    gipi = incr_idx(self, gipi.0, gipi.1);
                     continue;
                 }
             } else {
@@ -440,25 +438,26 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        let buckets = self.buckets();
-        let mut step = 1;
+        let groups = self.groups();
         let hash = do_hash(&*self.hash_builder, key);
-        let mut idx = hash2idx(hash, self.capacity);
+        let hash_cache = lower8(hash);
+        let mut gipi = hash2idx(hash, self.capacity);
 
         loop {
-            let bucket_ptr = unsafe { buckets.get_unchecked(idx).load(Ordering::SeqCst) };
+            let (atomic_bucket, _) = groups[gipi.0].fetch(gipi.1);
+            let bucket_ptr = atomic_bucket.load(Ordering::SeqCst);
             match p_tag(bucket_ptr) {
                 REDIRECT_TAG => {
                     if self.get_next().unwrap().remove(key) {
                         return true;
                     } else {
-                        idx = incr_idx(self, idx, &mut step);
+                        gipi = incr_idx(self, gipi.0, gipi.1);
                         continue;
                     }
                 }
 
                 TOMBSTONE_TAG => {
-                    idx = incr_idx(self, idx, &mut step);
+                    gipi = incr_idx(self, gipi.0, gipi.1);
                     continue;
                 }
 
@@ -466,24 +465,19 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             }
             if bucket_ptr.is_null() {
                 return false;
-            }
-            let bucket_data = sarc_deref(bucket_ptr);
-            if key == bucket_data.key.borrow() {
+            } else if key == sarc_deref(bucket_ptr).key.borrow() {
                 let tombstone = p_set_tag(ptr::null_mut(), TOMBSTONE_TAG);
-                if unsafe { buckets.get_unchecked(idx) }.compare_and_swap(
-                    bucket_ptr,
-                    tombstone as _,
-                    Ordering::SeqCst,
-                ) == bucket_ptr
+                if atomic_bucket.compare_and_swap(bucket_ptr, tombstone, Ordering::SeqCst)
+                    == bucket_ptr
                 {
-                    self.remaining_cells.fetch_add(1, Ordering::SeqCst);
                     defer(self.era, move || sarc_remove_copy(bucket_ptr));
                     return true;
                 } else {
                     continue;
                 }
             } else {
-                idx = incr_idx(self, idx, &mut step);
+                gipi = incr_idx(self, gipi.0, gipi.1);
+                continue;
             }
         }
     }
@@ -522,7 +516,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             if bucket_ptr.is_null() {
                 return None;
             }
-            if cached != atomic_cache.load(Ordering::SeqCst) { continue; }
+            if cached != atomic_cache.load(Ordering::SeqCst) {
+                continue;
+            }
             if cached != hash_cache {
                 gipi = incr_idx(self, gipi.0, gipi.1);
                 continue;
