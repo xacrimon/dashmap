@@ -34,7 +34,7 @@ where
     }
 
     fn insert(&mut self, key: &Self::Key) -> bool {
-        self.0.insert(*key, 0)
+        self.0.insert(*key, 0) == false
     }
 
     fn remove(&mut self, key: &Self::Key) -> bool {
@@ -47,7 +47,7 @@ where
 }
 
 static EXCHANGE_PREFILL: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-static EXCHANGE_OPS: f64 = 2.5;
+static EXCHANGE_OPS: f64 = 1.0;
 
 fn main() {
     tracing_subscriber::fmt::init();
