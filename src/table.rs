@@ -11,7 +11,7 @@ use std::hash::{BuildHasher, Hash, Hasher};
 use std::mem;
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicPtr, AtomicU8, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicU64, AtomicU8, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 const REDIRECT_TAG: usize = 5;
@@ -28,6 +28,10 @@ pub fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
     let mut hasher = f.build_hasher();
     i.hash(&mut hasher);
     hasher.finish()
+}
+
+fn u64_fetch_byte(x: u64, i: usize) -> u8 {
+    ((x >> (8 * i)) & 0xff) as u8
 }
 
 fn lower8(x: u64) -> u8 {
@@ -225,8 +229,8 @@ fn calc_cells_remaining(capacity: usize) -> usize {
 }
 
 fn calc_capacity(capacity: usize) -> usize {
-    let fac = 2.0 - LOAD_FACTOR;
-    (capacity as f32 * fac) as usize
+    let fac = 1.0 / LOAD_FACTOR;
+    (capacity as f32 * fac) as usize + 1
 }
 
 fn round_8mul(x: usize) -> usize {
