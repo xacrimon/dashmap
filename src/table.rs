@@ -224,6 +224,11 @@ fn calc_cells_remaining(capacity: usize) -> usize {
     (LOAD_FACTOR * capacity as f32) as usize
 }
 
+fn calc_capacity(capacity: usize) -> usize {
+    let fac = 2.0 - LOAD_FACTOR;
+    (capacity as f32 * fac) as usize
+}
+
 fn round_8mul(x: usize) -> usize {
     (x + 7) & !7
 }
@@ -231,7 +236,7 @@ fn round_8mul(x: usize) -> usize {
 impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(mut capacity: usize, hash_builder: Arc<S>, era: usize) -> *mut Self {
         unsafe {
-            capacity = round_8mul(cmp::max(capacity, 8));
+            capacity = round_8mul(calc_capacity(cmp::max(capacity, 8)));
             let remaining_cells =
                 CachePadded::new(AtomicUsize::new(calc_cells_remaining(capacity)));
             let layout = ba_layout::<K, V, S>(capacity);
