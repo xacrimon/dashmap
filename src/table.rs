@@ -1,8 +1,8 @@
 use crate::util::{
     clear_bit, read_bit, set_bit, u64_read_byte, u64_write_byte, RESIZE_BIT, TOMBSTONE_BIT,
 };
-use std::sync::atomic::{Ordering, AtomicPtr, AtomicU64, AtomicU32};
 use std::ptr;
+use std::sync::atomic::{AtomicPtr, AtomicU32, AtomicU64, Ordering};
 
 struct Group<T> {
     cache: AtomicU64,
@@ -22,7 +22,7 @@ impl<T> Group<T> {
                 AtomicPtr::new(ptr::null_mut()),
                 AtomicPtr::new(ptr::null_mut()),
                 AtomicPtr::new(ptr::null_mut()),
-            ]
+            ],
         }
     }
 
@@ -36,12 +36,32 @@ impl<T> Group<T> {
         }
     }
 
-    fn publish(&self, i: usize, cache_maybe_current: u8, pointer_maybe_current: *mut T, cache_new: u8, pointer_new: *mut T) -> bool {
+    fn publish(
+        &self,
+        i: usize,
+        cache_maybe_current: u8,
+        pointer_maybe_current: *mut T,
+        cache_new: u8,
+        pointer_new: *mut T,
+    ) -> bool {
         let cache_all_current = self.cache.load(Ordering::SeqCst);
         let cache_current_sq = u64_write_byte(cache_all_current, i, cache_maybe_current);
         let updated_all_cache = u64_write_byte(cache_all_current, i, cache_new);
-        if self.cache.compare_and_swap(cache_current_sq, updated_all_cache, Ordering::SeqCst) != cache_current_sq { return false; }
-        if self.nodes[i].compare_and_swap(pointer_maybe_current, pointer_new, Ordering::SeqCst) != pointer_maybe_current { return false; }
+        if self
+            .cache
+            .compare_and_swap(cache_current_sq, updated_all_cache, Ordering::SeqCst)
+            != cache_current_sq
+        {
+            return false;
+        }
+        if self.nodes[i].compare_and_swap(pointer_maybe_current, pointer_new, Ordering::SeqCst)
+            != pointer_maybe_current
+        {
+            return false;
+        }
+        if self.cache.load(Ordering::SeqCst) != updated_all_cache {
+            return false;
+        }
         true
     }
 }
