@@ -1,6 +1,7 @@
 use core::default::Default;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(target_arch = "x86_64", repr(align(128)))]
@@ -50,8 +51,8 @@ impl<T> From<T> for CachePadded<T> {
     }
 }
 
-pub const TOMBSTONE_BIT: usize = 48;
-pub const RESIZE_BIT: usize = 49;
+pub const TOMBSTONE_BIT: usize = 0;
+pub const RESIZE_BIT: usize = 1;
 
 pub fn set_bit(x: usize, b: usize) -> usize {
     x | 1 << b
@@ -63,4 +64,14 @@ pub fn clear_bit(x: usize, b: usize) -> usize {
 
 pub fn read_bit(x: usize, b: usize) -> bool {
     ((x >> b) & 1) != 0
+}
+
+pub fn u64_read_byte(x: u64, n: usize) -> u8 {
+    x.to_ne_bytes()[n]
+}
+
+pub fn u64_write_byte(x: u64, n: usize, b: u8) -> u64 {
+    let mut a = x.to_ne_bytes();
+    a[n] = b;
+    u64::from_ne_bytes(a)
 }
