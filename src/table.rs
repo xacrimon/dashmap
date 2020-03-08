@@ -32,6 +32,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             let hash_builder = old_table.as_ref().hash_builder.clone();
             let era = old_table.as_ref().era;
             let new_table = Box::into_raw(Box::new(BucketArray::new(
+                root_ptr,
                 old_group_amount * 16 * 2,
                 era,
                 hash_builder,
@@ -48,6 +49,20 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
         }
     }
 
+    fn run(&self) {
+        self.running.fetch_add(1, Ordering::SeqCst);
+        self.work();
+        self.running.fetch_sub(1, Ordering::SeqCst);
+        self.wait();
+        unsafe {
+            (*self.root_ptr).compare_and_swap(
+                self.old_table.as_ptr(),
+                self.new_table.as_ptr(),
+                Ordering::SeqCst,
+            );
+        }
+    }
+
     fn wait(&self) {
         while self.running.load(Ordering::SeqCst) != 0 {
             spin_loop_hint()
@@ -55,7 +70,31 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
     }
 
     fn work(&self) {
-        unimplemented!();
+        self.running.fetch_add(1, Ordering::SeqCst);
+
+        while let Some(range) = self.task_list.lock().unwrap().pop_front() {
+            for group_idx in range {
+                unsafe {
+                    let old_table = self.old_table.as_ref();
+                    let new_table = self.new_table.as_ref();
+                    for (pidx, atomic_cache, atomic_ptr) in old_table.groups[group_idx].iter() {
+                        let cache = atomic_cache.load();
+                        let bucket_ptr = atomic_ptr.load(Ordering::SeqCst);
+                        if new_table.groups[group_idx].try_publish(
+                            pidx,
+                            0,
+                            ptr::null_mut(),
+                            cache,
+                            bucket_ptr,
+                        ) {
+                            sarc_add_copy(bucket_ptr);
+                        }
+                    }
+                }
+            }
+        }
+
+        self.running.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -166,6 +205,7 @@ fn calc_cells_remaining(capacity: usize) -> usize {
 }
 
 struct BucketArray<K, V, S> {
+    root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
     cells_remaining: AtomicUsize,
     hash_builder: Arc<S>,
     era: usize,
@@ -174,13 +214,19 @@ struct BucketArray<K, V, S> {
 }
 
 impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
-    fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
+    fn new(
+        root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
+        capacity: usize,
+        era: usize,
+        hash_builder: Arc<S>,
+    ) -> Self {
         debug_assert!(capacity.is_power_of_two());
         let capacity = cmp::max(capacity, 16);
         let cells_remaining = calc_cells_remaining(capacity);
         let groups = make_groups(capacity / 8);
 
         Self {
+            root_ptr,
             cells_remaining: AtomicUsize::new(cells_remaining),
             hash_builder,
             era,
@@ -198,6 +244,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         if !coordinator.is_null() {
             unsafe {
                 (*coordinator).work();
+                (*coordinator).wait();
                 Some(&*(*coordinator).new_table.as_ptr())
             }
         } else {
