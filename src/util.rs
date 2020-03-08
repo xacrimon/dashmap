@@ -1,6 +1,8 @@
 use core::default::Default;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
+use std::collections::LinkedList;
+use std::ops::Range;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq)]
@@ -100,4 +102,23 @@ pub fn u64_write_byte(x: u64, n: usize, b: u8) -> u64 {
     let mut a = x.to_ne_bytes();
     a[n] = b;
     u64::from_ne_bytes(a)
+}
+
+pub fn derive_filter(x: u64) -> u8 {
+    let a = x.to_ne_bytes();
+    a[0] ^ a[1] ^ a[2] ^ a[3] ^ a[4] ^ a[5] ^ a[6] ^ a[7]
+}
+
+pub fn range_split(range: Range<usize>, chunk_size: usize) -> LinkedList<Range<usize>> {
+    let mut ranges = LinkedList::new();
+    let mut next = range.start;
+    while next < range.end {
+        let mut chunk = (next..(next + chunk_size));
+        if chunk.end > range.end {
+            chunk.end = range.end;
+        }
+        next = chunk.end;
+        ranges.push_back(chunk);
+    }
+    ranges
 }

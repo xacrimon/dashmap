@@ -1,12 +1,47 @@
 use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
 use crate::element::{Element, ElementGuard};
 use crate::recl::{defer, protected};
-use crate::util::{set_tag, u64_read_byte, u64_write_byte, PtrTag, get_tag};
+use crate::util::{
+    derive_filter, get_tag, range_split, set_tag, u64_read_byte, u64_write_byte, PtrTag,
+};
 use std::cmp;
+use std::collections::LinkedList;
 use std::hash::{BuildHasher, Hash, Hasher};
-use std::ptr;
-use std::sync::atomic::{AtomicPtr, AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::ops::Range;
+use std::ptr::{self, NonNull};
+use std::sync::atomic::{AtomicPtr, AtomicU16, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+
+struct ResizeCoordinator<K, V, S> {
+    old_table: NonNull<BucketArray<K, V, S>>,
+    new_table: Box<BucketArray<K, V, S>>,
+    task_list: Mutex<LinkedList<Range<usize>>>,
+    running: AtomicU16,
+}
+
+impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
+    pub fn new(old_table: *mut BucketArray<K, V, S>) -> Self {
+        unsafe {
+            let old_table = NonNull::new_unchecked(old_table);
+            let old_group_amount = old_table.as_ref().group_amount();
+            let hash_builder = old_table.as_ref().hash_builder.clone();
+            let era = old_table.as_ref().era;
+            let new_table = Box::new(BucketArray::new(
+                old_group_amount * 16 * 2,
+                era,
+                hash_builder,
+            ));
+            let task_list = Mutex::new(range_split(0..old_group_amount, 128));
+
+            Self {
+                old_table,
+                new_table,
+                task_list,
+                running: AtomicU16::new(0),
+            }
+        }
+    }
+}
 
 fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
     let mut hasher = f.build_hasher();
@@ -90,15 +125,6 @@ fn calc_cells_remaining(capacity: usize) -> usize {
     (LOAD_FACTOR * capacity as f32) as usize
 }
 
-fn calc_capacity(capacity: usize) -> usize {
-    let fac = 1.0 / LOAD_FACTOR;
-    (capacity as f32 * fac) as usize + 1
-}
-
-fn round_8mul(x: usize) -> usize {
-    (x + 7) & !7
-}
-
 struct BucketArray<K, V, S> {
     cells_remaining: AtomicUsize,
     hash_builder: Arc<S>,
@@ -109,7 +135,8 @@ struct BucketArray<K, V, S> {
 
 impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
-        let capacity = round_8mul(calc_capacity(cmp::max(capacity, 16)));
+        debug_assert!(capacity.is_power_of_two());
+        let capacity = cmp::max(capacity, 16);
         let cells_remaining = calc_cells_remaining(capacity);
         let groups = make_groups(capacity / 8);
 
@@ -122,7 +149,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn slots_cap(&self) -> usize {
-        self.groups.len() * 8
+    fn group_amount(&self) -> usize {
+        self.groups.len()
     }
 }
