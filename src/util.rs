@@ -64,9 +64,7 @@ pub fn set_tag<T>(ptr: *mut T, tag: PtrTag) -> *mut T {
     let ptr = ptr as usize;
     (match tag {
         PtrTag::None => clear_bit(clear_bit(ptr, TOMBSTONE_BIT), RESIZE_BIT),
-
         PtrTag::Tombstone => clear_bit(set_bit(ptr, TOMBSTONE_BIT), RESIZE_BIT),
-
         PtrTag::Resize => set_bit(clear_bit(ptr, TOMBSTONE_BIT), RESIZE_BIT),
     }) as *mut T
 }
