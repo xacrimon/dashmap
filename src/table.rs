@@ -50,15 +50,19 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
         }
     }
 
-    fn run(&self) {
+    fn run(&self, era: usize) {
         self.work();
         self.wait();
         unsafe {
-            (*self.root_ptr).compare_and_swap(
+            if (*self.root_ptr).compare_and_swap(
                 self.old_table.as_ptr(),
                 self.new_table.as_ptr(),
                 Ordering::SeqCst,
-            );
+            ) == self.old_table.as_ptr()
+            {
+                let old_table_ptr = self.old_table.as_ptr();
+                defer(era, move || drop(Box::from_raw(old_table_ptr)));
+            }
         }
     }
 
@@ -266,7 +270,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     self.next
                         .compare_and_swap(ptr::null_mut(), new_coordinator, Ordering::SeqCst);
                 if old.is_null() {
-                    (*new_coordinator).run();
+                    (*new_coordinator).run(self.era);
                 } else {
                     Box::from_raw(new_coordinator);
                     (*old).work();
