@@ -51,18 +51,46 @@ impl<T> From<T> for CachePadded<T> {
     }
 }
 
-pub const TOMBSTONE_BIT: usize = 0;
-pub const RESIZE_BIT: usize = 1;
+const TOMBSTONE_BIT: usize = 0;
+const RESIZE_BIT: usize = 1;
 
-pub fn set_bit(x: usize, b: usize) -> usize {
+pub enum PtrTag {
+    None,
+    Tombstone,
+    Resize,
+}
+
+pub fn set_tag<T>(ptr: *mut T, tag: PtrTag) -> *mut T {
+    let ptr = ptr as usize;
+    (match tag {
+        PtrTag::None => clear_bit(clear_bit(ptr, TOMBSTONE_BIT), RESIZE_BIT),
+
+        PtrTag::Tombstone => clear_bit(set_bit(ptr, TOMBSTONE_BIT), RESIZE_BIT),
+
+        PtrTag::Resize => set_bit(clear_bit(ptr, TOMBSTONE_BIT), RESIZE_BIT),
+    }) as *mut T
+}
+
+pub fn get_tag<T>(ptr: *mut T) -> PtrTag {
+    let ptr = ptr as usize;
+    if read_bit(ptr, TOMBSTONE_BIT) {
+        PtrTag::Tombstone
+    } else if read_bit(ptr, RESIZE_BIT) {
+        PtrTag::Resize
+    } else {
+        PtrTag::None
+    }
+}
+
+fn set_bit(x: usize, b: usize) -> usize {
     x | 1 << b
 }
 
-pub fn clear_bit(x: usize, b: usize) -> usize {
+fn clear_bit(x: usize, b: usize) -> usize {
     x & !(1 << b)
 }
 
-pub fn read_bit(x: usize, b: usize) -> bool {
+fn read_bit(x: usize, b: usize) -> bool {
     ((x >> b) & 1) != 0
 }
 
