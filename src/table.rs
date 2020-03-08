@@ -50,9 +50,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
     }
 
     fn run(&self) {
-        self.running.fetch_add(1, Ordering::SeqCst);
         self.work();
-        self.running.fetch_sub(1, Ordering::SeqCst);
         self.wait();
         unsafe {
             (*self.root_ptr).compare_and_swap(
