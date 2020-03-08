@@ -9,37 +9,41 @@ use std::collections::LinkedList;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::ops::Range;
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{AtomicPtr, AtomicU16, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicU16, AtomicU64, AtomicUsize, Ordering, spin_loop_hint};
 use std::sync::{Arc, Mutex};
 
 struct ResizeCoordinator<K, V, S> {
     old_table: NonNull<BucketArray<K, V, S>>,
-    new_table: Box<BucketArray<K, V, S>>,
+    new_table: NonNull<BucketArray<K, V, S>>,
     task_list: Mutex<LinkedList<Range<usize>>>,
     running: AtomicU16,
 }
 
 impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
-    pub fn new(old_table: *mut BucketArray<K, V, S>) -> Self {
+    fn new(old_table: *mut BucketArray<K, V, S>) -> Self {
         unsafe {
             let old_table = NonNull::new_unchecked(old_table);
             let old_group_amount = old_table.as_ref().group_amount();
             let hash_builder = old_table.as_ref().hash_builder.clone();
             let era = old_table.as_ref().era;
-            let new_table = Box::new(BucketArray::new(
+            let new_table = Box::into_raw(Box::new(BucketArray::new(
                 old_group_amount * 16 * 2,
                 era,
                 hash_builder,
-            ));
+            )));
             let task_list = Mutex::new(range_split(0..old_group_amount, 128));
 
             Self {
                 old_table,
-                new_table,
+                new_table: NonNull::new_unchecked(new_table),
                 task_list,
                 running: AtomicU16::new(0),
             }
         }
+    }
+    
+    fn wait(&self) {
+        while self.running.load(Ordering::SeqCst) != 0 { spin_loop_hint() }
     }
 }
 
