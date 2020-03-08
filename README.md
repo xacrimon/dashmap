@@ -14,6 +14,16 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 [![downloads](https://img.shields.io/crates/d/dashmap)](https://crates.io/crates/dashmap)
 
+## TO-DO Optimizations
+
+- Non algorithmic static overhead optimization
+
+- https://llvm.org/docs/CommandGuide/llvm-mca.html
+
+- Multi-table optimization
+
+- MAYBE Group map into regions and use bloom filters.
+
 ## Contributing
 
 DashMap is gladly accepts contributions!
