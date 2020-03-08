@@ -2,17 +2,19 @@ use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
 use crate::element::{Element, ElementGuard};
 use crate::recl::{defer, protected};
 use crate::util::{
-    derive_filter, get_tag, range_split, set_tag, u64_read_byte, u64_write_byte, PtrTag,
+    derive_filter, get_tag, range_split, set_tag, u64_read_byte, u64_write_byte, CircularRange,
+    PtrTag,
 };
 use std::cmp;
 use std::collections::LinkedList;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::ops::Range;
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{AtomicPtr, AtomicU16, AtomicU64, AtomicUsize, Ordering, spin_loop_hint};
+use std::sync::atomic::{spin_loop_hint, AtomicPtr, AtomicU16, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 struct ResizeCoordinator<K, V, S> {
+    root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
     old_table: NonNull<BucketArray<K, V, S>>,
     new_table: NonNull<BucketArray<K, V, S>>,
     task_list: Mutex<LinkedList<Range<usize>>>,
@@ -20,7 +22,10 @@ struct ResizeCoordinator<K, V, S> {
 }
 
 impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
-    fn new(old_table: *mut BucketArray<K, V, S>) -> Self {
+    fn new(
+        root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
+        old_table: *mut BucketArray<K, V, S>,
+    ) -> Self {
         unsafe {
             let old_table = NonNull::new_unchecked(old_table);
             let old_group_amount = old_table.as_ref().group_amount();
@@ -34,6 +39,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             let task_list = Mutex::new(range_split(0..old_group_amount, 128));
 
             Self {
+                root_ptr,
                 old_table,
                 new_table: NonNull::new_unchecked(new_table),
                 task_list,
@@ -41,9 +47,15 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             }
         }
     }
-    
+
     fn wait(&self) {
-        while self.running.load(Ordering::SeqCst) != 0 { spin_loop_hint() }
+        while self.running.load(Ordering::SeqCst) != 0 {
+            spin_loop_hint()
+        }
+    }
+
+    fn work(&self) {
+        unimplemented!();
     }
 }
 
@@ -77,6 +89,16 @@ impl<T> Group<T> {
                 AtomicPtr::new(ptr::null_mut()),
             ],
         }
+    }
+
+    fn iter<'a>(&'a self) -> impl Iterator<Item = (usize, u8, *mut T)> + 'a {
+        self.nodes.iter().enumerate().map(move |(i, atomic)| {
+            (
+                i,
+                u64_read_byte(self.cache.load(Ordering::SeqCst), i),
+                atomic.load(Ordering::SeqCst),
+            )
+        })
     }
 
     fn probe(&self, filter: u8, mut apply: impl FnMut(*mut T)) -> bool {
@@ -121,7 +143,7 @@ impl<T> Group<T> {
     }
 }
 
-type G<K, V> = Group<Element<K, V>>;
+type G<K, V> = Group<ABox<Element<K, V>>>;
 
 static LOAD_FACTOR: f32 = 0.75;
 
@@ -133,7 +155,7 @@ struct BucketArray<K, V, S> {
     cells_remaining: AtomicUsize,
     hash_builder: Arc<S>,
     era: usize,
-    next: AtomicPtr<Self>,
+    next: AtomicPtr<ResizeCoordinator<K, V, S>>,
     groups: Box<[G<K, V>]>,
 }
 
@@ -155,5 +177,71 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 
     fn group_amount(&self) -> usize {
         self.groups.len()
+    }
+
+    fn fetch_next<'a>(&self) -> Option<&'a Self> {
+        let coordinator = self.next.load(Ordering::SeqCst);
+        if !coordinator.is_null() {
+            unsafe {
+                (*coordinator).work();
+                Some(&*(*coordinator).new_table.as_ptr())
+            }
+        } else {
+            None
+        }
+    }
+
+    fn grow(&self) {
+        unimplemented!()
+    }
+
+    fn put_node(&self, node: *mut ABox<Element<K, V>>) {
+        if let Some(next) = self.fetch_next() {
+            next.put_node(node);
+            return;
+        }
+
+        let node_data = sarc_deref(node);
+        let hash = do_hash(&*self.hash_builder, &node_data.key);
+        let group_idx_start = hash as usize % self.group_amount();
+        let filter = derive_filter(hash);
+
+        for group_idx in CircularRange::new(0, self.group_amount(), group_idx_start) {
+            let group = &self.groups[group_idx];
+            for (i, cache, bucket_ptr) in group.iter() {
+                'inner: loop {
+                    match get_tag(bucket_ptr) {
+                        PtrTag::None => (),
+                        PtrTag::Resize => self.fetch_next().unwrap().put_node(node),
+
+                        PtrTag::Tombstone => {
+                            if group.try_publish(i, cache, bucket_ptr, filter, node) {
+                                return;
+                            } else {
+                                continue 'inner;
+                            }
+                        }
+                    }
+                    if bucket_ptr.is_null() {
+                        if group.try_publish(i, cache, bucket_ptr, filter, node) {
+                            return;
+                        } else {
+                            continue 'inner;
+                        }
+                    } else {
+                        let bucket_data = sarc_deref(bucket_ptr);
+                        if bucket_data.key == node_data.key {
+                            if group.try_publish(i, cache, bucket_ptr, filter, node) {
+                                return;
+                            } else {
+                                continue 'inner;
+                            }
+                        } else {
+                            break 'inner;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
