@@ -69,6 +69,17 @@ fn make_groups<K, V>(amount: usize) -> Box<[G<K, V>]> {
     (0..amount).map(|_| Group::new()).collect()
 }
 
+struct CacheEntry<'a> {
+    atomic: &'a AtomicU64,
+    slot: usize,
+}
+
+impl<'a> CacheEntry<'a> {
+    fn load(&self) -> u8 {
+        u64_read_byte(self.atomic.load(Ordering::SeqCst), self.slot)
+    }
+}
+
 struct Group<T> {
     cache: AtomicU64,
     nodes: [AtomicPtr<T>; 8],
@@ -91,12 +102,15 @@ impl<T> Group<T> {
         }
     }
 
-    fn iter<'a>(&'a self) -> impl Iterator<Item = (usize, u8, *mut T)> + 'a {
+    fn iter<'a>(&'a self) -> impl Iterator<Item = (usize, CacheEntry<'a>, &'a AtomicPtr<T>)> + 'a {
         self.nodes.iter().enumerate().map(move |(i, atomic)| {
             (
                 i,
-                u64_read_byte(self.cache.load(Ordering::SeqCst), i),
-                atomic.load(Ordering::SeqCst),
+                CacheEntry {
+                    atomic: &self.cache,
+                    slot: i,
+                },
+                atomic,
             )
         })
     }
@@ -210,6 +224,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             let group = &self.groups[group_idx];
             for (i, cache, bucket_ptr) in group.iter() {
                 'inner: loop {
+                    let bucket_ptr = bucket_ptr.load(Ordering::SeqCst);
+                    let cache = cache.load();
                     match get_tag(bucket_ptr) {
                         PtrTag::None => (),
                         PtrTag::Resize => self.fetch_next().unwrap().put_node(node),
