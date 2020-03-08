@@ -229,7 +229,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     match get_tag(bucket_ptr) {
                         PtrTag::None => (),
                         PtrTag::Resize => self.fetch_next().unwrap().put_node(node),
-
                         PtrTag::Tombstone => {
                             if group.try_publish(i, cache, bucket_ptr, filter, node) {
                                 return;
