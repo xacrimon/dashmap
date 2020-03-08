@@ -8,6 +8,7 @@ use crate::util::{
 use std::cmp;
 use std::collections::LinkedList;
 use std::hash::{BuildHasher, Hash, Hasher};
+use std::mem;
 use std::ops::Range;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{spin_loop_hint, AtomicPtr, AtomicU16, AtomicU64, AtomicUsize, Ordering};
@@ -251,7 +252,28 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 
     fn grow(&self) {
-        unimplemented!()
+        unsafe {
+            let coordinator = self.next.load(Ordering::SeqCst);
+            if !coordinator.is_null() {
+                (*coordinator).work();
+                (*coordinator).wait();
+            } else {
+                let new_coordinator = Box::into_raw(Box::new(ResizeCoordinator::new(
+                    self.root_ptr,
+                    mem::transmute(self),
+                )));
+                let old =
+                    self.next
+                        .compare_and_swap(ptr::null_mut(), new_coordinator, Ordering::SeqCst);
+                if old.is_null() {
+                    (*new_coordinator).run();
+                } else {
+                    Box::from_raw(new_coordinator);
+                    (*old).work();
+                    (*old).wait();
+                }
+            }
+        }
     }
 
     fn put_node(&self, node: *mut ABox<Element<K, V>>) {
