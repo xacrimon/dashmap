@@ -50,25 +50,17 @@ impl<T> From<T> for CachePadded<T> {
     }
 }
 
-fn low_bits() -> usize {
-    (1 << 8usize.trailing_zeros()) - 1
+pub const TOMBSTONE_BIT: usize = 48;
+pub const RESIZE_BIT: usize = 49;
+
+pub fn set_bit(x: usize, b: usize) -> usize {
+    x | 1 << b
 }
 
-fn data_with_tag(data: usize, tag: usize) -> usize {
-    (data & !low_bits()) | (tag & low_bits())
+pub fn clear_bit(x: usize, b: usize) -> usize {
+    x & !(1 << b)
 }
 
-fn decompose_data<T>(data: usize) -> (*mut T, usize) {
-    let raw = (data & !low_bits()) as *mut T;
-    let tag = data & low_bits();
-    (raw, tag)
-}
-
-pub fn p_tag<T>(p: *const T) -> usize {
-    let (_, tag) = decompose_data::<T>(p as usize);
-    tag
-}
-
-pub fn p_set_tag<T>(p: *const T, tag: usize) -> *mut T {
-    data_with_tag(p as usize, tag) as _
+pub fn read_bit(x: usize, b: usize) -> bool {
+    ((x >> b) & 1) != 0
 }
