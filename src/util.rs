@@ -3,7 +3,6 @@ use core::fmt;
 use core::ops::{Deref, DerefMut};
 use std::collections::LinkedList;
 use std::ops::Range;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(target_arch = "x86_64", repr(align(128)))]
@@ -113,7 +112,7 @@ pub fn range_split(range: Range<usize>, chunk_size: usize) -> LinkedList<Range<u
     let mut ranges = LinkedList::new();
     let mut next = range.start;
     while next < range.end {
-        let mut chunk = (next..(next + chunk_size));
+        let mut chunk = next..next + chunk_size;
         if chunk.end > range.end {
             chunk.end = range.end;
         }
