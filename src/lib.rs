@@ -1,7 +1,8 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
 mod alloc;
 mod element;
 mod recl;
-pub mod table;
+mod table;
 mod util;
