@@ -353,7 +353,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         unreachable()
     }
 
-    // TO-DO: handle resizing n stuff
     fn put_node(&self, node: *mut ABox<Element<K, V>>) {
         if let Some(next) = self.fetch_next() {
             next.put_node(node);
@@ -404,5 +403,57 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
             }
         }
+    }
+}
+
+pub struct Table<K, V, S> {
+    hash_builder: Arc<S>,
+    array: Box<AtomicPtr<BucketArray<K, V, S>>>,
+}
+
+impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
+    pub fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
+        let mut atomic = Box::new(AtomicPtr::new(ptr::null_mut()));
+        let table = BucketArray::new(&mut *atomic, capacity, era, Arc::clone(&hash_builder));
+        atomic.store(Box::into_raw(Box::new(table)), Ordering::SeqCst);
+
+        Self {
+            hash_builder,
+            array: atomic,
+        }
+    }
+
+    fn array<'a>(&self) -> &'a BucketArray<K, V, S> {
+        unsafe { &*self.array.load(Ordering::SeqCst) }
+    }
+
+    pub fn insert(&self, key: K, value: V) {
+        let hash = do_hash(&*self.hash_builder, &key);
+        let node = sarc_new(Element::new(key, hash, value));
+        protected(|| self.array().put_node(node));
+    }
+
+    pub fn get<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        protected(|| self.array().find_node(search_key).map(Element::read))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Table;
+    use std::collections::hash_map::RandomState;
+    use std::sync::Arc;
+
+    #[test]
+    fn insert_get_simple() {
+        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        table.insert(4i32, 9i32);
+        table.insert(8i32, 24i32);
+        assert_eq!(*table.get(&4).unwrap(), 9);
+        assert_eq!(*table.get(&8).unwrap(), 24);
     }
 }
