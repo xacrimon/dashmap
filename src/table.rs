@@ -322,9 +322,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         if let Some(next) = self.fetch_next() {
-            if let Some(node) = next.find_node(search_key) {
-                return Some(node);
-            }
+            return next.find_node(search_key);
         }
         let hash = do_hash(&*self.hash_builder, search_key);
         let group_idx_start = hash as usize % self.group_amount();
@@ -353,6 +351,47 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         unreachable()
     }
 
+    fn remove<Q>(&self, search_key: &Q) -> Option<*mut ABox<Element<K, V>>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        if let Some(next) = self.fetch_next() {
+            return next.remove(search_key);
+        }
+        let hash = do_hash(&*self.hash_builder, search_key);
+        let group_idx_start = hash as usize % self.group_amount();
+        for group_idx in CircularRange::new(0, self.group_amount(), group_idx_start) {
+            let group = &self.groups[group_idx];
+            'm: for (i, cache, bucket_ptr) in group.iter() {
+                'inner: loop {
+                    let bucket_ptr = bucket_ptr.load(Ordering::SeqCst);
+                    let cache = cache.load();
+                    match get_tag(bucket_ptr) {
+                        PtrTag::Resize => {
+                            return self.fetch_next().unwrap().remove(search_key);
+                        }
+                        PtrTag::Tombstone => continue 'm,
+                        PtrTag::None => (),
+                    }
+                    if bucket_ptr.is_null() {
+                        return None;
+                    } else if search_key == sarc_deref(bucket_ptr).key.borrow() {
+                        let tombstone = set_tag(ptr::null_mut(), PtrTag::Tombstone);
+                        if group.try_publish(i, cache, bucket_ptr, 0, tombstone) {
+                            defer(self.era, move || sarc_remove_copy(bucket_ptr));
+                            return Some(bucket_ptr);
+                        } else {
+                            continue 'inner;
+                        }
+                    }
+                }
+            }
+        }
+
+        unreachable();
+    }
+
     fn put_node(&self, node: *mut ABox<Element<K, V>>) {
         if let Some(next) = self.fetch_next() {
             next.put_node(node);
@@ -370,7 +409,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     let cache = cache.load();
                     match get_tag(bucket_ptr) {
                         PtrTag::None => (),
-                        PtrTag::Resize => self.fetch_next().unwrap().put_node(node),
+                        PtrTag::Resize => {
+                            return self.fetch_next().unwrap().put_node(node);
+                        }
                         PtrTag::Tombstone => {
                             if group.try_publish(i, cache, bucket_ptr, filter, node) {
                                 // Don't update cells_remaining since we are replacing a tombstone.
@@ -391,7 +432,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         let bucket_data = sarc_deref(bucket_ptr);
                         if bucket_data.key == node_data.key {
                             if group.try_publish(i, cache, bucket_ptr, filter, node) {
-                                // Don't update remaining_cells since we are replacing an entry.
+                                // Don't update cells_remaining since we are replacing an entry.
                                 return;
                             } else {
                                 continue 'inner;
@@ -440,6 +481,22 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     {
         protected(|| self.array().find_node(search_key).map(Element::read))
     }
+
+    pub fn remove<Q>(&self, search_key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        protected(|| self.array().remove(search_key).is_some())
+    }
+
+    pub fn remove_take<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        protected(|| self.array().remove(search_key).map(Element::read))
+    }
 }
 
 #[cfg(test)]
@@ -449,11 +506,21 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
-    fn insert_get_simple() {
+    fn insert_get() {
         let table = Table::new(4, 1, Arc::new(RandomState::new()));
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(*table.get(&4).unwrap(), 9);
         assert_eq!(*table.get(&8).unwrap(), 24);
+    }
+
+    #[test]
+    fn insert_remove() {
+        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        table.insert(4i32, 9i32);
+        table.insert(8i32, 24i32);
+        assert_eq!(*table.remove_take(&4).unwrap(), 9);
+        assert_eq!(*table.remove_take(&8).unwrap(), 24);
+        assert!(!table.remove(&40));
     }
 }

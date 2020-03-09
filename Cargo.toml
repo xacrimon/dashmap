@@ -14,13 +14,3 @@ categories = ["concurrency", "algorithms", "data-structures"]
 
 [dependencies]
 once_cell = "1.3.1"
-
-[dev-dependencies]
-bustle = "0.4.1"
-fxhash = "0.2.1"
-num_cpus = "1.12.0"
-tracing-subscriber = "0.2.2"
-
-[[bench]]
-name = "dashmap"
-harness = false
