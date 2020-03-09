@@ -15,6 +15,15 @@ use std::ptr::{self, NonNull};
 use std::sync::atomic::{spin_loop_hint, AtomicPtr, AtomicU16, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
+macro_rules! maybe_grow {
+    ($s:expr) => {{
+        if $s.cells_remaining.fetch_sub(1, Ordering::SeqCst) == 1 {
+            $s.grow();
+            return;
+        }
+    }};
+}
+
 struct ResizeCoordinator<K, V, S> {
     root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
     old_table: NonNull<BucketArray<K, V, S>>,
@@ -365,6 +374,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         PtrTag::Resize => self.fetch_next().unwrap().put_node(node),
                         PtrTag::Tombstone => {
                             if group.try_publish(i, cache, bucket_ptr, filter, node) {
+                                // Don't update cells_remaining since we are replacing a tombstone.
                                 return;
                             } else {
                                 continue 'inner;
@@ -373,6 +383,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     }
                     if bucket_ptr.is_null() {
                         if group.try_publish(i, cache, bucket_ptr, filter, node) {
+                            maybe_grow!(self);
                             return;
                         } else {
                             continue 'inner;
@@ -381,6 +392,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         let bucket_data = sarc_deref(bucket_ptr);
                         if bucket_data.key == node_data.key {
                             if group.try_publish(i, cache, bucket_ptr, filter, node) {
+                                // Don't update remaining_cells since we are replacing an entry.
                                 return;
                             } else {
                                 continue 'inner;
