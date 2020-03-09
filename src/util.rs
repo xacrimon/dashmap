@@ -147,3 +147,7 @@ impl Iterator for CircularRange {
         Some(r)
     }
 }
+
+pub fn unreachable() -> ! {
+    unreachable!()
+}
