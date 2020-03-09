@@ -68,6 +68,17 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
             Entry::Vacant(entry) => entry.insert(value()),
         }
     }
+
+    #[inline]
+    pub fn or_try_insert_with<E>(
+        self,
+        value: impl FnOnce() -> Result<V, E>,
+    ) -> Result<RefMut<'a, K, V, S>, E> {
+        match self {
+            Entry::Occupied(entry) => Ok(entry.into_ref()),
+            Entry::Vacant(entry) => Ok(entry.insert(value()?)),
+        }
+    }
 }
 
 pub struct VacantEntry<'a, K, V, S> {
