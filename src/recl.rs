@@ -1,5 +1,4 @@
 //! EBR based garbage collector.
-//! TO-DO: Research DEBRA, a variant of EBR.
 
 use crate::likely;
 use once_cell::sync::Lazy;
