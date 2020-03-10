@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use crate::likely;
 
 static GUARDIAN_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
@@ -114,7 +115,7 @@ impl Deferred {
         let size = size_of::<F>();
         let align = align_of::<F>();
         unsafe {
-            if size < size_of::<[usize; 4]>() && align <= align_of::<[usize; 4]>() {
+            if likely!(size < size_of::<[usize; 4]>() && align <= align_of::<[usize; 4]>()) {
                 let mut task = [0; 4];
                 ptr::write(task.as_mut_ptr() as *mut F, f);
                 Self {
@@ -166,7 +167,7 @@ fn increment_epoch(a: &AtomicUsize) -> usize {
     loop {
         let current = a.load(Ordering::SeqCst);
         let next = (current + 1) % 3;
-        if a.compare_and_swap(current, next, Ordering::SeqCst) == current {
+        if likely!(a.compare_and_swap(current, next, Ordering::SeqCst) == current) {
             break next;
         }
     }
@@ -265,7 +266,7 @@ impl Local {
     }
 
     pub fn enter_critical(&self) {
-        if self.active.fetch_add(1, Ordering::SeqCst) == 0 {
+        if likely!(self.active.fetch_add(1, Ordering::SeqCst) == 0) {
             let global_epoch = self.global.epoch.load(Ordering::SeqCst);
             self.epoch.store(global_epoch, Ordering::SeqCst);
         }

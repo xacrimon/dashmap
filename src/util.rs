@@ -4,6 +4,36 @@ use core::ops::{Deref, DerefMut};
 use std::collections::LinkedList;
 use std::ops::Range;
 
+#[macro_export]
+macro_rules! likely {
+    ($b:expr) => {{
+        #[cfg(not(feature = "nightly"))]
+        {
+            $b
+        }
+
+        #[cfg(feature = "nightly")]
+        {
+            std::intrinsics::likely($b)
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! unlikely {
+    ($b:expr) => {{
+        #[cfg(not(feature = "nightly"))]
+        {
+            $b
+        }
+
+        #[cfg(feature = "nightly")]
+        {
+            std::intrinsics::unlikely($b)
+        }
+    }};
+}
+
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(target_arch = "x86_64", repr(align(128)))]
 #[cfg_attr(not(target_arch = "x86_64"), repr(align(64)))]
@@ -140,7 +170,7 @@ impl Iterator for CircularRange {
     fn next(&mut self) -> Option<Self::Item> {
         let r = self.next;
         self.next += 1;
-        if self.next == self.end {
+        if unlikely!(self.next == self.end) {
             self.next = self.start;
         }
         Some(r)
