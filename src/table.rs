@@ -573,6 +573,14 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         protected(|| self.array().find_node(search_key).map(Element::read))
     }
 
+    pub fn contains_key<Q>(&self, search_key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        protected(|| self.array().find_node(search_key)).is_some()
+    }
+
     pub fn remove<Q>(&self, search_key: &Q) -> bool
     where
         K: Borrow<Q>,
