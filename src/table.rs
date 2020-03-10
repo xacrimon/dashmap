@@ -353,6 +353,66 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         unreachable()
     }
 
+    fn optimistic_update<Q, F>(
+        &self,
+        search_key: &Q,
+        do_update: &mut F,
+    ) -> Option<*mut ABox<Element<K, V>>>
+    where
+        K: Borrow<Q> + Clone,
+        Q: ?Sized + Eq + Hash,
+        F: FnMut(&K, &V) -> V,
+    {
+        let maybe_next = self.fetch_next();
+        if unlikely!(maybe_next.is_some()) {
+            let next: &BucketArray<K, V, S> = unsafe { mem::transmute(maybe_next) };
+            return next.optimistic_update(search_key, do_update);
+        }
+        let hash = do_hash(&*self.hash_builder, search_key);
+        let group_idx_start = hash as usize % self.group_amount();
+        for group_idx in CircularRange::new(0, self.group_amount(), group_idx_start) {
+            let group = &self.groups[group_idx];
+            'm: for (i, cache, bucket_ptr) in group.iter() {
+                'inner: loop {
+                    let cache = cache.load();
+                    let bucket_ptr = bucket_ptr.load(Ordering::SeqCst);
+                    match get_tag(bucket_ptr) {
+                        PtrTag::Resize => {
+                            return self
+                                .fetch_next()
+                                .unwrap()
+                                .optimistic_update(search_key, do_update);
+                        }
+                        PtrTag::Tombstone => continue 'm,
+                        PtrTag::None => (),
+                    }
+                    if unlikely!(bucket_ptr.is_null()) {
+                        return None;
+                    }
+                    let bucket_data = sarc_deref(bucket_ptr);
+                    if search_key == bucket_data.key.borrow() {
+                        let updated_value = do_update(&bucket_data.key, &bucket_data.value);
+                        let new_bucket = sarc_new(Element::new(
+                            bucket_data.key.clone(),
+                            bucket_data.hash,
+                            updated_value,
+                        ));
+                        if group.try_publish(i, cache, bucket_ptr, cache, new_bucket) {
+                            defer(self.era, move || sarc_remove_copy(bucket_ptr));
+                            return Some(new_bucket);
+                        } else {
+                            sarc_remove_copy(new_bucket);
+                            continue 'inner;
+                        }
+                    } else {
+                        continue 'm;
+                    }
+                }
+            }
+        }
+        unreachable()
+    }
+
     fn remove<Q>(&self, search_key: &Q) -> Option<*mut ABox<Element<K, V>>>
     where
         K: Borrow<Q>,
@@ -553,6 +613,28 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         })
     }
 
+    pub fn update<Q, F>(&self, search_key: &Q, do_update: &mut F) -> bool
+    where
+        K: Borrow<Q> + Clone,
+        Q: ?Sized + Eq + Hash,
+        F: FnMut(&K, &V) -> V,
+    {
+        protected(|| self.array().optimistic_update(search_key, do_update)).is_some()
+    }
+
+    pub fn update_get<Q, F>(&self, search_key: &Q, do_update: &mut F) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q> + Clone,
+        Q: ?Sized + Eq + Hash,
+        F: FnMut(&K, &V) -> V,
+    {
+        protected(|| {
+            self.array()
+                .optimistic_update(search_key, do_update)
+                .map(Element::read)
+        })
+    }
+
     pub fn len(&self) -> usize {
         self.len.read()
     }
@@ -599,5 +681,20 @@ mod tests {
     fn capacity() {
         let table: Table<(), (), RandomState> = Table::new(128, 1, Arc::new(RandomState::new()));
         assert_eq!(table.capacity(), 128);
+    }
+
+    #[test]
+    fn insert_update_get() {
+        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        table.insert(8i32, 24i32);
+        table.update(&8, &mut |_, v| v * 2);
+        assert_eq!(*table.get(&8).unwrap(), 48);
+    }
+
+    #[test]
+    fn insert_update_get_fused() {
+        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        table.insert(8i32, 24i32);
+        assert_eq!(*table.update_get(&8, &mut |_, v| v * 2).unwrap(), 48);
     }
 }
