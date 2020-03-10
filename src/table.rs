@@ -239,7 +239,7 @@ impl<T> Group<T> {
 
 type G<K, V> = Group<ABox<Element<K, V>>>;
 
-static LOAD_FACTOR: f32 = 0.75;
+const LOAD_FACTOR: f32 = 0.75;
 
 fn calc_cells_remaining(capacity: usize) -> usize {
     (LOAD_FACTOR * capacity as f32) as usize
@@ -274,6 +274,11 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             next: AtomicPtr::new(ptr::null_mut()),
             groups,
         }
+    }
+
+    fn estimate_len(&self) -> usize {
+        const INVERSE_LOAD_FACTOR: f32 = 1.0 / LOAD_FACTOR;
+        (self.cells_remaining.load(Ordering::SeqCst) as f32 * INVERSE_LOAD_FACTOR) as usize
     }
 
     fn group_amount(&self) -> usize {
@@ -512,6 +517,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
                 do_extract(&elem.key, &elem.value)
             })
         })
+    }
+
+    pub fn len(&self) -> usize {
+        protected(|| self.array().estimate_len())
     }
 }
 
