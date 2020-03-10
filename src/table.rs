@@ -5,6 +5,7 @@ use crate::util::{
     derive_filter, get_tag, range_split, set_tag, u64_read_byte, u64_write_byte, unreachable,
     CircularRange, PtrTag,
 };
+use crate::{likely, unlikely};
 use std::borrow::Borrow;
 use std::cmp;
 use std::collections::LinkedList;
@@ -17,7 +18,7 @@ use std::sync::{Arc, Mutex};
 
 macro_rules! maybe_grow {
     ($s:expr) => {{
-        if $s.cells_remaining.fetch_sub(1, Ordering::SeqCst) == 1 {
+        if likely!($s.cells_remaining.fetch_sub(1, Ordering::SeqCst) == 1) {
             $s.grow();
             return;
         }
@@ -77,7 +78,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
     }
 
     fn wait(&self) {
-        while self.running.load(Ordering::SeqCst) != 0 {
+        while likely!(self.running.load(Ordering::SeqCst) != 0) {
             spin_loop_hint()
         }
     }
@@ -151,10 +152,10 @@ impl<'a, T> Iterator for Probe<'a, T> {
     type Item = *mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.i == 8 {
+        if unlikely!(self.i == 8) {
             return None;
         }
-        if u64_read_byte(self.cache, self.i) == self.filter {
+        if unlikely!(u64_read_byte(self.cache, self.i) == self.filter) {
             let p = self.nodes[self.i].load(Ordering::SeqCst);
             self.i += 1;
             return Some(p);
@@ -215,19 +216,15 @@ impl<T> Group<T> {
         let cache_all_current = self.cache.load(Ordering::SeqCst);
         let cache_current_sq = u64_write_byte(cache_all_current, i, cache_maybe_current);
         let updated_all_cache = u64_write_byte(cache_all_current, i, cache_new);
-        if self
-            .cache
-            .compare_and_swap(cache_current_sq, updated_all_cache, Ordering::SeqCst)
-            != cache_current_sq
+        if unlikely!(self.cache.compare_and_swap(cache_current_sq, updated_all_cache, Ordering::SeqCst) != cache_current_sq)
         {
             return false;
         }
-        if self.nodes[i].compare_and_swap(pointer_maybe_current, pointer_new, Ordering::SeqCst)
-            != pointer_maybe_current
+        if unlikely!(self.nodes[i].compare_and_swap(pointer_maybe_current, pointer_new, Ordering::SeqCst) != pointer_maybe_current)
         {
             return false;
         }
-        if self.cache.load(Ordering::SeqCst) != updated_all_cache {
+        if unlikely!(self.cache.load(Ordering::SeqCst) != updated_all_cache) {
             return false;
         } else {
             return true;
@@ -280,14 +277,14 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 
     fn fetch_next<'a>(&self) -> Option<&'a Self> {
         let coordinator = self.next.load(Ordering::SeqCst);
-        if !coordinator.is_null() {
+        if likely!(coordinator.is_null()) {
+            None
+        } else {
             unsafe {
                 (*coordinator).work();
                 (*coordinator).wait();
                 Some(&*(*coordinator).new_table.as_ptr())
             }
-        } else {
-            None
         }
     }
 
