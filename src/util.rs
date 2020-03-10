@@ -1,8 +1,9 @@
-use core::default::Default;
-use core::fmt;
-use core::ops::{Deref, DerefMut};
 use std::collections::LinkedList;
+use std::default::Default;
+use std::fmt;
 use std::ops::Range;
+use std::ops::{Deref, DerefMut};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[macro_export]
 macro_rules! likely {
@@ -179,4 +180,28 @@ impl Iterator for CircularRange {
 
 pub fn unreachable() -> ! {
     unreachable!()
+}
+
+pub struct FastCounter {
+    inner: AtomicUsize,
+}
+
+impl FastCounter {
+    pub fn new() -> Self {
+        Self {
+            inner: AtomicUsize::new(0),
+        }
+    }
+
+    pub fn increment(&self) {
+        self.inner.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub fn decrement(&self) {
+        self.inner.fetch_sub(1, Ordering::SeqCst);
+    }
+
+    pub fn read(&self) -> usize {
+        self.inner.load(Ordering::SeqCst)
+    }
 }

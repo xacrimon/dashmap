@@ -3,7 +3,7 @@ use crate::element::{Element, ElementGuard};
 use crate::recl::{defer, protected};
 use crate::util::{
     derive_filter, get_tag, range_split, set_tag, u64_read_byte, u64_write_byte, unreachable,
-    CircularRange, PtrTag,
+    CircularRange, FastCounter, PtrTag,
 };
 use crate::{likely, unlikely};
 use std::borrow::Borrow;
@@ -20,7 +20,6 @@ macro_rules! maybe_grow {
     ($s:expr) => {{
         if likely!($s.cells_remaining.fetch_sub(1, Ordering::SeqCst) == 1) {
             $s.grow();
-            return;
         }
     }};
 }
@@ -276,11 +275,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
-    fn estimate_len(&self) -> usize {
-        const INVERSE_LOAD_FACTOR: f32 = 1.0 / LOAD_FACTOR;
-        (self.cells_remaining.load(Ordering::SeqCst) as f32 * INVERSE_LOAD_FACTOR) as usize
-    }
-
     fn group_amount(&self) -> usize {
         self.groups.len()
     }
@@ -395,14 +389,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
             }
         }
-
         unreachable();
     }
 
-    fn put_node(&self, node: *mut ABox<Element<K, V>>) {
+    fn put_node(&self, node: *mut ABox<Element<K, V>>) -> Option<*mut ABox<Element<K, V>>> {
         if let Some(next) = self.fetch_next() {
-            next.put_node(node);
-            return;
+            return next.put_node(node);
         }
         let node_data = sarc_deref(node);
         let hash = do_hash(&*self.hash_builder, &node_data.key);
@@ -422,7 +414,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         PtrTag::Tombstone => {
                             if group.try_publish(i, cache, bucket_ptr, filter, node) {
                                 // Don't update cells_remaining since we are replacing a tombstone.
-                                return;
+                                return None;
                             } else {
                                 continue 'inner;
                             }
@@ -431,7 +423,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     if bucket_ptr.is_null() {
                         if group.try_publish(i, cache, bucket_ptr, filter, node) {
                             maybe_grow!(self);
-                            return;
+                            return None;
                         } else {
                             continue 'inner;
                         }
@@ -440,7 +432,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         if bucket_data.key == node_data.key {
                             if group.try_publish(i, cache, bucket_ptr, filter, node) {
                                 // Don't update cells_remaining since we are replacing an entry.
-                                return;
+                                return Some(bucket_ptr);
                             } else {
                                 continue 'inner;
                             }
@@ -451,11 +443,13 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
             }
         }
+        unreachable()
     }
 }
 
 pub struct Table<K, V, S> {
     hash_builder: Arc<S>,
+    len: FastCounter,
     array: Box<AtomicPtr<BucketArray<K, V, S>>>,
 }
 
@@ -467,6 +461,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
 
         Self {
             hash_builder,
+            len: FastCounter::new(),
             array: atomic,
         }
     }
@@ -478,7 +473,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     pub fn insert(&self, key: K, value: V) {
         let hash = do_hash(&*self.hash_builder, &key);
         let node = sarc_new(Element::new(key, hash, value));
-        protected(|| self.array().put_node(node));
+        if protected(|| self.array().put_node(node)).is_none() {
+            self.len.increment();
+        }
     }
 
     pub fn get<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
@@ -494,7 +491,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        protected(|| self.array().remove(search_key).is_some())
+        if protected(|| self.array().remove(search_key)).is_some() {
+            self.len.decrement();
+            true
+        } else {
+            false
+        }
     }
 
     pub fn remove_take<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
@@ -502,7 +504,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        protected(|| self.array().remove(search_key).map(Element::read))
+        if let Some(r) = protected(|| self.array().remove(search_key).map(Element::read)) {
+            self.len.decrement();
+            Some(r)
+        } else {
+            None
+        }
     }
 
     pub fn extract<T, Q, F>(&self, search_key: &Q, do_extract: F) -> Option<T>
@@ -520,7 +527,11 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     }
 
     pub fn len(&self) -> usize {
-        protected(|| self.array().estimate_len())
+        self.len.read()
+    }
+
+    pub fn capacity(&self) -> usize {
+        protected(|| self.array().group_amount()) * 8
     }
 }
 
@@ -547,5 +558,19 @@ mod tests {
         assert_eq!(*table.remove_take(&4).unwrap(), 9);
         assert_eq!(*table.remove_take(&8).unwrap(), 24);
         assert!(!table.remove(&40));
+    }
+
+    #[test]
+    fn insert_len() {
+        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        table.insert(4i32, 9i32);
+        table.insert(8i32, 24i32);
+        assert_eq!(table.len(), 2);
+    }
+
+    #[test]
+    fn capacity() {
+        let table: Table<(), (), RandomState> = Table::new(128, 1, Arc::new(RandomState::new()));
+        assert_eq!(table.capacity(), 128);
     }
 }
