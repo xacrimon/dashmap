@@ -77,7 +77,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
     }
 
     fn wait(&self) {
-        while likely!(self.running.load(Ordering::SeqCst) != 0) {
+        while self.running.load(Ordering::SeqCst) != 0 {
             spin_loop_hint()
         }
     }
