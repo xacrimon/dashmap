@@ -58,7 +58,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for Ref<'a, K, V, S> {
 // -- Unique
 
 pub struct RefMut<'a, K, V, S = RandomState> {
-    _guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
+    guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
     k: &'a K,
     v: &'a mut V,
 }
@@ -77,7 +77,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
         v: &'a mut V,
     ) -> Self {
         Self {
-            _guard: guard,
+            guard,
             k,
             v,
         }
@@ -106,6 +106,10 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
     #[inline(always)]
     pub fn pair_mut(&mut self) -> (&K, &mut V) {
         (self.k, self.v)
+    }
+
+    pub fn downgrade(self) -> Ref<'a, K, V, S> {
+        Ref::new(self.guard.downgrade(), self.k, self.v)
     }
 }
 
