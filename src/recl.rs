@@ -1,6 +1,7 @@
 //! EBR based garbage collector.
 //! TO-DO: Research DEBRA, a variant of EBR.
 
+use crate::likely;
 use once_cell::sync::Lazy;
 use once_cell::unsync::Lazy as UnsyncLazy;
 use std::mem::{align_of, size_of, take};
@@ -10,7 +11,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use crate::likely;
 
 static GUARDIAN_SLEEP_DURATION: Duration = Duration::from_millis(100);
 

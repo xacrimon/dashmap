@@ -216,12 +216,17 @@ impl<T> Group<T> {
         let cache_all_current = self.cache.load(Ordering::SeqCst);
         let cache_current_sq = u64_write_byte(cache_all_current, i, cache_maybe_current);
         let updated_all_cache = u64_write_byte(cache_all_current, i, cache_new);
-        if unlikely!(self.cache.compare_and_swap(cache_current_sq, updated_all_cache, Ordering::SeqCst) != cache_current_sq)
-        {
+        if unlikely!(
+            self.cache
+                .compare_and_swap(cache_current_sq, updated_all_cache, Ordering::SeqCst)
+                != cache_current_sq
+        ) {
             return false;
         }
-        if unlikely!(self.nodes[i].compare_and_swap(pointer_maybe_current, pointer_new, Ordering::SeqCst) != pointer_maybe_current)
-        {
+        if unlikely!(
+            self.nodes[i].compare_and_swap(pointer_maybe_current, pointer_new, Ordering::SeqCst)
+                != pointer_maybe_current
+        ) {
             return false;
         }
         if unlikely!(self.cache.load(Ordering::SeqCst) != updated_all_cache) {
@@ -493,6 +498,20 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         protected(|| self.array().remove(search_key).map(Element::read))
+    }
+
+    pub fn extract<T, Q, F>(&self, search_key: &Q, do_extract: F) -> Option<T>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+        F: FnOnce(&K, &V) -> T,
+    {
+        protected(|| {
+            self.array().find_node(search_key).map(|ptr| {
+                let elem = sarc_deref(ptr);
+                do_extract(&elem.key, &elem.value)
+            })
+        })
     }
 }
 
