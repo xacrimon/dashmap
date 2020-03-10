@@ -84,7 +84,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
 
     fn work(&self) {
         self.running.fetch_add(1, Ordering::SeqCst);
-
         while let Some(range) = self.task_list.lock().unwrap().pop_front() {
             for group_idx in range {
                 unsafe {
@@ -154,7 +153,7 @@ impl<'a, T> Iterator for Probe<'a, T> {
         if unlikely!(self.i == 8) {
             return None;
         }
-        if unlikely!(u64_read_byte(self.cache, self.i) == self.filter) {
+        if u64_read_byte(self.cache, self.i) == self.filter {
             let p = self.nodes[self.i].load(Ordering::SeqCst);
             self.i += 1;
             return Some(p);
@@ -322,7 +321,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        if let Some(next) = self.fetch_next() {
+        let maybe_next = self.fetch_next();
+        if unlikely!(maybe_next.is_some()) {
+            let next: &BucketArray<K, V, S> = unsafe { mem::transmute(maybe_next) };
             return next.find_node(search_key);
         }
         let hash = do_hash(&*self.hash_builder, search_key);
@@ -338,7 +339,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     PtrTag::Tombstone => continue 'm,
                     PtrTag::None => (),
                 }
-                if bucket_ptr.is_null() {
+                if unlikely!(bucket_ptr.is_null()) {
                     return None;
                 }
                 let bucket_data = sarc_deref(bucket_ptr);
@@ -470,11 +471,37 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         unsafe { &*self.array.load(Ordering::SeqCst) }
     }
 
-    pub fn insert(&self, key: K, value: V) {
+    pub fn insert(&self, key: K, value: V) -> bool {
         let hash = do_hash(&*self.hash_builder, &key);
         let node = sarc_new(Element::new(key, hash, value));
-        if protected(|| self.array().put_node(node)).is_none() {
+        if likely!(protected(|| self.array().put_node(node)).is_none()) {
             self.len.increment();
+            false
+        } else {
+            true
+        }
+    }
+
+    pub fn insert_and_get(&self, key: K, value: V) -> ElementGuard<K, V> {
+        let hash = do_hash(&*self.hash_builder, &key);
+        let node = sarc_new(Element::new(key, hash, value));
+        let g = Element::read(node);
+        if likely!(protected(|| self.array().put_node(node)).is_none()) {
+            self.len.increment();
+            g
+        } else {
+            g
+        }
+    }
+
+    pub fn replace(&self, key: K, value: V) -> Option<ElementGuard<K, V>> {
+        let hash = do_hash(&*self.hash_builder, &key);
+        let node = sarc_new(Element::new(key, hash, value));
+        if let Some(r) = protected(|| self.array().put_node(node).map(Element::read)) {
+            self.len.increment();
+            return Some(r);
+        } else {
+            return None;
         }
     }
 
@@ -491,7 +518,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        if protected(|| self.array().remove(search_key)).is_some() {
+        if likely!(protected(|| self.array().remove(search_key)).is_some()) {
             self.len.decrement();
             true
         } else {
