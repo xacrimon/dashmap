@@ -413,6 +413,40 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         unreachable()
     }
 
+    fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {
+        if let Some(next) = self.fetch_next() {
+            return next.retain(predicate);
+        }
+        for group_idx in CircularRange::new(0, self.group_amount(), 0) {
+            let group = &self.groups[group_idx];
+            'm: for (i, cache, bucket_ptr) in group.iter() {
+                'inner: loop {
+                    let cache = cache.load();
+                    let bucket_ptr = bucket_ptr.load(Ordering::SeqCst);
+                    match get_tag(bucket_ptr) {
+                        PtrTag::Resize => return self.fetch_next().unwrap().retain(predicate),
+                        PtrTag::Tombstone => continue 'm,
+                        PtrTag::None => (),
+                    }
+                    if bucket_ptr.is_null() {
+                        continue 'm;
+                    }
+                    let bucket_data = sarc_deref(bucket_ptr);
+                    if !predicate(&bucket_data.key, &bucket_data.value) {
+                        let tombstone = set_tag(ptr::null_mut(), PtrTag::Tombstone);
+                        if group.try_publish(i, cache, bucket_ptr, 0, tombstone) {
+                            continue 'm;
+                        } else {
+                            continue 'inner;
+                        }
+                    } else {
+                        continue 'm;
+                    }
+                }
+            }
+        }
+    }
+
     fn remove_if<Q>(
         &self,
         search_key: &Q,
@@ -687,6 +721,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
                 .optimistic_update(search_key, do_update)
                 .map(Element::read)
         })
+    }
+
+    pub fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {
+        protected(|| self.array().retain(predicate));
     }
 
     pub fn len(&self) -> usize {
