@@ -286,9 +286,11 @@ impl Local {
 
     fn defer(&self, f: Deferred) {
         let global_epoch = self.global.epoch.load(Ordering::SeqCst);
-        let mut deferred = self.global.deferred.lock().unwrap_or_else(|error| {
-            std::process::abort();
-        });
+        let mut deferred = self
+            .global
+            .deferred
+            .lock()
+            .unwrap_or_else(|_| std::process::abort());
         deferred[global_epoch].push(f);
     }
 }
