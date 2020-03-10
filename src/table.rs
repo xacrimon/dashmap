@@ -413,13 +413,17 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         unreachable()
     }
 
-    fn remove<Q>(&self, search_key: &Q) -> Option<*mut ABox<Element<K, V>>>
+    fn remove_if<Q>(
+        &self,
+        search_key: &Q,
+        predicate: &mut impl FnMut(&K, &V) -> bool,
+    ) -> Option<*mut ABox<Element<K, V>>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
         if let Some(next) = self.fetch_next() {
-            return next.remove(search_key);
+            return next.remove_if(search_key, predicate);
         }
         let hash = do_hash(&*self.hash_builder, search_key);
         let group_idx_start = hash as usize % self.group_amount();
@@ -431,14 +435,18 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     let cache = cache.load();
                     match get_tag(bucket_ptr) {
                         PtrTag::Resize => {
-                            return self.fetch_next().unwrap().remove(search_key);
+                            return self.fetch_next().unwrap().remove_if(search_key, predicate);
                         }
                         PtrTag::Tombstone => continue 'm,
                         PtrTag::None => (),
                     }
                     if bucket_ptr.is_null() {
                         return None;
-                    } else if search_key == sarc_deref(bucket_ptr).key.borrow() {
+                    } else if {
+                        let bucket_data = sarc_deref(bucket_ptr);
+                        search_key == bucket_data.key.borrow()
+                            && predicate(&bucket_data.key, &bucket_data.value)
+                    } {
                         let tombstone = set_tag(ptr::null_mut(), PtrTag::Tombstone);
                         if group.try_publish(i, cache, bucket_ptr, 0, tombstone) {
                             defer(self.era, move || sarc_remove_copy(bucket_ptr));
@@ -586,7 +594,20 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        if likely!(protected(|| self.array().remove(search_key)).is_some()) {
+        if likely!(protected(|| self.array().remove_if(search_key, &mut |_, _| true)).is_some()) {
+            self.len.decrement();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn remove_if<Q>(&self, search_key: &Q, predicate: &mut impl FnMut(&K, &V) -> bool) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        if likely!(protected(|| self.array().remove_if(search_key, predicate)).is_some()) {
             self.len.decrement();
             true
         } else {
@@ -599,7 +620,32 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        if let Some(r) = protected(|| self.array().remove(search_key).map(Element::read)) {
+        if let Some(r) = protected(|| {
+            self.array()
+                .remove_if(search_key, &mut |_, _| true)
+                .map(Element::read)
+        }) {
+            self.len.decrement();
+            Some(r)
+        } else {
+            None
+        }
+    }
+
+    pub fn remove_if_take<Q>(
+        &self,
+        search_key: &Q,
+        predicate: &mut impl FnMut(&K, &V) -> bool,
+    ) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        if let Some(r) = protected(|| {
+            self.array()
+                .remove_if(search_key, predicate)
+                .map(Element::read)
+        }) {
             self.len.decrement();
             Some(r)
         } else {
