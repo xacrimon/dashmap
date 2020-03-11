@@ -6,33 +6,35 @@ use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[macro_export]
+#[cfg(feature = "nightly")]
 macro_rules! likely {
-    ($b:expr) => {{
-        #[cfg(not(feature = "nightly"))]
-        {
-            $b
-        }
-
-        #[cfg(feature = "nightly")]
-        {
-            std::intrinsics::likely($b)
-        }
-    }};
+    ($b:expr) => {
+        std::intrinsics::likely($b)
+    };
 }
 
 #[macro_export]
-macro_rules! unlikely {
-    ($b:expr) => {{
-        #[cfg(not(feature = "nightly"))]
-        {
-            $b
-        }
+#[cfg(not(feature = "nightly"))]
+macro_rules! likely {
+    ($b:expr) => {
+        $b
+    };
+}
 
-        #[cfg(feature = "nightly")]
-        {
-            std::intrinsics::unlikely($b)
-        }
-    }};
+#[macro_export]
+#[cfg(feature = "nightly")]
+macro_rules! unlikely {
+    ($b:expr) => {
+        std::intrinsics::unlikely($b)
+    };
+}
+
+#[macro_export]
+#[cfg(not(feature = "nightly"))]
+macro_rules! unlikely {
+    ($b:expr) => {
+        $b
+    };
 }
 
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq)]
@@ -183,13 +185,13 @@ pub fn unreachable() -> ! {
 }
 
 pub struct FastCounter {
-    inner: AtomicUsize,
+    inner: CachePadded<AtomicUsize>,
 }
 
 impl FastCounter {
     pub fn new() -> Self {
         Self {
-            inner: AtomicUsize::new(0),
+            inner: CachePadded::new(AtomicUsize::new(0)),
         }
     }
 
