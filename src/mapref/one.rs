@@ -76,11 +76,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
         k: &'a K,
         v: &'a mut V,
     ) -> Self {
-        Self {
-            guard,
-            k,
-            v,
-        }
+        Self { guard, k, v }
     }
 
     #[inline(always)]
