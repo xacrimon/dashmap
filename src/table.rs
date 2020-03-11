@@ -730,6 +730,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         protected(|| self.array().retain(predicate));
     }
 
+    pub fn clear(&self) {
+        self.retain(&mut |_, _| false);
+    }
+
     pub fn len(&self) -> usize {
         self.len.read()
     }

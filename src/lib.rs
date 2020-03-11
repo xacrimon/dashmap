@@ -8,13 +8,13 @@ mod recl;
 mod table;
 mod util;
 
-use std::collections::hash_map::RandomState;
-use table::Table;
-use element::Element;
+use element::ElementGuard;
 use recl::{new_era, purge_era};
-use std::hash::{Hash, BuildHasher};
 use std::borrow::Borrow;
+use std::collections::hash_map::RandomState;
+use std::hash::{BuildHasher, Hash};
 use std::sync::Arc;
+use table::Table;
 
 pub struct DashMap<K, V, S = RandomState> {
     era: usize,
@@ -40,9 +40,70 @@ impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
         let era = new_era();
         let table = Table::new(capacity, era, Arc::new(build_hasher));
 
-        Self {
-            era,
-            table,
-        }
+        Self { era, table }
+    }
+
+    pub fn insert(&self, key: K, value: V) -> bool {
+        self.table.insert(key, value)
+    }
+
+    pub fn insert_and_get(&self, key: K, value: V) -> ElementGuard<K, V> {
+        self.table.insert_and_get(key, value)
+    }
+
+    pub fn replace(&self, key: K, value: V) -> Option<ElementGuard<K, V>> {
+        self.table.replace(key, value)
+    }
+
+    pub fn get<Q>(&self, key: &Q) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        self.table.get(key)
+    }
+
+    pub fn contains_key<Q>(&self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        self.table.contains_key(key)
+    }
+
+    pub fn remove<Q>(&self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        self.table.remove(key)
+    }
+
+    pub fn remove_if<Q, P>(&self, key: &Q, predicate: P) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+        P: FnMut(&K, &V) -> bool,
+    {
+        let mut predicate = predicate;
+        self.table.remove_if(key, &mut predicate)
+    }
+
+    pub fn remove_take<Q>(&self, key: &Q) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        self.table.remove_take(key)
+    }
+
+    pub fn remove_if_take<Q, P>(&self, key: &Q, predicate: P) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+        P: FnMut(&K, &V) -> bool,
+    {
+        let mut predicate = predicate;
+        self.table.remove_if_take(key, &mut predicate)
     }
 }

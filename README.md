@@ -22,9 +22,7 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - Non algorithmic static overhead optimization
 
-- https://llvm.org/docs/CommandGuide/llvm-mca.html
-
-- Try multiple tables structured in some way to reduce maximal memory overhead.
+- Take the red pill and try chaining.
 
 ## Contributing
 
