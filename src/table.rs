@@ -556,6 +556,9 @@ pub struct Table<K, V, S> {
     array: Box<AtomicPtr<BucketArray<K, V, S>>>,
 }
 
+unsafe impl<K: Send, V: Send, S: Send> Send for Table<K, V, S> {}
+unsafe impl<K: Sync, V: Sync, S: Sync> Sync for Table<K, V, S> {}
+
 impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     pub fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
         let mut atomic = Box::new(AtomicPtr::new(ptr::null_mut()));
