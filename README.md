@@ -60,9 +60,17 @@ If you want to support me please head over and take a look at my [patreon](https
 
 ## Special thanks
 
-- Karl Bergström
+- [Jon Gjengset](https://github.com/jonhoo)
 
-- DPC
+- [Krishna Sannasi](https://github.com/KrishnaSannasi) 
+
+- [Karl Bergström](https://github.com/kabergstrom)
+
+- [Dylan DPC](https://github.com/Dylan-DPC)
+
+- [Lokathor](https://github.com/Lokathor)
+
+- [namibj](https://github.com/namibj)
 
 ## License
 
