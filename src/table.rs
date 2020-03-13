@@ -327,18 +327,18 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 (*coordinator).work();
                 (*coordinator).wait();
             } else {
-                let new_coordinator = Box::into_raw(Box::new(ResizeCoordinator::new(
+                let new_coordinator = on_heap!(ResizeCoordinator::new(
                     self.root_ptr,
                     mem::transmute(self),
-                )));
+                ));
                 let old =
                     self.next
                         .compare_and_swap(ptr::null_mut(), new_coordinator, Ordering::SeqCst);
                 if old.is_null() {
                     (*new_coordinator).run(self.era);
-                    Box::from_raw(new_coordinator);
+                    reap_now!(new_coordinator);
                 } else {
-                    Box::from_raw(new_coordinator);
+                    reap_now!(new_coordinator);
                     (*old).work();
                     (*old).wait();
                 }
@@ -593,7 +593,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     pub fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
         let mut atomic = Box::new(AtomicPtr::new(ptr::null_mut()));
         let table = BucketArray::new(&mut *atomic, capacity, era, Arc::clone(&hash_builder));
-        atomic.store(Box::into_raw(Box::new(table)), Ordering::SeqCst);
+        atomic.store(on_heap!(table), Ordering::SeqCst);
 
         Self {
             hash_builder,
