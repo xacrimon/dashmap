@@ -277,7 +277,7 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
         for group in &*self.groups {
             for (_, _, bucket_ptr) in group.iter() {
                 let bucket_ptr = bucket_ptr.load(Ordering::SeqCst);
-                reap_defer!(self.era, bucket_ptr);
+                defer(self.era, move || sarc_remove_copy(bucket_ptr));
             }
         }
     }
