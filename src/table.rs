@@ -307,8 +307,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         .compare_and_swap(ptr::null_mut(), new_coordinator, Ordering::SeqCst);
                 if old.is_null() {
                     (*new_coordinator).run(self.era);
-                } else {
                     Box::from_raw(new_coordinator);
+                } else {
                     (*old).work();
                     (*old).wait();
                 }

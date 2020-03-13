@@ -106,4 +106,47 @@ impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
         let mut predicate = predicate;
         self.table.remove_if_take(key, &mut predicate)
     }
+
+    pub fn extract<T, Q, F>(&self, search_key: &Q, do_extract: F) -> Option<T>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+        F: FnOnce(&K, &V) -> T,
+    {
+        self.table.extract(search_key, do_extract)
+    }
+
+    pub fn update<Q, F>(&self, search_key: &Q, do_update: &mut F) -> bool
+    where
+        K: Borrow<Q> + Clone,
+        Q: ?Sized + Eq + Hash,
+        F: FnMut(&K, &V) -> V,
+    {
+        self.table.update(search_key, do_update)
+    }
+
+    pub fn update_get<Q, F>(&self, search_key: &Q, do_update: &mut F) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q> + Clone,
+        Q: ?Sized + Eq + Hash,
+        F: FnMut(&K, &V) -> V,
+    {
+        self.table.update_get(search_key, do_update)
+    }
+
+    pub fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {
+        self.table.retain(predicate)
+    }
+
+    pub fn clear(&self) {
+        self.table.clear();
+    }
+
+    pub fn len(&self) -> usize {
+        self.table.len()
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.table.capacity()
+    }
 }
