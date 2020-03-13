@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 macro_rules! likely {
     ($b:expr) => {
         std::intrinsics::likely($b)
-    }
+    };
 }
 
 #[macro_export]
@@ -18,7 +18,7 @@ macro_rules! likely {
 macro_rules! likely {
     ($b:expr) => {
         $b
-    }
+    };
 }
 
 #[macro_export]
@@ -26,7 +26,7 @@ macro_rules! likely {
 macro_rules! unlikely {
     ($b:expr) => {
         std::intrinsics::unlikely($b)
-    }
+    };
 }
 
 #[macro_export]
@@ -34,7 +34,7 @@ macro_rules! unlikely {
 macro_rules! unlikely {
     ($b:expr) => {
         $b
-    }
+    };
 }
 
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq)]
@@ -134,7 +134,9 @@ pub fn u64_read_byte(x: u64, n: usize) -> u8 {
 pub fn u64_write_byte(x: u64, n: usize, b: u8) -> u64 {
     debug_assert!(n < 8);
     let mut a = x.to_ne_bytes();
-    unsafe { *a.get_unchecked_mut(n) = b; }
+    unsafe {
+        *a.get_unchecked_mut(n) = b;
+    }
     u64::from_ne_bytes(a)
 }
 

@@ -21,25 +21,27 @@ macro_rules! maybe_grow {
         if likely!($s.cells_remaining.fetch_sub(1, Ordering::SeqCst) == 1) {
             $s.grow();
         }
-    }
+    };
 }
 
 macro_rules! on_heap {
     ($object:expr) => {
         Box::into_raw(Box::new($object))
-    }
+    };
 }
 
 macro_rules! reap_now {
     ($ptr:expr) => {
-        unsafe { Box::from_raw($ptr); }
-    }
+        unsafe {
+            Box::from_raw($ptr);
+        }
+    };
 }
 
 macro_rules! reap_defer {
     ($era:expr, $ptr:expr) => {{
         defer($era, move || reap_now!($ptr));
-    }}
+    }};
 }
 
 struct ResizeCoordinator<K, V, S> {
@@ -327,10 +329,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 (*coordinator).work();
                 (*coordinator).wait();
             } else {
-                let new_coordinator = on_heap!(ResizeCoordinator::new(
-                    self.root_ptr,
-                    mem::transmute(self),
-                ));
+                let new_coordinator =
+                    on_heap!(ResizeCoordinator::new(self.root_ptr, mem::transmute(self),));
                 let old =
                     self.next
                         .compare_and_swap(ptr::null_mut(), new_coordinator, Ordering::SeqCst);
@@ -584,6 +584,14 @@ pub struct Table<K, V, S> {
     hash_builder: Arc<S>,
     len: FastCounter,
     array: Box<AtomicPtr<BucketArray<K, V, S>>>,
+}
+
+impl<K, V, S> Drop for Table<K, V, S> {
+    fn drop(&mut self) {
+        let array = self.array.load(Ordering::SeqCst);
+        let era = unsafe { (*array).era };
+        reap_defer!(era, array);
+    }
 }
 
 unsafe impl<K: Send, V: Send, S: Send> Send for Table<K, V, S> {}
