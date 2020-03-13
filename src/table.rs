@@ -17,11 +17,29 @@ use std::sync::atomic::{spin_loop_hint, AtomicPtr, AtomicU16, AtomicU64, AtomicU
 use std::sync::{Arc, Mutex};
 
 macro_rules! maybe_grow {
-    ($s:expr) => {{
+    ($s:expr) => {
         if likely!($s.cells_remaining.fetch_sub(1, Ordering::SeqCst) == 1) {
             $s.grow();
         }
-    }};
+    }
+}
+
+macro_rules! on_heap {
+    ($object:expr) => {
+        Box::into_raw(Box::new($object))
+    }
+}
+
+macro_rules! reap_now {
+    ($ptr:expr) => {
+        unsafe { Box::from_raw($ptr); }
+    }
+}
+
+macro_rules! reap_defer {
+    ($era:expr, $ptr:expr) => {{
+        defer($era, move || reap_now!($ptr));
+    }}
 }
 
 struct ResizeCoordinator<K, V, S> {
@@ -42,12 +60,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             let old_group_amount = old_table.as_ref().group_amount();
             let hash_builder = old_table.as_ref().hash_builder.clone();
             let era = old_table.as_ref().era;
-            let new_table = Box::into_raw(Box::new(BucketArray::new(
+            let new_table = on_heap!(BucketArray::new(
                 root_ptr,
                 old_group_amount * 16 * 2,
                 era,
                 hash_builder,
-            )));
+            ));
             let task_list = Mutex::new(range_split(0..old_group_amount, 128));
 
             Self {
@@ -71,7 +89,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             ) == self.old_table.as_ptr()
             {
                 let old_table_ptr = self.old_table.as_ptr();
-                defer(era, move || drop(Box::from_raw(old_table_ptr)));
+                reap_defer!(era, old_table_ptr);
             }
         }
     }
@@ -91,7 +109,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
                     let new_table = self.new_table.as_ref();
                     for (_, _, atomic_ptr) in old_table.groups[group_idx].iter() {
                         'inner: loop {
-                            //let cache = atomic_cache.load();
                             let bucket_ptr = atomic_ptr.load(Ordering::SeqCst);
                             if atomic_ptr.compare_and_swap(
                                 bucket_ptr,
@@ -101,6 +118,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
                             {
                                 continue 'inner;
                             }
+                            sarc_add_copy(bucket_ptr);
                             new_table.put_node(bucket_ptr);
                             break;
                         }
@@ -252,6 +270,17 @@ struct BucketArray<K, V, S> {
     groups: Box<[G<K, V>]>,
 }
 
+impl<K, V, S> Drop for BucketArray<K, V, S> {
+    fn drop(&mut self) {
+        for group in &*self.groups {
+            for (_, _, bucket_ptr) in group.iter() {
+                let bucket_ptr = bucket_ptr.load(Ordering::SeqCst);
+                reap_defer!(self.era, bucket_ptr);
+            }
+        }
+    }
+}
+
 impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(
         root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
@@ -309,6 +338,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     (*new_coordinator).run(self.era);
                     Box::from_raw(new_coordinator);
                 } else {
+                    Box::from_raw(new_coordinator);
                     (*old).work();
                     (*old).wait();
                 }
