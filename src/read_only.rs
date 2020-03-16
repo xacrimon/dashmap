@@ -1,10 +1,11 @@
 use crate::t::Map;
 use crate::{DashMap, HashMap};
+use ahash::RandomState;
 use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash};
 
 /// A read-only view into a `DashMap`. Allows to obtain raw references to the stored values.
-pub struct ReadOnlyView<K, V, S> {
+pub struct ReadOnlyView<K, V, S = RandomState> {
     map: DashMap<K, V, S>,
 }
 
