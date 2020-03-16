@@ -2,11 +2,28 @@ use crate::t::Map;
 use crate::{DashMap, HashMap};
 use ahash::RandomState;
 use std::borrow::Borrow;
+use std::fmt;
 use std::hash::{BuildHasher, Hash};
 
 /// A read-only view into a `DashMap`. Allows to obtain raw references to the stored values.
 pub struct ReadOnlyView<K, V, S = RandomState> {
     map: DashMap<K, V, S>,
+}
+
+impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for ReadOnlyView<K, V, S> {
+    fn clone(&self) -> Self {
+        Self {
+            map: self.map.clone(),
+        }
+    }
+}
+
+impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debug
+    for ReadOnlyView<K, V, S>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.map.fmt(f)
+    }
 }
 
 impl<K, V, S> ReadOnlyView<K, V, S> {
