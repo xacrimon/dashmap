@@ -3,6 +3,7 @@
 pub mod iter;
 pub mod lock;
 pub mod mapref;
+mod read_only;
 mod t;
 mod util;
 
@@ -16,6 +17,7 @@ use lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
+pub use read_only::ReadOnlyView;
 use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hasher;
@@ -118,6 +120,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
+    /// Wraps this `DashMap` into a read-only view. This view allows to obtain raw references to the stored values.
+    #[inline]
+    pub fn into_read_only(self) -> ReadOnlyView<K, V, S> {
+        ReadOnlyView::new(self)
+    }
+
     /// Creates a new DashMap with a capacity of 0 and the provided hasher.
     ///
     /// # Examples
@@ -167,7 +175,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Hash a given item to produce a usize.
     /// Uses the provided or default HashBuilder.
     #[inline]
-    fn hash_usize<T: Hash>(&self, item: &T) -> usize {
+    pub(crate) fn hash_usize<T: Hash>(&self, item: &T) -> usize {
         let mut hasher = self.hasher.build_hasher();
         item.hash(&mut hasher);
         hasher.finish() as usize
@@ -195,7 +203,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         } else {
             #[allow(dead_code)]
             #[inline]
-            fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
+            pub(crate) fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
                 &self.shards
             }
         }
@@ -253,7 +261,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             }
         } else {
             #[inline]
-            fn determine_shard(&self, hash: usize) -> usize {
+            pub(crate) fn determine_shard(&self, hash: usize) -> usize {
                 (hash >> self.shift)
             }
         }
@@ -561,6 +569,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     #[inline]
     fn _shard_count(&self) -> usize {
         self.shards.len()
+    }
+
+    #[inline]
+    unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V, S> {
+        debug_assert!(i < self.shards.len());
+        self.shards.get_unchecked(i).get()
     }
 
     #[inline]
