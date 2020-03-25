@@ -5,6 +5,9 @@ pub mod iter;
 pub mod lock;
 pub mod mapref;
 mod read_only;
+pub mod setref;
+pub mod iter_set;
+mod set;
 mod t;
 mod util;
 
@@ -24,6 +27,13 @@ use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
 pub use read_only::ReadOnlyView;
+use std::borrow::Borrow;
+use std::fmt;
+use std::hash::Hasher;
+use std::hash::{BuildHasher, Hash};
+use std::iter::FromIterator;
+use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
+pub use set::DashSet;
 pub use t::Map;
 
 cfg_if! {
@@ -83,6 +93,7 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
             hasher: self.hasher.clone(),
         }
     }
+    // TODO - this should have a custom clone_from
 }
 
 impl<K, V, S> Default for DashMap<K, V, S>
