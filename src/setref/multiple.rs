@@ -6,7 +6,7 @@ use std::ops::Deref;
 use crate::mapref;
 
 pub struct RefMulti<'a, K, S = RandomState> {
-    inner: mapref::multiple::RefMulti<'a, K, (), S>
+    inner: mapref::multiple::RefMulti<'a, K, (), S>,
 }
 
 impl<'a, K: Eq + Hash, S: BuildHasher> RefMulti<'a, K, S> {

@@ -3,17 +3,19 @@ use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 
-use crate::DashMap;
-use crate::setref::one::Ref;
 use crate::iter_set::{Iter, OwningIter};
+use crate::setref::one::Ref;
+use crate::DashMap;
 
 pub struct DashSet<K, S = RandomState> {
-    inner: DashMap<K, (), S>
+    inner: DashMap<K, (), S>,
 }
 
 impl<K: Eq + Hash + Clone, S: Clone> Clone for DashSet<K, S> {
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
+        Self {
+            inner: self.inner.clone(),
+        }
     }
 
     fn clone_from(&mut self, source: &Self) {
@@ -51,7 +53,9 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     }
     #[inline]
     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
-        Self { inner: DashMap::with_capacity_and_hasher(capacity, hasher) }
+        Self {
+            inner: DashMap::with_capacity_and_hasher(capacity, hasher),
+        }
     }
     // TODO: Self::shards()
     // TODO: Self::determine_map(key)
@@ -131,7 +135,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     pub fn contains<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized
+        Q: Hash + Eq + ?Sized,
     {
         self.inner.contains_key(key)
     }

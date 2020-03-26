@@ -1,9 +1,9 @@
-use std::hash::{BuildHasher, Hash};
-use crate::t::Map;
 use crate::setref::multiple::RefMulti;
+use crate::t::Map;
+use std::hash::{BuildHasher, Hash};
 
 pub struct OwningIter<K, S> {
-    inner: crate::iter::OwningIter<K, (), S>
+    inner: crate::iter::OwningIter<K, (), S>,
 }
 
 impl<K: Eq + Hash, S: BuildHasher + Clone> OwningIter<K, S> {
@@ -36,7 +36,7 @@ where
 }
 
 pub struct Iter<'a, K, S, M> {
-    inner: crate::iter::Iter<'a, K, (), S, M>
+    inner: crate::iter::Iter<'a, K, (), S, M>,
 }
 
 unsafe impl<'a, 'i, K, S, M> Send for Iter<'i, K, S, M>
@@ -61,7 +61,9 @@ impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iter<'
     }
 }
 
-impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iterator for Iter<'a, K, S, M> {
+impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iterator
+    for Iter<'a, K, S, M>
+{
     type Item = RefMulti<'a, K, S>;
 
     #[inline]

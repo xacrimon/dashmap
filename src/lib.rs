@@ -2,6 +2,7 @@
 #![allow(clippy::type_complexity)]
 
 pub mod iter;
+pub mod iter_set;
 pub mod lock;
 pub mod mapref;
 mod read_only;
@@ -27,13 +28,13 @@ use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
 pub use read_only::ReadOnlyView;
+pub use set::DashSet;
 use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hasher;
 use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
-pub use set::DashSet;
 pub use t::Map;
 
 cfg_if! {
