@@ -1,10 +1,17 @@
 use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
 use ahash::RandomState;
-use std::hash::BuildHasher;
-use std::hash::Hash;
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
+use core::hash::BuildHasher;
+use core::hash::Hash;
+use core::ops::{Deref, DerefMut};
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "no_std")] {
+        use alloc::sync::Arc;
+    } else {
+        use std::sync::Arc;
+    }
+}
 
 // -- Shared
 

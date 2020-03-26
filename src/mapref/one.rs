@@ -1,8 +1,8 @@
 use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
 use ahash::RandomState;
-use std::hash::{BuildHasher, Hash};
-use std::ops::{Deref, DerefMut};
+use core::hash::{BuildHasher, Hash};
+use core::ops::{Deref, DerefMut};
 
 // -- Shared
 

@@ -4,9 +4,9 @@ use crate::util;
 use crate::util::SharedValue;
 use crate::HashMap;
 use ahash::RandomState;
-use std::hash::{BuildHasher, Hash};
-use std::mem;
-use std::ptr;
+use core::hash::{BuildHasher, Hash};
+use core::mem;
+use core::ptr;
 
 pub enum Entry<'a, K, V, S = RandomState> {
     Occupied(OccupiedEntry<'a, K, V, S>),

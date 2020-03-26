@@ -1,3 +1,4 @@
+#![cfg_attr(all(feature = "no_std", not(test)), no_std)] // Note: Concurrency tests require std for threading/channels
 #![allow(clippy::type_complexity)]
 
 pub mod iter;
@@ -11,17 +12,17 @@ mod serde;
 
 use ahash::RandomState;
 use cfg_if::cfg_if;
+use core::borrow::Borrow;
+use core::fmt;
+use core::hash::{BuildHasher, Hash, Hasher};
+use core::iter::FromIterator;
+use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use iter::{Iter, IterMut, OwningIter};
 use lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
-use std::borrow::Borrow;
-use std::fmt;
-use std::hash::Hasher;
-use std::hash::{BuildHasher, Hash};
-use std::iter::FromIterator;
-use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
+
 pub use t::Map;
 
 cfg_if! {
@@ -32,7 +33,17 @@ cfg_if! {
     }
 }
 
-type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
+cfg_if! {
+    if #[cfg(feature = "no_std")] {
+        extern crate alloc;
+
+        use alloc::{vec::Vec, boxed::Box};
+
+        type HashMap<K, V, S> = hashbrown::HashMap<K, SharedValue<V>, S>;
+    } else {
+        type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
+    }
+}
 
 #[inline]
 fn shard_amount() -> usize {
@@ -249,12 +260,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// ```
             #[inline]
             pub fn determine_shard(&self, hash: usize) -> usize {
-                (hash >> self.shift)
+                hash >> self.shift
             }
         } else {
             #[inline]
             fn determine_shard(&self, hash: usize) -> usize {
-                (hash >> self.shift)
+                hash >> self.shift
             }
         }
     }
@@ -843,6 +854,15 @@ impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V, RandomState> {
 mod tests {
     use crate::DashMap;
 
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "no_std")] {
+            use alloc::string::String;
+            use ahash::RandomState;
+        } else {
+            use std::collections::hash_map::RandomState;
+        }
+    }
+
     #[test]
     fn test_basic() {
         let dm = DashMap::new();
@@ -894,7 +914,6 @@ mod tests {
 
     #[test]
     fn test_different_hashers_randomstate() {
-        use std::collections::hash_map::RandomState;
         let dm_hm_default: DashMap<u32, u32, RandomState> =
             DashMap::with_hasher(RandomState::new());
         for i in 0..10 {
