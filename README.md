@@ -38,6 +38,8 @@ I will take a look as soon as I have time for it.
 Benchmarks are currently not fantastic and can be improved and more can be created.
 Help is welcomed with open arms.
 
+**NOTE:** Benchmarks are currently being revamped for v4; hopefully a bit more scientific this time, stay tuned.
+
 Also, to be brutally honest, do your own benchmarking with your setup.
 This is one of infinite possible configations. It doesn't speak for how it will work for you.
 
