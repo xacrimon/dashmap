@@ -1,6 +1,6 @@
 [package]
 name = "dashmap"
-version = "3.8.0"
+version = "3.8.1"
 authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -49,4 +49,4 @@ cfg-if = "0.1.10"
 hashbrown = { version = "0.7.1", optional = true }
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["raw-api"]
