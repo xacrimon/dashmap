@@ -13,7 +13,9 @@ keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
 [features]
+default = []
 raw-api = []
+no_std = ["hashbrown"]
 
 [dev-dependencies]
 criterion = "0.3.0"
@@ -44,6 +46,7 @@ num_cpus = "1.11.1"
 ahash = "0.3.1"
 serde = { version = "1.0.104", optional = true, features = ["derive"] }
 cfg-if = "0.1.10"
+hashbrown = { version = "0.7.1", optional = true }
 
 [package.metadata.docs.rs]
 all-features = true

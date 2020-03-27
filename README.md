@@ -26,6 +26,16 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - `raw-api` - Enables the unstable raw-shard api.
 
+## Support
+
+[![Foo](https://c5.patreon.com/external/logo/become_a_patron_button@2x.png)](https://patreon.com/acrimon)
+
+Creating and testing open-source software like DashMap takes up a large portion of my time
+and comes with costs such as test hardware. Please consider supporting me and everything I make for the public
+to enable me to continue doing this.
+
+If you want to support me please head over and take a look at my [patreon](https://www.patreon.com/acrimon).
+
 ## Contributing
 
 DashMap is gladly accepts contributions!
@@ -37,6 +47,8 @@ I will take a look as soon as I have time for it.
 
 Benchmarks are currently not fantastic and can be improved and more can be created.
 Help is welcomed with open arms.
+
+**NOTE:** Benchmarks are currently being revamped for v4; hopefully a bit more scientific this time, stay tuned.
 
 Also, to be brutally honest, do your own benchmarking with your setup.
 This is one of infinite possible configations. It doesn't speak for how it will work for you.
@@ -50,13 +62,6 @@ This is one of infinite possible configations. It doesn't speak for how it will 
 <img src="https://raw.githubusercontent.com/xacrimon/dashmap/master/assets/bench-get.svg?sanitize=true" alt="Get Benchmark">
 
 [Google Doc](https://docs.google.com/spreadsheets/d/1q2VR_rMZRzG7YO0ef6V0jMA6hAdkafh_wI8xvY_51fk/edit?usp=sharing)
-
-## Support
-
-[![Foo](https://c5.patreon.com/external/logo/become_a_patron_button@2x.png)](https://patreon.com/acrimon)
-
-Creating and testing open-source software like DashMap isn't free due to things like test servers.
-If you want to support me please head over and take a look at my [patreon](https://www.patreon.com/acrimon).
 
 ## Special thanks
 

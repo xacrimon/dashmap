@@ -5,8 +5,8 @@ use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::mapref::entry::Entry;
 use crate::mapref::one::{Ref, RefMut};
 use crate::HashMap;
-use std::borrow::Borrow;
-use std::hash::{BuildHasher, Hash};
+use core::borrow::Borrow;
+use core::hash::{BuildHasher, Hash};
 
 /// Implementation detail that is exposed due to generic constraints in public types.
 pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {

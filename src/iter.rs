@@ -4,10 +4,18 @@ use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::t::Map;
 use crate::util::SharedValue;
 use crate::{DashMap, HashMap};
-use std::collections::hash_map;
-use std::hash::{BuildHasher, Hash};
-use std::mem;
-use std::sync::Arc;
+use core::hash::{BuildHasher, Hash};
+use core::mem;
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "no_std")] {
+        use alloc::sync::Arc;
+        use hashbrown::hash_map;
+    } else {
+        use std::sync::Arc;
+        use std::collections::hash_map;
+    }
+}
 
 /// Iterator over a DashMap yielding key value pairs.
 ///
