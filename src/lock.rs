@@ -163,6 +163,10 @@ impl<T: ?Sized> RwLock<T> {
         }
     }
 
+    pub fn get(&self) -> &T {
+        unsafe { &*self.data.get() }
+    }
+
     pub fn get_mut(&mut self) -> &mut T {
         unsafe { &mut *self.data.get() }
     }
