@@ -277,6 +277,25 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         }
     }
 
+    /// Returns a reference to the map's [`BuildHasher`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use dashmap::DashMap;
+    /// use ahash::RandomState;
+    ///
+    /// let hasher = RandomState::new();
+    /// let map: DashMap<i32, i32> = DashMap::new();
+    /// let hasher: &RandomState = map.hasher();
+    /// ```
+    ///
+    /// [`BuildHasher`]: https://doc.rust-lang.org/std/hash/trait.BuildHasher.html
+    #[inline]
+    pub fn hasher(&self) -> &S {
+        &self.hasher
+    }
+
     /// Inserts a key and a value into the map.
     ///
     /// # Examples
