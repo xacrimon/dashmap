@@ -160,33 +160,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// mappings.insert(8, 16);
     /// ```
     #[inline]
-    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+    pub fn with_capacity_and_hasher(mut capacity: usize, hasher: S) -> Self {
         let shard_amount = shard_amount();
         let shift = util::ptr_size_bits() - ncb(shard_amount);
+        if capacity != 0 {
+            capacity = capacity + (shard_amount - 1) & !(shard_amount - 1);
+        }
+        let cps = capacity / shard_amount;
 
-        let mut cps = capacity / shard_amount;
-
-        let shards = if cps == 0 {
-            // If the specified capacity cannot be split up among shards, allocate each shard with 1, up
-            // to the specified capacity
-            (0..shard_amount)
-                .map(|_| {
-                    let shard = RwLock::new(HashMap::with_capacity_and_hasher(
-                        // Will equal 1 if `cps > 0` and 0 otherwise
-                        cps - cps.saturating_sub(1),
-                        hasher.clone(),
-                    ));
-                    // We allocated one off of capacity, subtract from it down to zero
-                    cps = cps.saturating_sub(1);
-
-                    shard
-                })
-                .collect()
-        } else {
-            (0..shard_amount)
-                .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, hasher.clone())))
-                .collect()
-        };
+        let shards = (0..shard_amount)
+            .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, hasher.clone())))
+            .collect();
 
         Self {
             shift,
