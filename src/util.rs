@@ -85,13 +85,26 @@ impl<T> From<T> for CachePadded<T> {
     }
 }
 
-const TOMBSTONE_BIT: usize = 0;
-const RESIZE_BIT: usize = 1;
+const TOMBSTONE_BIT: usize = 8;
+const RESIZE_BIT: usize = 9;
 
 pub enum PtrTag {
     None,
     Tombstone,
     Resize,
+}
+
+pub fn set_cache<T>(ptr: *mut T, cache: u8) -> *mut T {
+    let cache = usize::from_ne_bytes([cache, cache, cache, cache, cache, cache, cache, cache]);
+    let mut ptr = ptr as usize;
+    for i in 0..8 {
+        if read_bit(cache, 0) { ptr = set_bit(ptr, 0) }
+    }
+    ptr as _
+}
+
+pub fn read_cache<T>(ptr: *mut T) -> u8 {
+    ((ptr as usize >> 8) & 0xFF) as u8
 }
 
 pub fn set_tag<T>(ptr: *mut T, tag: PtrTag) -> *mut T {
@@ -142,7 +155,14 @@ pub fn u64_write_byte(x: u64, n: usize, b: u8) -> u64 {
 
 pub fn derive_filter(x: u64) -> u8 {
     let a = x.to_ne_bytes();
-    a[0] ^ a[1] ^ a[2] ^ a[3] ^ a[4] ^ a[5] ^ a[6] ^ a[7]
+
+    a[0].wrapping_mul(a[1])
+        .wrapping_mul(a[2])
+        .wrapping_mul(a[3])
+        .wrapping_mul(a[4])
+        .wrapping_mul(a[5])
+        .wrapping_mul(a[6])
+        .wrapping_mul(a[7])
 }
 
 pub fn range_split(range: Range<usize>, chunk_size: usize) -> LinkedList<Range<usize>> {
