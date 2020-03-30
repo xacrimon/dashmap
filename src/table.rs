@@ -439,7 +439,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 if !predicate(&bucket_data.key, &bucket_data.value) {
                     let tombstone = set_tag(ptr::null_mut(), PtrTag::Tombstone);
                     if self.buckets[idx].compare_and_swap(bucket_ptr, tombstone, Ordering::SeqCst) == bucket_ptr {
-                        reap_defer!(self.era, set_cache(bucket_ptr, 0));
+                        defer(self.era, move || sarc_remove_copy(set_cache(bucket_ptr, 0)));
                         break 'inner;
                     } else {
                         continue 'inner;
@@ -448,6 +448,15 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     break 'inner;
                 }
             }
+        }
+    }
+}
+
+impl<K, V, S> Drop for BucketArray<K, V, S> {
+    fn drop(&mut self) {
+        for idx in 0..self.buckets.len() {
+            let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+            defer(self.era, move || sarc_remove_copy(set_cache(bucket_ptr, 0)));
         }
     }
 }
