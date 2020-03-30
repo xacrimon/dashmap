@@ -135,8 +135,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
                         {
                             continue 'inner;
                         }
-                        sarc_add_copy(bucket_ptr);
-                        self.new_table.as_ref().put_node(bucket_ptr);
+                        let cs = set_cache(bucket_ptr, 0);
+                        sarc_add_copy(cs);
+                        self.new_table.as_ref().put_node(cs);
                         break;
                     }
                 }
