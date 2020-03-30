@@ -1,9 +1,10 @@
- use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
+
+use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
 use crate::element::{Element, ElementGuard};
 use crate::recl::{defer, protected};
 use crate::util::{
-    derive_filter, get_tag, range_split, set_tag, u64_read_byte, u64_write_byte, unreachable,
-    CircularRange, FastCounter, PtrTag, read_cache, set_cache
+    derive_filter, get_tag, range_split, read_cache, set_cache, set_tag, u64_read_byte,
+    u64_write_byte, unreachable, CircularRange, FastCounter, PtrTag,
 };
 use crate::{likely, unlikely};
 use std::borrow::Borrow;
@@ -51,7 +52,9 @@ fn do_hash(f: &impl BuildHasher, i: &(impl ?Sized + Hash)) -> u64 {
 }
 
 fn make_groups<K, V>(amount: usize) -> Box<[AtomicPtr<Bucket<K, V>>]> {
-    (0..amount).map(|_| AtomicPtr::new(ptr::null_mut())).collect()
+    (0..amount)
+        .map(|_| AtomicPtr::new(ptr::null_mut()))
+        .collect()
 }
 
 type Bucket<K, V> = ABox<Element<K, V>>;
@@ -122,7 +125,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             for idx in range {
                 unsafe {
                     'inner: loop {
-                        let bucket_ptr = self.old_table.as_ref().buckets[idx].load(Ordering::SeqCst);
+                        let bucket_ptr =
+                            self.old_table.as_ref().buckets[idx].load(Ordering::SeqCst);
                         if self.old_table.as_ref().buckets[idx].compare_and_swap(
                             bucket_ptr,
                             set_tag(bucket_ptr, PtrTag::Resize),
@@ -142,7 +146,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
         self.running.fetch_sub(1, Ordering::SeqCst);
     }
 }
-
 
 fn calc_cells_remaining(capacity: usize) -> usize {
     (LOAD_FACTOR * capacity as f32) as usize
@@ -216,6 +219,43 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
+    fn find_node<Q>(&self, search_key: &Q) -> Option<*mut ABox<Element<K, V>>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        let maybe_next = self.fetch_next();
+        if unlikely!(maybe_next.is_some()) {
+            let next: &BucketArray<K, V, S> = unsafe { mem::transmute(maybe_next) };
+            return next.find_node(search_key);
+        }
+        let hash = do_hash(&*self.hash_builder, search_key);
+        let idx_start = hash as usize % self.buckets.len();
+        let filter = derive_filter(hash);
+        for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
+            let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+            match get_tag(bucket_ptr) {
+                PtrTag::Resize => {
+                    return self.fetch_next().unwrap().find_node(search_key);
+                }
+                PtrTag::Tombstone => {
+                    continue;
+                }
+                PtrTag::None => (),
+            }
+            if unlikely!(bucket_ptr.is_null()) {
+                return None;
+            }
+            let bucket_data = sarc_deref(bucket_ptr);
+            if search_key == bucket_data.key.borrow() {
+                return Some(bucket_ptr as _);
+            } else {
+                continue;
+            }
+        }
+        unreachable()
+    }
+
     fn put_node(&self, mut node: *mut ABox<Element<K, V>>) -> Option<*mut ABox<Element<K, V>>> {
         if let Some(next) = self.fetch_next() {
             return next.put_node(node);
@@ -235,30 +275,36 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         return self.fetch_next().unwrap().put_node(node);
                     }
                     PtrTag::Tombstone => {
-                        if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::SeqCst) == bucket_ptr {
-                           // Don't update cells_remaining since we are replacing a tombstone.
-                           return None;
+                        if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::SeqCst)
+                            == bucket_ptr
+                        {
+                            // Don't update cells_remaining since we are replacing a tombstone.
+                            return None;
                         } else {
                             continue 'inner;
                         }
                     }
                 }
                 if bucket_ptr.is_null() {
-                    if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::SeqCst) == bucket_ptr {
+                    if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::SeqCst)
+                        == bucket_ptr
+                    {
                         maybe_grow!(self);
                         return None;
-                     } else {
-                         continue 'inner;
-                     }
+                    } else {
+                        continue 'inner;
+                    }
                 } else {
                     let bucket_data = sarc_deref(bucket_ptr);
                     if bucket_data.key == node_data.key {
-                        if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::SeqCst) == bucket_ptr {
+                        if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::SeqCst)
+                            == bucket_ptr
+                        {
                             // Don't update cells_remaining since we are replacing an entry.
                             return None;
-                         } else {
-                             continue 'inner;
-                         }
+                        } else {
+                            continue 'inner;
+                        }
                     }
                 }
             }
