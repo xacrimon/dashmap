@@ -246,9 +246,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             if unlikely!(bucket_ptr.is_null()) {
                 return None;
             }
-            let bucket_data = sarc_deref(bucket_ptr);
+            let cs = set_cache(bucket_ptr, 0);
+            let bucket_data = sarc_deref(cs);
             if search_key == bucket_data.key.borrow() {
-                return Some(bucket_ptr as _);
+                return Some(cs as _);
             } else {
                 continue;
             }
