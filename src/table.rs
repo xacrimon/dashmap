@@ -481,7 +481,7 @@ unsafe impl<K: Sync, V: Sync, S: Sync> Sync for Table<K, V, S> {}
 impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     pub fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
         let mut atomic = Box::new(AtomicPtr::new(ptr::null_mut()));
-        let table = BucketArray::new(&mut *atomic, capacity, era, Arc::clone(&hash_builder));
+        let table = BucketArray::new(&mut *atomic, cmp::max(capacity, 16), era, Arc::clone(&hash_builder));
         atomic.store(on_heap!(table), Ordering::SeqCst);
 
         Self {
@@ -670,7 +670,7 @@ mod tests {
 
     #[test]
     fn insert_get() {
-        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        let table = Table::new(8, 1, Arc::new(RandomState::new()));
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(*table.get(&4).unwrap(), 9);
@@ -679,7 +679,7 @@ mod tests {
 
     #[test]
     fn insert_remove() {
-        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        let table = Table::new(12, 1, Arc::new(RandomState::new()));
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(*table.remove_take(&4).unwrap(), 9);
