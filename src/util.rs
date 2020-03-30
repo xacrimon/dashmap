@@ -98,7 +98,9 @@ pub fn set_cache<T>(ptr: *mut T, cache: u8) -> *mut T {
     let cache = usize::from_ne_bytes([cache, cache, cache, cache, cache, cache, cache, cache]);
     let mut ptr = ptr as usize;
     for i in 0..8 {
-        if read_bit(cache, 0) { ptr = set_bit(ptr, 0) }
+        if read_bit(cache, 0) {
+            ptr = set_bit(ptr, 0)
+        }
     }
     ptr as _
 }
