@@ -481,7 +481,7 @@ unsafe impl<K: Sync, V: Sync, S: Sync> Sync for Table<K, V, S> {}
 impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     pub fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
         let mut atomic = Box::new(AtomicPtr::new(ptr::null_mut()));
-        let table = BucketArray::new(&mut *atomic, cmp::max(capacity, 16), era, Arc::clone(&hash_builder));
+        let table = BucketArray::new(&mut *atomic, capacity, era, Arc::clone(&hash_builder));
         atomic.store(on_heap!(table), Ordering::SeqCst);
 
         Self {
