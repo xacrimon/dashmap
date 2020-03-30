@@ -56,6 +56,7 @@ cfg_if! {
         type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
     }
 }
+pub(crate) type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
 
 #[inline]
 fn shard_amount() -> usize {
@@ -471,7 +472,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._retain(f);
     }
 
-    /// Fetches the total amount of key-value pairs stored in the map.
+    /// Fetches the total number of key-value pairs stored in the map.
     ///
     /// # Examples
     ///
