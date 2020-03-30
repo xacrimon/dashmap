@@ -460,3 +460,259 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
         }
     }
 }
+
+pub struct Table<K, V, S> {
+    hash_builder: Arc<S>,
+    len: FastCounter,
+    array: Box<AtomicPtr<BucketArray<K, V, S>>>,
+}
+
+impl<K, V, S> Drop for Table<K, V, S> {
+    fn drop(&mut self) {
+        let array = self.array.load(Ordering::SeqCst);
+        let era = unsafe { (*array).era };
+        reap_defer!(era, array);
+    }
+}
+
+unsafe impl<K: Send, V: Send, S: Send> Send for Table<K, V, S> {}
+unsafe impl<K: Sync, V: Sync, S: Sync> Sync for Table<K, V, S> {}
+
+impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
+    pub fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
+        let mut atomic = Box::new(AtomicPtr::new(ptr::null_mut()));
+        let table = BucketArray::new(&mut *atomic, capacity, era, Arc::clone(&hash_builder));
+        atomic.store(on_heap!(table), Ordering::SeqCst);
+
+        Self {
+            hash_builder,
+            len: FastCounter::new(),
+            array: atomic,
+        }
+    }
+
+    fn array<'a>(&self) -> &'a BucketArray<K, V, S> {
+        unsafe { &*self.array.load(Ordering::SeqCst) }
+    }
+
+    pub fn insert(&self, key: K, value: V) -> bool {
+        let hash = do_hash(&*self.hash_builder, &key);
+        let node = sarc_new(Element::new(key, hash, value));
+        if likely!(protected(|| self.array().put_node(node)).is_none()) {
+            self.len.increment();
+            false
+        } else {
+            true
+        }
+    }
+
+    pub fn insert_and_get(&self, key: K, value: V) -> ElementGuard<K, V> {
+        let hash = do_hash(&*self.hash_builder, &key);
+        let node = sarc_new(Element::new(key, hash, value));
+        let g = Element::read(node);
+        if likely!(protected(|| self.array().put_node(node)).is_none()) {
+            self.len.increment();
+            g
+        } else {
+            g
+        }
+    }
+
+    pub fn replace(&self, key: K, value: V) -> Option<ElementGuard<K, V>> {
+        let hash = do_hash(&*self.hash_builder, &key);
+        let node = sarc_new(Element::new(key, hash, value));
+        if let Some(r) = protected(|| self.array().put_node(node).map(Element::read)) {
+            self.len.increment();
+            return Some(r);
+        } else {
+            return None;
+        }
+    }
+
+    pub fn get<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        protected(|| self.array().find_node(search_key).map(Element::read))
+    }
+
+    pub fn contains_key<Q>(&self, search_key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        protected(|| self.array().find_node(search_key)).is_some()
+    }
+
+    pub fn remove<Q>(&self, search_key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        if likely!(protected(|| self.array().remove_if(search_key, &mut |_, _| true)).is_some()) {
+            self.len.decrement();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn remove_if<Q>(&self, search_key: &Q, predicate: &mut impl FnMut(&K, &V) -> bool) -> bool
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        if likely!(protected(|| self.array().remove_if(search_key, predicate)).is_some()) {
+            self.len.decrement();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn remove_take<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        if let Some(r) = protected(|| {
+            self.array()
+                .remove_if(search_key, &mut |_, _| true)
+                .map(Element::read)
+        }) {
+            self.len.decrement();
+            Some(r)
+        } else {
+            None
+        }
+    }
+
+    pub fn remove_if_take<Q>(
+        &self,
+        search_key: &Q,
+        predicate: &mut impl FnMut(&K, &V) -> bool,
+    ) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        if let Some(r) = protected(|| {
+            self.array()
+                .remove_if(search_key, predicate)
+                .map(Element::read)
+        }) {
+            self.len.decrement();
+            Some(r)
+        } else {
+            None
+        }
+    }
+
+    pub fn extract<T, Q, F>(&self, search_key: &Q, do_extract: F) -> Option<T>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+        F: FnOnce(&K, &V) -> T,
+    {
+        protected(|| {
+            self.array().find_node(search_key).map(|ptr| {
+                let elem = sarc_deref(ptr);
+                do_extract(&elem.key, &elem.value)
+            })
+        })
+    }
+
+    pub fn update<Q, F>(&self, search_key: &Q, do_update: &mut F) -> bool
+    where
+        K: Borrow<Q> + Clone,
+        Q: ?Sized + Eq + Hash,
+        F: FnMut(&K, &V) -> V,
+    {
+        protected(|| self.array().optimistic_update(search_key, do_update)).is_some()
+    }
+
+    pub fn update_get<Q, F>(&self, search_key: &Q, do_update: &mut F) -> Option<ElementGuard<K, V>>
+    where
+        K: Borrow<Q> + Clone,
+        Q: ?Sized + Eq + Hash,
+        F: FnMut(&K, &V) -> V,
+    {
+        protected(|| {
+            self.array()
+                .optimistic_update(search_key, do_update)
+                .map(Element::read)
+        })
+    }
+
+    pub fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {
+        protected(|| self.array().retain(predicate));
+    }
+
+    pub fn clear(&self) {
+        self.retain(&mut |_, _| false);
+    }
+
+    pub fn len(&self) -> usize {
+        self.len.read()
+    }
+
+    pub fn capacity(&self) -> usize {
+        protected(|| self.array().buckets.len())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Table;
+    use std::collections::hash_map::RandomState;
+    use std::sync::Arc;
+
+    #[test]
+    fn insert_get() {
+        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        table.insert(4i32, 9i32);
+        table.insert(8i32, 24i32);
+        assert_eq!(*table.get(&4).unwrap(), 9);
+        assert_eq!(*table.get(&8).unwrap(), 24);
+    }
+
+    #[test]
+    fn insert_remove() {
+        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        table.insert(4i32, 9i32);
+        table.insert(8i32, 24i32);
+        assert_eq!(*table.remove_take(&4).unwrap(), 9);
+        assert_eq!(*table.remove_take(&8).unwrap(), 24);
+        assert!(!table.remove(&40));
+    }
+
+    #[test]
+    fn insert_len() {
+        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        table.insert(4i32, 9i32);
+        table.insert(8i32, 24i32);
+        assert_eq!(table.len(), 2);
+    }
+
+    #[test]
+    fn capacity() {
+        let table: Table<(), (), RandomState> = Table::new(128, 1, Arc::new(RandomState::new()));
+        assert_eq!(table.capacity(), 128);
+    }
+
+    #[test]
+    fn insert_update_get() {
+        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        table.insert(8i32, 24i32);
+        table.update(&8, &mut |_, v| v * 2);
+        assert_eq!(*table.get(&8).unwrap(), 48);
+    }
+
+    #[test]
+    fn insert_update_get_fused() {
+        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        table.insert(8i32, 24i32);
+        assert_eq!(*table.update_get(&8, &mut |_, v| v * 2).unwrap(), 48);
+    }
+}
