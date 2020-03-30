@@ -85,60 +85,60 @@ impl<T> From<T> for CachePadded<T> {
     }
 }
 
-const TOMBSTONE_BIT: usize = 8;
-const RESIZE_BIT: usize = 9;
+const DISCRIMINANT_MASK: usize = std::usize::MAX >> 16;
+const POINTER_WIDTH: usize = 48;
 
+pub fn tag_strip(pointer: usize) -> usize {
+    pointer & DISCRIMINANT_MASK
+}
+
+fn tag_discriminant(pointer: usize) -> Discriminant {
+    Discriminant {
+        a: (pointer >> POINTER_WIDTH) as u16,
+    }
+}
+
+fn store_discriminant(pointer: usize, discriminant: Discriminant) -> usize {
+    unsafe {
+        let discriminant = discriminant.a as usize;
+        pointer | ((discriminant) << POINTER_WIDTH)
+    }
+}
+
+pub fn get_tag_type(pointer: usize) -> PtrTag {
+    unsafe { std::mem::transmute(tag_discriminant(pointer).b[0]) }
+}
+
+pub fn set_tag_type(pointer: usize, tag: PtrTag) -> usize {
+    unsafe {
+        let mut d = tag_discriminant(pointer);
+        d.b[0] = tag as u8;
+        store_discriminant(pointer, d)
+    }
+}
+
+pub fn get_cache(pointer: usize) -> u8 {
+    unsafe { std::mem::transmute(tag_discriminant(pointer).b[1]) }
+}
+
+pub fn set_cache(pointer: usize, cache: u8) -> usize {
+    unsafe {
+        let mut d = tag_discriminant(pointer);
+        d.b[1] = cache;
+        store_discriminant(pointer, d)
+    }
+}
+
+#[repr(u8)]
 pub enum PtrTag {
-    None,
-    Tombstone,
-    Resize,
+    None = 0,
+    Tombstone = 1,
+    Resize = 2,
 }
 
-pub fn set_cache<T>(ptr: *mut T, cache: u8) -> *mut T {
-    let cache = usize::from_ne_bytes([cache, cache, cache, cache, cache, cache, cache, cache]);
-    let mut ptr = ptr as usize;
-    for i in 0..8 {
-        if read_bit(cache, i) {
-            ptr = set_bit(ptr, i)
-        }
-    }
-    ptr as _
-}
-
-pub fn read_cache<T>(ptr: *mut T) -> u8 {
-    ((ptr as usize >> 8) & 0xFF) as u8
-}
-
-pub fn set_tag<T>(ptr: *mut T, tag: PtrTag) -> *mut T {
-    let ptr = ptr as usize;
-    (match tag {
-        PtrTag::None => clear_bit(clear_bit(ptr, TOMBSTONE_BIT), RESIZE_BIT),
-        PtrTag::Tombstone => clear_bit(set_bit(ptr, TOMBSTONE_BIT), RESIZE_BIT),
-        PtrTag::Resize => set_bit(clear_bit(ptr, TOMBSTONE_BIT), RESIZE_BIT),
-    }) as *mut T
-}
-
-pub fn get_tag<T>(ptr: *mut T) -> PtrTag {
-    let ptr = ptr as usize;
-    if read_bit(ptr, TOMBSTONE_BIT) {
-        PtrTag::Tombstone
-    } else if read_bit(ptr, RESIZE_BIT) {
-        PtrTag::Resize
-    } else {
-        PtrTag::None
-    }
-}
-
-fn set_bit(x: usize, b: usize) -> usize {
-    x | 1 << b
-}
-
-fn clear_bit(x: usize, b: usize) -> usize {
-    x & !(1 << b)
-}
-
-fn read_bit(x: usize, b: usize) -> bool {
-    ((x >> b) & 1) != 0
+union Discriminant {
+    a: u16,
+    b: [u8; 2],
 }
 
 pub fn u64_read_byte(x: u64, n: usize) -> u8 {

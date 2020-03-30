@@ -2,8 +2,8 @@ use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
 use crate::element::{Element, ElementGuard};
 use crate::recl::{defer, protected};
 use crate::util::{
-    derive_filter, get_tag, range_split, read_cache, set_cache, set_tag, u64_read_byte,
-    u64_write_byte, unreachable, CircularRange, FastCounter, PtrTag,
+    derive_filter, get_cache, get_tag_type, range_split, set_cache, set_tag_type, tag_strip,
+    u64_read_byte, u64_write_byte, unreachable, CircularRange, FastCounter, PtrTag,
 };
 use crate::{likely, unlikely};
 use std::borrow::Borrow;
@@ -128,13 +128,13 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
                             self.old_table.as_ref().buckets[idx].load(Ordering::SeqCst);
                         if self.old_table.as_ref().buckets[idx].compare_and_swap(
                             bucket_ptr,
-                            set_tag(bucket_ptr, PtrTag::Resize),
+                            set_tag_type(bucket_ptr as usize, PtrTag::Resize) as _,
                             Ordering::SeqCst,
                         ) != bucket_ptr
                         {
                             continue 'inner;
                         }
-                        let cs = set_cache(bucket_ptr, 0);
+                        let cs = tag_strip(bucket_ptr as usize) as *mut ABox<Element<K, V>>;
                         sarc_add_copy(cs);
                         self.new_table.as_ref().put_node(cs);
                         break;
@@ -239,8 +239,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
-                let cache = read_cache(bucket_ptr);
-                match get_tag(bucket_ptr) {
+                let cache = get_cache(bucket_ptr as _);
+                match get_tag_type(bucket_ptr as _) {
                     PtrTag::Resize => {
                         return self
                             .fetch_next()
@@ -253,7 +253,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 if unlikely!(bucket_ptr.is_null()) {
                     return None;
                 }
-                let bucket_data = sarc_deref(set_cache(bucket_ptr, 0));
+                let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
+                let bucket_data = sarc_deref(stripped);
                 if search_key == bucket_data.key.borrow() {
                     let updated_value = do_update(&bucket_data.key, &bucket_data.value);
                     let new_bucket_uc = sarc_new(Element::new(
@@ -261,11 +262,14 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         bucket_data.hash,
                         updated_value,
                     ));
-                    let new_bucket = set_cache(new_bucket_uc, cache);
-                    if self.buckets[idx].compare_and_swap(bucket_ptr, new_bucket, Ordering::SeqCst)
-                        == bucket_ptr
+                    let new_bucket = set_cache(new_bucket_uc as _, cache);
+                    if self.buckets[idx].compare_and_swap(
+                        bucket_ptr,
+                        new_bucket as _,
+                        Ordering::SeqCst,
+                    ) == bucket_ptr
                     {
-                        defer(self.era, move || sarc_remove_copy(set_cache(bucket_ptr, 0)));
+                        defer(self.era, move || sarc_remove_copy(stripped));
                         return Some(new_bucket_uc);
                     } else {
                         sarc_remove_copy(new_bucket_uc);
@@ -296,7 +300,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
-                match get_tag(bucket_ptr) {
+                match get_tag_type(bucket_ptr as _) {
                     PtrTag::Resize => {
                         return self.fetch_next().unwrap().remove_if(search_key, predicate);
                     }
@@ -306,16 +310,20 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 if bucket_ptr.is_null() {
                     return None;
                 } else if {
-                    let bucket_data = sarc_deref(set_cache(bucket_ptr, 0));
+                    let cs = tag_strip(bucket_ptr as _);
+                    let bucket_data = sarc_deref(cs as *mut ABox<Element<K, V>>);
                     search_key == bucket_data.key.borrow()
                         && predicate(&bucket_data.key, &bucket_data.value)
                 } {
-                    let tombstone = set_tag(ptr::null_mut(), PtrTag::Tombstone);
-                    if self.buckets[idx].compare_and_swap(bucket_ptr, tombstone, Ordering::SeqCst)
-                        == bucket_ptr
+                    let tombstone = set_tag_type(0, PtrTag::Tombstone);
+                    if self.buckets[idx].compare_and_swap(
+                        bucket_ptr,
+                        tombstone as _,
+                        Ordering::SeqCst,
+                    ) == bucket_ptr
                     {
                         defer(self.era, move || sarc_remove_copy(bucket_ptr));
-                        return Some(set_cache(bucket_ptr, 0));
+                        return Some(tag_strip(bucket_ptr as _) as _);
                     } else {
                         continue 'inner;
                     }
@@ -340,7 +348,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let filter = derive_filter(hash);
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
-            match get_tag(bucket_ptr) {
+            match get_tag_type(bucket_ptr as _) {
                 PtrTag::Resize => {
                     return self.fetch_next().unwrap().find_node(search_key);
                 }
@@ -352,7 +360,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             if unlikely!(bucket_ptr.is_null()) {
                 return None;
             }
-            let cs = set_cache(bucket_ptr, 0);
+            let cs = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
             let bucket_data = sarc_deref(cs);
             if search_key == bucket_data.key.borrow() {
                 return Some(cs as _);
@@ -371,12 +379,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let hash = do_hash(&*self.hash_builder, &node_data.key);
         let idx_start = hash as usize % self.buckets.len();
         let filter = derive_filter(hash);
-        node = set_cache(node, filter);
+        node = set_cache(node as _, filter) as _;
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
-                let cache = read_cache(bucket_ptr);
-                match get_tag(bucket_ptr) {
+                let cache = get_cache(bucket_ptr as _);
+                match get_tag_type(bucket_ptr as _) {
                     PtrTag::None => (),
                     PtrTag::Resize => {
                         return self.fetch_next().unwrap().put_node(node);
@@ -426,8 +434,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         for idx in 0..self.buckets.len() {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
-                let cache = read_cache(bucket_ptr);
-                match get_tag(bucket_ptr) {
+                let cache = get_cache(bucket_ptr as _);
+                match get_tag_type(bucket_ptr as _) {
                     PtrTag::Resize => return self.fetch_next().unwrap().retain(predicate),
                     PtrTag::Tombstone => break 'inner,
                     PtrTag::None => (),
@@ -435,11 +443,17 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 if bucket_ptr.is_null() {
                     break 'inner;
                 }
-                let bucket_data = sarc_deref(set_cache(bucket_ptr, 0));
+                let cs = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
+                let bucket_data = sarc_deref(cs);
                 if !predicate(&bucket_data.key, &bucket_data.value) {
-                    let tombstone = set_tag(ptr::null_mut(), PtrTag::Tombstone);
-                    if self.buckets[idx].compare_and_swap(bucket_ptr, tombstone, Ordering::SeqCst) == bucket_ptr {
-                        defer(self.era, move || sarc_remove_copy(set_cache(bucket_ptr, 0)));
+                    let tombstone = set_tag_type(0, PtrTag::Tombstone);
+                    if self.buckets[idx].compare_and_swap(
+                        bucket_ptr,
+                        tombstone as _,
+                        Ordering::SeqCst,
+                    ) == bucket_ptr
+                    {
+                        defer(self.era, move || sarc_remove_copy(cs));
                         break 'inner;
                     } else {
                         continue 'inner;
@@ -456,7 +470,9 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
         for idx in 0..self.buckets.len() {
             let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
-            defer(self.era, move || sarc_remove_copy(set_cache(bucket_ptr, 0)));
+            defer(self.era, move || {
+                sarc_remove_copy(tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>)
+            });
         }
     }
 }
