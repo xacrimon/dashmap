@@ -1,4 +1,3 @@
-
 use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
 use crate::element::{Element, ElementGuard};
 use crate::recl::{defer, protected};
@@ -218,6 +217,52 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
             }
         }
+    }
+
+    fn remove_if<Q>(
+        &self,
+        search_key: &Q,
+        predicate: &mut impl FnMut(&K, &V) -> bool,
+    ) -> Option<*mut ABox<Element<K, V>>>
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Eq + Hash,
+    {
+        if let Some(next) = self.fetch_next() {
+            return next.remove_if(search_key, predicate);
+        }
+        let hash = do_hash(&*self.hash_builder, search_key);
+        let idx_start = hash as usize % self.buckets.len();
+        for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
+            'inner: loop {
+                let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+                match get_tag(bucket_ptr) {
+                    PtrTag::Resize => {
+                        return self.fetch_next().unwrap().remove_if(search_key, predicate);
+                    }
+                    PtrTag::Tombstone => continue,
+                    PtrTag::None => (),
+                }
+                if bucket_ptr.is_null() {
+                    return None;
+                } else if {
+                    let bucket_data = sarc_deref(set_cache(bucket_ptr, 0));
+                    search_key == bucket_data.key.borrow()
+                        && predicate(&bucket_data.key, &bucket_data.value)
+                } {
+                    let tombstone = set_tag(ptr::null_mut(), PtrTag::Tombstone);
+                    if self.buckets[idx].compare_and_swap(bucket_ptr, tombstone, Ordering::SeqCst)
+                        == bucket_ptr
+                    {
+                        defer(self.era, move || sarc_remove_copy(bucket_ptr));
+                        return Some(set_cache(bucket_ptr, 0));
+                    } else {
+                        continue 'inner;
+                    }
+                }
+            }
+        }
+        unreachable();
     }
 
     fn find_node<Q>(&self, search_key: &Q) -> Option<*mut ABox<Element<K, V>>>
