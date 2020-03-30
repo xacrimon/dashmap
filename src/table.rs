@@ -219,6 +219,66 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
     }
 
+    fn optimistic_update<Q, F>(
+        &self,
+        search_key: &Q,
+        do_update: &mut F,
+    ) -> Option<*mut ABox<Element<K, V>>>
+    where
+        K: Borrow<Q> + Clone,
+        Q: ?Sized + Eq + Hash,
+        F: FnMut(&K, &V) -> V,
+    {
+        let maybe_next = self.fetch_next();
+        if unlikely!(maybe_next.is_some()) {
+            let next: &BucketArray<K, V, S> = unsafe { mem::transmute(maybe_next) };
+            return next.optimistic_update(search_key, do_update);
+        }
+        let hash = do_hash(&*self.hash_builder, search_key);
+        let idx_start = hash as usize % self.buckets.len();
+        for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
+            'inner: loop {
+                let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+                let cache = read_cache(bucket_ptr);
+                match get_tag(bucket_ptr) {
+                    PtrTag::Resize => {
+                        return self
+                            .fetch_next()
+                            .unwrap()
+                            .optimistic_update(search_key, do_update);
+                    }
+                    PtrTag::Tombstone => break 'inner,
+                    PtrTag::None => (),
+                }
+                if unlikely!(bucket_ptr.is_null()) {
+                    return None;
+                }
+                let bucket_data = sarc_deref(set_cache(bucket_ptr, 0));
+                if search_key == bucket_data.key.borrow() {
+                    let updated_value = do_update(&bucket_data.key, &bucket_data.value);
+                    let new_bucket_uc = sarc_new(Element::new(
+                        bucket_data.key.clone(),
+                        bucket_data.hash,
+                        updated_value,
+                    ));
+                    let new_bucket = set_cache(new_bucket_uc, cache);
+                    if self.buckets[idx].compare_and_swap(bucket_ptr, new_bucket, Ordering::SeqCst)
+                        == bucket_ptr
+                    {
+                        defer(self.era, move || sarc_remove_copy(set_cache(bucket_ptr, 0)));
+                        return Some(new_bucket_uc);
+                    } else {
+                        sarc_remove_copy(new_bucket_uc);
+                        continue 'inner;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+        unreachable()
+    }
+
     fn remove_if<Q>(
         &self,
         search_key: &Q,
@@ -240,7 +300,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     PtrTag::Resize => {
                         return self.fetch_next().unwrap().remove_if(search_key, predicate);
                     }
-                    PtrTag::Tombstone => continue,
+                    PtrTag::Tombstone => break 'inner,
                     PtrTag::None => (),
                 }
                 if bucket_ptr.is_null() {
@@ -357,5 +417,37 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             }
         }
         unreachable!()
+    }
+
+    fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {
+        if let Some(next) = self.fetch_next() {
+            return next.retain(predicate);
+        }
+        for idx in 0..self.buckets.len() {
+            'inner: loop {
+                let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+                let cache = read_cache(bucket_ptr);
+                match get_tag(bucket_ptr) {
+                    PtrTag::Resize => return self.fetch_next().unwrap().retain(predicate),
+                    PtrTag::Tombstone => break 'inner,
+                    PtrTag::None => (),
+                }
+                if bucket_ptr.is_null() {
+                    break 'inner;
+                }
+                let bucket_data = sarc_deref(set_cache(bucket_ptr, 0));
+                if !predicate(&bucket_data.key, &bucket_data.value) {
+                    let tombstone = set_tag(ptr::null_mut(), PtrTag::Tombstone);
+                    if self.buckets[idx].compare_and_swap(bucket_ptr, tombstone, Ordering::SeqCst) == bucket_ptr {
+                        reap_defer!(self.era, set_cache(bucket_ptr, 0));
+                        break 'inner;
+                    } else {
+                        continue 'inner;
+                    }
+                } else {
+                    break 'inner;
+                }
+            }
+        }
     }
 }
