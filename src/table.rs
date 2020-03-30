@@ -670,7 +670,7 @@ mod tests {
 
     #[test]
     fn insert_get() {
-        let table = Table::new(8, 1, Arc::new(RandomState::new()));
+        let table = Table::new(16, 1, Arc::new(RandomState::new()));
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(*table.get(&4).unwrap(), 9);
@@ -679,7 +679,7 @@ mod tests {
 
     #[test]
     fn insert_remove() {
-        let table = Table::new(12, 1, Arc::new(RandomState::new()));
+        let table = Table::new(16, 1, Arc::new(RandomState::new()));
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(*table.remove_take(&4).unwrap(), 9);
@@ -689,7 +689,7 @@ mod tests {
 
     #[test]
     fn insert_len() {
-        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        let table = Table::new(16, 1, Arc::new(RandomState::new()));
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(table.len(), 2);
@@ -703,7 +703,7 @@ mod tests {
 
     #[test]
     fn insert_update_get() {
-        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        let table = Table::new(16, 1, Arc::new(RandomState::new()));
         table.insert(8i32, 24i32);
         table.update(&8, &mut |_, v| v * 2);
         assert_eq!(*table.get(&8).unwrap(), 48);
@@ -711,7 +711,7 @@ mod tests {
 
     #[test]
     fn insert_update_get_fused() {
-        let table = Table::new(4, 1, Arc::new(RandomState::new()));
+        let table = Table::new(16, 1, Arc::new(RandomState::new()));
         table.insert(8i32, 24i32);
         assert_eq!(*table.update_get(&8, &mut |_, v| v * 2).unwrap(), 48);
     }
