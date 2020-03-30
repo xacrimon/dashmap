@@ -173,7 +173,8 @@ impl<'a, T> Iterator for Probe<'a, T> {
         if unlikely!(self.i == 8) {
             return None;
         }
-        if u64_read_byte(self.cache, self.i) == self.filter {
+        let rb = u64_read_byte(self.cache, self.i);
+        if rb == self.filter {
             let p = self.nodes[self.i].load(Ordering::SeqCst);
             self.i += 1;
             return Some(p);
@@ -215,9 +216,11 @@ impl<T> Group<T> {
     }
 
     fn probe<'a>(&'a self, filter: u8) -> Probe<'a, T> {
+        let cache = self.cache.load(Ordering::SeqCst);
+
         Probe {
             i: 0,
-            cache: self.cache.load(Ordering::SeqCst),
+            cache,
             filter,
             nodes: &self.nodes,
         }
@@ -361,14 +364,19 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let filter = derive_filter(hash);
         for group_idx in CircularRange::new(0, self.group_amount(), group_idx_start) {
             let group = &self.groups[group_idx];
-            'm: for bucket_ptr in group.probe(filter) {
+            let iter = group.iter();
+            'm: for (_, _, bucket_ptr) in iter {
+                let bucket_ptr = bucket_ptr.load(Ordering::SeqCst);
                 match get_tag(bucket_ptr) {
                     PtrTag::Resize => {
                         return self.fetch_next().unwrap().find_node(search_key);
                     }
-                    PtrTag::Tombstone => continue 'm,
+                    PtrTag::Tombstone => {
+                        continue 'm;
+                    }
                     PtrTag::None => (),
                 }
+                //println!("{:x}", bucket_ptr as usize);
                 if unlikely!(bucket_ptr.is_null()) {
                     return None;
                 }
