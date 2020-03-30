@@ -276,7 +276,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
             }
         }
-        unreachable()
+        unreachable();
     }
 
     fn remove_if<Q>(
@@ -360,7 +360,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 continue;
             }
         }
-        unreachable()
+        unreachable();
     }
 
     fn put_node(&self, mut node: *mut ABox<Element<K, V>>) -> Option<*mut ABox<Element<K, V>>> {
@@ -416,7 +416,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
             }
         }
-        unreachable!()
+        unreachable();
     }
 
     fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {
