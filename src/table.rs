@@ -477,9 +477,11 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
         for idx in 0..self.buckets.len() {
             let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
-            defer(self.era, move || {
-                sarc_remove_copy(tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>)
-            });
+            let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
+            //defer(self.era, move || sarc_remove_copy(stripped));
+            if !stripped.is_null() {
+                sarc_remove_copy(stripped)
+            }
         }
     }
 }
@@ -492,9 +494,12 @@ pub struct Table<K, V, S> {
 
 impl<K, V, S> Drop for Table<K, V, S> {
     fn drop(&mut self) {
-        let array = self.array.load(Ordering::SeqCst);
-        let era = unsafe { (*array).era };
-        reap_defer!(era, array);
+        unsafe {
+            let array = self.array.load(Ordering::SeqCst);
+            if !array.is_null() {
+                ptr::drop_in_place(self.array.load(Ordering::SeqCst));
+            }
+        }
     }
 }
 
