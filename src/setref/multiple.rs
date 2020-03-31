@@ -1,7 +1,6 @@
 use ahash::RandomState;
-use std::hash::BuildHasher;
-use std::hash::Hash;
-use std::ops::Deref;
+use core::hash::{BuildHasher, Hash};
+use core::ops::Deref;
 
 use crate::mapref;
 

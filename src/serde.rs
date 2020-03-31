@@ -1,10 +1,10 @@
 use crate::DashMap;
+use core::fmt;
+use core::hash::Hash;
 use serde::de::{Deserialize, MapAccess, Visitor};
 use serde::export::PhantomData;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use serde::Deserializer;
-use std::fmt;
-use std::hash::Hash;
 
 pub struct DashMapVisitor<K, V> {
     marker: PhantomData<fn() -> DashMap<K, V>>,

@@ -1,6 +1,6 @@
 use crate::setref::multiple::RefMulti;
 use crate::t::Map;
-use std::hash::{BuildHasher, Hash};
+use core::hash::{BuildHasher, Hash};
 
 pub struct OwningIter<K, S> {
     inner: crate::iter::OwningIter<K, (), S>,

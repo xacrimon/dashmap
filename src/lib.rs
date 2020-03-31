@@ -6,9 +6,8 @@ pub mod iter_set;
 pub mod lock;
 pub mod mapref;
 mod read_only;
-pub mod setref;
-pub mod iter_set;
 mod set;
+pub mod setref;
 mod t;
 mod util;
 
@@ -29,12 +28,6 @@ use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
 pub use read_only::ReadOnlyView;
 pub use set::DashSet;
-use std::borrow::Borrow;
-use std::fmt;
-use std::hash::Hasher;
-use std::hash::{BuildHasher, Hash};
-use std::iter::FromIterator;
-use std::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 pub use t::Map;
 
 cfg_if! {
@@ -51,12 +44,11 @@ cfg_if! {
 
         use alloc::{vec::Vec, boxed::Box};
 
-        type HashMap<K, V, S> = hashbrown::HashMap<K, SharedValue<V>, S>;
+        pub(crate) type HashMap<K, V, S> = hashbrown::HashMap<K, SharedValue<V>, S>;
     } else {
-        type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
+        pub(crate) type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
     }
 }
-pub(crate) type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
 
 #[inline]
 fn shard_amount() -> usize {
@@ -257,7 +249,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             {
                 let hash = self.hash_usize(&key);
 
-                (hash >> self.shift)
+                hash >> self.shift
             }
         }
     }

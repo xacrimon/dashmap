@@ -7,9 +7,9 @@ use crate::DashMap;
 use crate::HashMap;
 use ahash::RandomState;
 use cfg_if::cfg_if;
-use std::borrow::Borrow;
-use std::hash::{BuildHasher, Hash};
-use std::iter::FromIterator;
+use core::borrow::Borrow;
+use core::hash::{BuildHasher, Hash};
+use core::iter::FromIterator;
 
 /// DashSet is a thin wrapper around [`DashMap`] using `()` as the value type. It uses
 /// methods and types which are more convenient to work with on a set.
@@ -110,6 +110,14 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             inner: DashMap::with_capacity_and_hasher(capacity, hasher),
         }
     }
+
+    /// Hash a given item to produce a usize.
+    /// Uses the provided or default HashBuilder.
+    #[inline]
+    pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
+        self.inner.hash_usize(item)
+    }
+
     cfg_if! {
         if #[cfg(feature = "raw-api")] {
             /// Allows you to peek at the inner shards that store your data.
@@ -169,7 +177,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             /// ```
             /// use dashmap::DashSet;
             ///
-            /// let set = DashSet::new();
+            /// let set: DashSet<i32> = DashSet::new();
             /// let key = "key";
             /// let hash = set.hash_usize(&key);
             /// println!("hash is stored in shard: {}", set.determine_shard(hash));
