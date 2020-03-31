@@ -139,15 +139,7 @@ union Discriminant {
 }
 
 pub fn derive_filter(x: u64) -> u8 {
-    let a = x.to_ne_bytes();
-
-    a[0].wrapping_mul(a[1])
-        .wrapping_mul(a[2])
-        .wrapping_mul(a[3])
-        .wrapping_mul(a[4])
-        .wrapping_mul(a[5])
-        .wrapping_mul(a[6])
-        .wrapping_mul(a[7])
+    x as u8
 }
 
 pub fn range_split(range: Range<usize>, chunk_size: usize) -> LinkedList<Range<usize>> {
