@@ -15,7 +15,7 @@ static GUARDIAN_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
 /// Generate a new GC era.
 pub fn new_era() -> usize {
-    NEXT_ERA.fetch_add(1, Ordering::SeqCst)
+    NEXT_ERA.fetch_add(1, Ordering::Relaxed)
 }
 
 /// Purge a GC era.
@@ -24,6 +24,7 @@ pub fn purge_era(era: usize) {
 }
 
 /// Execute a closure in protected mode. This permits it to load protected pointers.
+#[inline(always)]
 pub fn protected<T>(f: impl FnOnce() -> T) -> T {
     PARTICIPANT_HANDLE.with(|key| {
         key.enter_critical();
@@ -34,6 +35,7 @@ pub fn protected<T>(f: impl FnOnce() -> T) -> T {
 }
 
 /// Defer a function.
+#[inline(always)]
 pub fn defer(era: usize, f: impl FnOnce()) {
     let deferred = Deferred::new(era, f);
     PARTICIPANT_HANDLE.with(|key| key.defer(deferred));
@@ -158,11 +160,12 @@ struct Global {
 unsafe impl Send for Global {}
 unsafe impl Sync for Global {}
 
+#[inline(always)]
 fn increment_epoch(a: &AtomicUsize) -> usize {
     loop {
-        let current = a.load(Ordering::SeqCst);
+        let current = a.load(Ordering::Acquire);
         let next = (current + 1) % 3;
-        if likely!(a.compare_and_swap(current, next, Ordering::SeqCst) == current) {
+        if likely!(a.compare_and_swap(current, next, Ordering::AcqRel) == current) {
             break next;
         }
     }
@@ -260,32 +263,35 @@ impl Local {
         }
     }
 
+    #[inline(always)]
     pub fn enter_critical(&self) {
-        if likely!(self.active.fetch_add(1, Ordering::SeqCst) == 0) {
-            let global_epoch = self.global.epoch.load(Ordering::SeqCst);
-            self.epoch.store(global_epoch, Ordering::SeqCst);
+        if likely!(self.active.fetch_add(1, Ordering::Relaxed) == 0) {
+            let global_epoch = self.global.epoch.load(Ordering::Relaxed);
+            self.epoch.store(global_epoch, Ordering::Relaxed);
         }
     }
 
+    #[inline(always)]
     pub fn exit_critical(&self) {
         #[cfg(debug_assertions)]
         {
-            if self.active.fetch_sub(1, Ordering::SeqCst) == 0 {
+            if self.active.fetch_sub(1, Ordering::Relaxed) == 0 {
                 panic!("uh oh");
             }
         }
 
         #[cfg(not(debug_assertions))]
-        self.active.fetch_sub(1, Ordering::SeqCst);
+        self.active.fetch_sub(1, Ordering::Relaxed);
     }
 
     fn defer(&self, f: Deferred) {
-        let global_epoch = self.global.epoch.load(Ordering::SeqCst);
+        let global_epoch = self.global.epoch.load(Ordering::Relaxed);
         let mut deferred = self
             .global
             .deferred
             .lock()
             .unwrap_or_else(|_| std::process::abort());
+
         deferred[global_epoch].push(f);
     }
 }
