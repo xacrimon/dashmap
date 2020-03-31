@@ -157,14 +157,14 @@ pub fn range_split(range: Range<usize>, chunk_size: usize) -> LinkedList<Range<u
 }
 
 pub struct CircularRange {
-    start: usize,
     end: usize,
     next: usize,
+    step: usize,
 }
 
 impl CircularRange {
-    pub fn new(start: usize, end: usize, next: usize) -> Self {
-        Self { start, end, next }
+    pub fn new(_: usize, end: usize, next: usize) -> Self {
+        Self { end, next, step: 0 }
     }
 }
 
@@ -173,9 +173,10 @@ impl Iterator for CircularRange {
 
     fn next(&mut self) -> Option<Self::Item> {
         let r = self.next;
-        self.next += 1;
-        if unlikely!(self.next == self.end) {
-            self.next = self.start;
+        self.step += 1;
+        self.next += self.step * self.step;
+        if unlikely!(self.next >= self.end) {
+            self.next &= self.end - 1;
         }
         Some(r)
     }
@@ -205,6 +206,6 @@ impl FastCounter {
     }
 
     pub fn read(&self) -> usize {
-        self.inner.load(Ordering::SeqCst)
+        self.inner.load(Ordering::Relaxed)
     }
 }
