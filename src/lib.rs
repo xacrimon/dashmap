@@ -185,7 +185,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Hash a given item to produce a usize.
     /// Uses the provided or default HashBuilder.
     #[inline]
-    pub(crate) fn hash_usize<T: Hash>(&self, item: &T) -> usize {
+    pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
         let mut hasher = self.hasher.build_hasher();
         item.hash(&mut hasher);
         hasher.finish() as usize
@@ -260,7 +260,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// ```
             /// use dashmap::DashMap;
             ///
-            /// let map = DashMap::new();
+            /// let map: DashMap<i32, i32> = DashMap::new();
             /// let key = "key";
             /// let hash = map.hash_usize(&key);
             /// println!("hash is stored in shard: {}", map.determine_shard(hash));
