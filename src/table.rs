@@ -124,7 +124,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             for idx in range {
                 unsafe {
                     'inner: loop {
-                        let bucket_ptr = self.old_table.as_ref().buckets[idx].load(Ordering::SeqCst);
+                        let bucket_ptr =
+                            self.old_table.as_ref().buckets[idx].load(Ordering::SeqCst);
                         if !bucket_ptr.is_null() && get_tag_type(bucket_ptr as _) == PtrTag::None {
                             if self.old_table.as_ref().buckets[idx].compare_and_swap(
                                 bucket_ptr,
@@ -349,7 +350,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
         let hash = do_hash(&*self.hash_builder, search_key);
         let idx_start = hash as usize % self.buckets.len();
-        let _filter = derive_filter(hash);
+        let filter = derive_filter(hash);
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
             match get_tag_type(bucket_ptr as _) {
@@ -364,12 +365,14 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             if unlikely!(bucket_ptr.is_null()) {
                 return None;
             }
-            let cs = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
-            let bucket_data = sarc_deref(cs);
-            if search_key == bucket_data.key.borrow() {
-                return Some(cs as _);
-            } else {
-                continue;
+            if filter == get_cache(bucket_ptr as _) {
+                let cs = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
+                let bucket_data = sarc_deref(cs);
+                if search_key == bucket_data.key.borrow() {
+                    return Some(cs as _);
+                } else {
+                    continue;
+                }
             }
         }
         unreachable();
