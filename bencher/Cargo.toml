@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 
+[profile.release]
+debug = true
+
 [dependencies]
 dashmap = { path = ".." }
 bustle = "0.4.1"
