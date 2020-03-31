@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_imports)]
 #![allow(unused_unsafe)]
 #![cfg_attr(feature = "nightly", feature(core_intrinsics))]
 
@@ -20,6 +18,12 @@ use table::Table;
 pub struct DashMap<K, V, S = RandomState> {
     era: usize,
     table: Table<K, V, S>,
+}
+
+impl<K, V, S> Drop for DashMap<K, V, S> {
+    fn drop(&mut self) {
+        purge_era(self.era);
+    }
 }
 
 impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {

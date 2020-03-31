@@ -51,10 +51,6 @@ impl<T> CachePadded<T> {
     pub fn new(t: T) -> CachePadded<T> {
         CachePadded::<T> { value: t }
     }
-
-    pub fn into_inner(self) -> T {
-        self.value
-    }
 }
 
 impl<T> Deref for CachePadded<T> {
@@ -131,7 +127,7 @@ pub fn set_cache(pointer: usize, cache: u8) -> usize {
 
 #[repr(u8)]
 pub enum PtrTag {
-    None = 0,
+    None,
     Tombstone = 1,
     Resize = 2,
 }
@@ -139,20 +135,6 @@ pub enum PtrTag {
 union Discriminant {
     a: u16,
     b: [u8; 2],
-}
-
-pub fn u64_read_byte(x: u64, n: usize) -> u8 {
-    debug_assert!(n < 8);
-    unsafe { *x.to_ne_bytes().get_unchecked(n) }
-}
-
-pub fn u64_write_byte(x: u64, n: usize, b: u8) -> u64 {
-    debug_assert!(n < 8);
-    let mut a = x.to_ne_bytes();
-    unsafe {
-        *a.get_unchecked_mut(n) = b;
-    }
-    u64::from_ne_bytes(a)
 }
 
 pub fn derive_filter(x: u64) -> u8 {

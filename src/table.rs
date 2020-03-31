@@ -3,7 +3,7 @@ use crate::element::{Element, ElementGuard};
 use crate::recl::{defer, protected};
 use crate::util::{
     derive_filter, get_cache, get_tag_type, range_split, set_cache, set_tag_type, tag_strip,
-    u64_read_byte, u64_write_byte, unreachable, CircularRange, FastCounter, PtrTag,
+    unreachable, CircularRange, FastCounter, PtrTag,
 };
 use crate::{likely, unlikely};
 use std::borrow::Borrow;
@@ -13,7 +13,7 @@ use std::hash::{BuildHasher, Hash, Hasher};
 use std::mem;
 use std::ops::Range;
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{spin_loop_hint, AtomicPtr, AtomicU16, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{spin_loop_hint, AtomicPtr, AtomicU16, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 macro_rules! maybe_grow {
@@ -345,7 +345,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
         let hash = do_hash(&*self.hash_builder, search_key);
         let idx_start = hash as usize % self.buckets.len();
-        let filter = derive_filter(hash);
+        let _filter = derive_filter(hash);
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
             match get_tag_type(bucket_ptr as _) {
@@ -379,11 +379,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let hash = do_hash(&*self.hash_builder, &node_data.key);
         let idx_start = hash as usize % self.buckets.len();
         let filter = derive_filter(hash);
+        node = set_tag_type(node as _, PtrTag::None) as _;
         node = set_cache(node as _, filter) as _;
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
-                let cache = get_cache(bucket_ptr as _);
+                let _cache = get_cache(bucket_ptr as _);
                 match get_tag_type(bucket_ptr as _) {
                     PtrTag::None => (),
                     PtrTag::Resize => {
@@ -410,7 +411,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         continue 'inner;
                     }
                 } else {
-                    let bucket_data = sarc_deref(bucket_ptr);
+                    let bucket_data =
+                        sarc_deref(tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>);
                     if bucket_data.key == node_data.key {
                         if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::SeqCst)
                             == bucket_ptr
@@ -420,6 +422,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         } else {
                             continue 'inner;
                         }
+                    } else {
+                        break 'inner;
                     }
                 }
             }
@@ -434,7 +438,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         for idx in 0..self.buckets.len() {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
-                let cache = get_cache(bucket_ptr as _);
+                let _cache = get_cache(bucket_ptr as _);
                 match get_tag_type(bucket_ptr as _) {
                     PtrTag::Resize => return self.fetch_next().unwrap().retain(predicate),
                     PtrTag::Tombstone => break 'inner,

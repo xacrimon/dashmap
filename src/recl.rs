@@ -144,10 +144,6 @@ impl Deferred {
 unsafe impl Send for Deferred {}
 unsafe impl Sync for Deferred {}
 
-fn calc_free_epoch(a: usize) -> usize {
-    (a + 3 - 2) % 3
-}
-
 struct Global {
     // Global epoch. This value is always 0, 1 or 2.
     epoch: AtomicUsize,
