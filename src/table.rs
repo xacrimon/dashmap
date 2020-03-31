@@ -322,11 +322,14 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         Ordering::SeqCst,
                     ) == bucket_ptr
                     {
-                        defer(self.era, move || sarc_remove_copy(bucket_ptr));
-                        return Some(tag_strip(bucket_ptr as _) as _);
+                        let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
+                        defer(self.era, move || sarc_remove_copy(stripped));
+                        return Some(stripped);
                     } else {
                         continue 'inner;
                     }
+                } else {
+                    break 'inner;
                 }
             }
         }
