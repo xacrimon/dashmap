@@ -352,20 +352,20 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let idx_start = hash as usize % self.buckets.len();
         let filter = derive_filter(hash);
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
-            let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
-            match get_tag_type(bucket_ptr as _) {
-                PtrTag::Resize => {
-                    return self.fetch_next().unwrap().find_node(search_key);
-                }
-                PtrTag::Tombstone => {
-                    continue;
-                }
-                PtrTag::None => (),
-            }
+            let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
             if unlikely!(bucket_ptr.is_null()) {
                 return None;
             }
             if filter == get_cache(bucket_ptr as _) {
+                match get_tag_type(bucket_ptr as _) {
+                    PtrTag::Resize => {
+                        return self.fetch_next().unwrap().find_node(search_key);
+                    }
+                    PtrTag::Tombstone => {
+                        continue;
+                    }
+                    PtrTag::None => (),
+                }
                 let cs = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
                 let bucket_data = sarc_deref(cs);
                 if search_key == bucket_data.key.borrow() {
