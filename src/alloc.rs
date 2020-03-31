@@ -1,7 +1,6 @@
 use std::alloc::{alloc, dealloc, Layout};
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
-
 pub struct ABox<T> {
     refs: AtomicUsize,
     data: T,
@@ -31,6 +30,8 @@ pub fn sarc_add_copy<T>(p: *mut ABox<T>) {
 }
 
 pub fn sarc_remove_copy<T>(p: *mut ABox<T>) {
+    debug_assert!(!p.is_null());
+        
     unsafe {
         if (*p).refs.fetch_sub(1, Ordering::SeqCst) == 1 {
             sarc_dealloc(p);

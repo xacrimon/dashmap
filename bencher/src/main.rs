@@ -55,8 +55,8 @@ where
     }
 }
 
-static EXCHANGE_PREFILL: [f64; 9] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-static EXCHANGE_OPS: f64 = 1.0;
+static EXCHANGE_PREFILL: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+static EXCHANGE_OPS: f64 = 1.5;
 
 fn main() {
     tracing_subscriber::fmt::init();
