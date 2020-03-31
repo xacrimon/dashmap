@@ -185,7 +185,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 
     fn fetch_next<'a>(&self) -> Option<&'a Self> {
-        let coordinator = self.next.load(Ordering::SeqCst);
+        let coordinator = self.next.load(Ordering::Relaxed);
         if likely!(coordinator.is_null()) {
             None
         } else {
@@ -349,14 +349,14 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             return next.find_node(search_key);
         }
         let hash = do_hash(&*self.hash_builder, search_key);
-        let idx_start = hash as usize % self.buckets.len();
+        let idx_start = hash as usize & (self.buckets.len() - 1);
         let filter = derive_filter(hash);
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
-            let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
+            let bucket_ptr = unsafe { self.buckets.get_unchecked(idx).load(Ordering::Relaxed) };
             if unlikely!(bucket_ptr.is_null()) {
                 return None;
             }
-            if filter == get_cache(bucket_ptr as _) {
+            if unlikely!(filter == get_cache(bucket_ptr as _)) {
                 match get_tag_type(bucket_ptr as _) {
                     PtrTag::Resize => {
                         return self.fetch_next().unwrap().find_node(search_key);
@@ -368,7 +368,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
                 let cs = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
                 let bucket_data = sarc_deref(cs);
-                if search_key == bucket_data.key.borrow() {
+                if unlikely!(search_key == bucket_data.key.borrow()) {
                     return Some(cs as _);
                 } else {
                     continue;
