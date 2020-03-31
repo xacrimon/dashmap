@@ -31,31 +31,31 @@ where
 
     fn get(&mut self, key: &Self::Key) -> bool {
         //dbg!(self.0.capacity());
-        let r = self.0.extract(key, |_, _| ()).is_some();
         //dbg!("get");
+        let r = self.0.extract(key, |_, _| ()).is_some();
         r
     }
 
     fn insert(&mut self, key: &Self::Key) -> bool {
+        //dbg!("insert, {}", key);
         let r = self.0.insert(*key, 0) == false;
-        //dbg!("insert");
         r
     }
 
     fn remove(&mut self, key: &Self::Key) -> bool {
-        let r = self.0.remove(key);
         //dbg!("remove");
+        let r = self.0.remove(key);
         r
     }
 
     fn update(&mut self, key: &Self::Key) -> bool {
-        let r = self.0.update(key, &mut |_, v| v + 1);
         //dbg!("update");
+        let r = self.0.update(key, &mut |_, v| v + 1);
         r
     }
 }
 
-static EXCHANGE_PREFILL: [f64; 10] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
+static EXCHANGE_PREFILL: [f64; 9] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 static EXCHANGE_OPS: f64 = 1.0;
 
 fn main() {
