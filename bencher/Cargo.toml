@@ -5,7 +5,7 @@ authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 
 [profile.release]
-lto = "fat"
+debug = true
 
 [dependencies]
 dashmap = { path = ".." }
