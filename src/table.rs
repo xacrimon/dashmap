@@ -124,19 +124,20 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             for idx in range {
                 unsafe {
                     'inner: loop {
-                        let bucket_ptr =
-                            self.old_table.as_ref().buckets[idx].load(Ordering::SeqCst);
-                        if self.old_table.as_ref().buckets[idx].compare_and_swap(
-                            bucket_ptr,
-                            set_tag_type(bucket_ptr as usize, PtrTag::Resize) as _,
-                            Ordering::SeqCst,
-                        ) != bucket_ptr
-                        {
-                            continue 'inner;
+                        let bucket_ptr = self.old_table.as_ref().buckets[idx].load(Ordering::SeqCst);
+                        if !bucket_ptr.is_null() && get_tag_type(bucket_ptr as _) == PtrTag::None {
+                            if self.old_table.as_ref().buckets[idx].compare_and_swap(
+                                bucket_ptr,
+                                set_tag_type(bucket_ptr as usize, PtrTag::Resize) as _,
+                                Ordering::SeqCst,
+                            ) != bucket_ptr
+                            {
+                                continue 'inner;
+                            }
+                            let cs = tag_strip(bucket_ptr as usize) as *mut ABox<Element<K, V>>;
+                            sarc_add_copy(cs);
+                            self.new_table.as_ref().put_node(cs);
                         }
-                        let cs = tag_strip(bucket_ptr as usize) as *mut ABox<Element<K, V>>;
-                        sarc_add_copy(cs);
-                        self.new_table.as_ref().put_node(cs);
                         break;
                     }
                 }
