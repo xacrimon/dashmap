@@ -24,7 +24,6 @@ pub fn purge_era(era: usize) {
 }
 
 /// Execute a closure in protected mode. This permits it to load protected pointers.
-#[inline(always)]
 pub fn protected<T>(f: impl FnOnce() -> T) -> T {
     PARTICIPANT_HANDLE.with(|key| {
         key.enter_critical();
@@ -35,7 +34,6 @@ pub fn protected<T>(f: impl FnOnce() -> T) -> T {
 }
 
 /// Defer a function.
-#[inline(always)]
 pub fn defer(era: usize, f: impl FnOnce()) {
     let deferred = Deferred::new(era, f);
     PARTICIPANT_HANDLE.with(|key| key.defer(deferred));
@@ -160,7 +158,6 @@ struct Global {
 unsafe impl Send for Global {}
 unsafe impl Sync for Global {}
 
-#[inline(always)]
 fn increment_epoch(a: &AtomicUsize) -> usize {
     loop {
         let current = a.load(Ordering::Acquire);
@@ -263,7 +260,6 @@ impl Local {
         }
     }
 
-    #[inline(always)]
     pub fn enter_critical(&self) {
         if likely!(self.active.fetch_add(1, Ordering::Relaxed) == 0) {
             let global_epoch = self.global.epoch.load(Ordering::Relaxed);
@@ -271,7 +267,6 @@ impl Local {
         }
     }
 
-    #[inline(always)]
     pub fn exit_critical(&self) {
         #[cfg(debug_assertions)]
         {
