@@ -6,7 +6,6 @@ mod element;
 mod recl;
 mod table;
 mod util;
-mod mvcc;
 
 use element::ElementGuard;
 use recl::{new_era, purge_era};
