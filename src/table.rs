@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 
 macro_rules! maybe_grow {
     ($s:expr) => {
-        if likely!($s.cells_remaining.fetch_sub(1, Ordering::SeqCst) == 1) {
+        if likely!($s.cells_remaining.fetch_sub(1, Ordering::AcqRel) == 1) {
             $s.grow();
         }
     };
@@ -103,7 +103,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             if (*self.root_ptr).compare_and_swap(
                 self.old_table.as_ptr(),
                 self.new_table.as_ptr(),
-                Ordering::SeqCst,
+                Ordering::AcqRel,
             ) == self.old_table.as_ptr()
             {
                 let old_table_ptr = self.old_table.as_ptr();
@@ -113,24 +113,24 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
     }
 
     fn wait(&self) {
-        while self.running.load(Ordering::SeqCst) != 0 {
+        while self.running.load(Ordering::Acquire) != 0 {
             spin_loop_hint()
         }
     }
 
     fn work(&self) {
-        self.running.fetch_add(1, Ordering::SeqCst);
+        self.running.fetch_add(1, Ordering::AcqRel);
         while let Some(range) = self.task_list.lock().unwrap().pop_front() {
             for idx in range {
                 unsafe {
                     'inner: loop {
                         let bucket_ptr =
-                            self.old_table.as_ref().buckets[idx].load(Ordering::SeqCst);
+                            self.old_table.as_ref().buckets[idx].load(Ordering::Relaxed);
                         if !bucket_ptr.is_null() && get_tag_type(bucket_ptr as _) == PtrTag::None {
                             if self.old_table.as_ref().buckets[idx].compare_and_swap(
                                 bucket_ptr,
                                 set_tag_type(bucket_ptr as usize, PtrTag::Resize) as _,
-                                Ordering::SeqCst,
+                                Ordering::AcqRel,
                             ) != bucket_ptr
                             {
                                 continue 'inner;
@@ -145,7 +145,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             }
         }
 
-        self.running.fetch_sub(1, Ordering::SeqCst);
+        self.running.fetch_sub(1, Ordering::AcqRel);
     }
 }
 
@@ -199,7 +199,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 
     fn grow(&self) {
         unsafe {
-            let coordinator = self.next.load(Ordering::SeqCst);
+            let coordinator = self.next.load(Ordering::Acquire);
             if !coordinator.is_null() {
                 (*coordinator).work();
                 (*coordinator).wait();
@@ -208,7 +208,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     on_heap!(ResizeCoordinator::new(self.root_ptr, mem::transmute(self),));
                 let old =
                     self.next
-                        .compare_and_swap(ptr::null_mut(), new_coordinator, Ordering::SeqCst);
+                        .compare_and_swap(ptr::null_mut(), new_coordinator, Ordering::AcqRel);
                 if old.is_null() {
                     (*new_coordinator).run(self.era);
                     reap_now!(new_coordinator);
@@ -240,7 +240,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let idx_start = hash as usize % self.buckets.len();
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
-                let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+                let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
                 let cache = get_cache(bucket_ptr as _);
                 match get_tag_type(bucket_ptr as _) {
                     PtrTag::Resize => {
@@ -268,7 +268,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     if self.buckets[idx].compare_and_swap(
                         bucket_ptr,
                         new_bucket as _,
-                        Ordering::SeqCst,
+                        Ordering::AcqRel,
                     ) == bucket_ptr
                     {
                         defer(self.era, move || sarc_remove_copy(stripped));
@@ -301,7 +301,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let idx_start = hash as usize % self.buckets.len();
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
-                let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+                let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
                 match get_tag_type(bucket_ptr as _) {
                     PtrTag::Resize => {
                         return self.fetch_next().unwrap().remove_if(search_key, predicate);
@@ -321,7 +321,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     if self.buckets[idx].compare_and_swap(
                         bucket_ptr,
                         tombstone as _,
-                        Ordering::SeqCst,
+                        Ordering::AcqRel,
                     ) == bucket_ptr
                     {
                         let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
@@ -390,7 +390,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         node = set_cache(node as _, filter) as _;
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
-                let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+                let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
                 let _cache = get_cache(bucket_ptr as _);
                 match get_tag_type(bucket_ptr as _) {
                     PtrTag::None => (),
@@ -398,7 +398,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         return self.fetch_next().unwrap().put_node(node);
                     }
                     PtrTag::Tombstone => {
-                        if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::SeqCst)
+                        if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::AcqRel)
                             == bucket_ptr
                         {
                             // Don't update cells_remaining since we are replacing a tombstone.
@@ -409,7 +409,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     }
                 }
                 if bucket_ptr.is_null() {
-                    if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::SeqCst)
+                    if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::AcqRel)
                         == bucket_ptr
                     {
                         maybe_grow!(self);
@@ -421,7 +421,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     let bucket_data =
                         sarc_deref(tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>);
                     if bucket_data.key == node_data.key {
-                        if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::SeqCst)
+                        if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::AcqRel)
                             == bucket_ptr
                         {
                             // Don't update cells_remaining since we are replacing an entry.
@@ -444,7 +444,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
         for idx in 0..self.buckets.len() {
             'inner: loop {
-                let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+                let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed   );
                 let _cache = get_cache(bucket_ptr as _);
                 match get_tag_type(bucket_ptr as _) {
                     PtrTag::Resize => return self.fetch_next().unwrap().retain(predicate),
@@ -461,7 +461,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     if self.buckets[idx].compare_and_swap(
                         bucket_ptr,
                         tombstone as _,
-                        Ordering::SeqCst,
+                        Ordering::AcqRel,
                     ) == bucket_ptr
                     {
                         defer(self.era, move || sarc_remove_copy(cs));
@@ -480,7 +480,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 impl<K, V, S> Drop for BucketArray<K, V, S> {
     fn drop(&mut self) {
         for idx in 0..self.buckets.len() {
-            let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+            let bucket_ptr = self.buckets[idx].load(Ordering::Acquire);
             let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
             //defer(self.era, move || sarc_remove_copy(stripped));
             if !stripped.is_null() {
@@ -499,9 +499,9 @@ pub struct Table<K, V, S> {
 impl<K, V, S> Drop for Table<K, V, S> {
     fn drop(&mut self) {
         unsafe {
-            let array = self.array.load(Ordering::SeqCst);
+            let array = self.array.load(Ordering::Acquire);
             if !array.is_null() {
-                ptr::drop_in_place(self.array.load(Ordering::SeqCst));
+                ptr::drop_in_place(array);
             }
         }
     }
@@ -514,7 +514,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     pub fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
         let mut atomic = Box::new(AtomicPtr::new(ptr::null_mut()));
         let table = BucketArray::new(&mut *atomic, capacity, era, Arc::clone(&hash_builder));
-        atomic.store(on_heap!(table), Ordering::SeqCst);
+        atomic.store(on_heap!(table), Ordering::Release);
 
         Self {
             hash_builder,
@@ -524,7 +524,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     }
 
     fn array<'a>(&self) -> &'a BucketArray<K, V, S> {
-        unsafe { &*self.array.load(Ordering::SeqCst) }
+        unsafe { &*self.array.load(Ordering::Relaxed) }
     }
 
     pub fn insert(&self, key: K, value: V) -> bool {

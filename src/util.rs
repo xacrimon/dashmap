@@ -198,11 +198,11 @@ impl FastCounter {
     }
 
     pub fn increment(&self) {
-        self.inner.fetch_add(1, Ordering::SeqCst);
+        self.inner.fetch_add(1, Ordering::AcqRel);
     }
 
     pub fn decrement(&self) {
-        self.inner.fetch_sub(1, Ordering::SeqCst);
+        self.inner.fetch_sub(1, Ordering::AcqRel);
     }
 
     pub fn read(&self) -> usize {

@@ -7,7 +7,7 @@ mod recl;
 mod table;
 mod util;
 
-use element::ElementGuard;
+pub use element::ElementGuard;
 use recl::{new_era, purge_era};
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
