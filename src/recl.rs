@@ -208,15 +208,15 @@ impl Global {
     }
 
     fn collect(&self) {
-        let start_global_epoch = self.epoch.load(Ordering::SeqCst);
+        let start_global_epoch = self.epoch.load(Ordering::Acquire);
         let mut can_collect = true;
         let locals = self.locals.lock().unwrap();
 
         for local_ptr in &*locals {
             unsafe {
                 let local = &**local_ptr;
-                if local.active.load(Ordering::SeqCst) > 0
-                    && local.epoch.load(Ordering::SeqCst) != start_global_epoch
+                if local.active.load(Ordering::Acquire) > 0
+                    && local.epoch.load(Ordering::Acquire) != start_global_epoch
                 {
                     can_collect = false;
                 }
@@ -224,7 +224,7 @@ impl Global {
         }
         drop(locals);
 
-        if start_global_epoch != self.epoch.load(Ordering::SeqCst) {
+        if start_global_epoch != self.epoch.load(Ordering::Acquire) {
             return;
         }
 
