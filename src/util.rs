@@ -81,35 +81,16 @@ impl<T> From<T> for CachePadded<T> {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
 const DISCRIMINANT_MASK: usize = std::usize::MAX >> 16;
 const POINTER_WIDTH: usize = 48;
 
 pub fn tag_strip(pointer: usize) -> usize {
-    #[cfg(target_arch = "x86_64")]
-    {
-        pointer & DISCRIMINANT_MASK
-    }
-
-    #[cfg(not(target_arch = "x86_64"))]
-    {
-        pointer
-    }
+    pointer & DISCRIMINANT_MASK
 }
 
 fn tag_discriminant(pointer: usize) -> Discriminant {
-    #[cfg(target_arch = "x86_64")]
-    {
-        Discriminant {
-            a: (pointer >> POINTER_WIDTH) as u16,
-        }
-    }
-
-    #[cfg(not(target_arch = "x86_64"))]
-    {
-        Discriminant {
-            a: 0,
-        }
+    Discriminant {
+        a: (pointer >> POINTER_WIDTH) as u16,
     }
 }
 
