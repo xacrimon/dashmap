@@ -2,9 +2,12 @@
 #![allow(clippy::type_complexity)]
 
 pub mod iter;
+pub mod iter_set;
 pub mod lock;
 pub mod mapref;
 mod read_only;
+mod set;
+pub mod setref;
 mod t;
 mod util;
 
@@ -24,6 +27,7 @@ use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
 pub use read_only::ReadOnlyView;
+pub use set::DashSet;
 pub use t::Map;
 
 cfg_if! {
@@ -40,9 +44,9 @@ cfg_if! {
 
         use alloc::{vec::Vec, boxed::Box};
 
-        type HashMap<K, V, S> = hashbrown::HashMap<K, SharedValue<V>, S>;
+        pub(crate) type HashMap<K, V, S> = hashbrown::HashMap<K, SharedValue<V>, S>;
     } else {
-        type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
+        pub(crate) type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
     }
 }
 
@@ -83,6 +87,7 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
             hasher: self.hasher.clone(),
         }
     }
+    // TODO - this should have a custom clone_from
 }
 
 impl<K, V, S> Default for DashMap<K, V, S>
@@ -248,7 +253,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             {
                 let hash = self.hash_usize(&key);
 
-                (hash >> self.shift)
+                hash >> self.shift
             }
         }
     }
@@ -463,7 +468,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._retain(f);
     }
 
-    /// Fetches the total amount of key-value pairs stored in the map.
+    /// Fetches the total number of key-value pairs stored in the map.
     ///
     /// # Examples
     ///
