@@ -167,10 +167,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// mappings.insert(8, 16);
     /// ```
     #[inline]
-    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+    pub fn with_capacity_and_hasher(mut capacity: usize, hasher: S) -> Self {
         let shard_amount = shard_amount();
         let shift = util::ptr_size_bits() - ncb(shard_amount);
+        if capacity != 0 {
+            capacity = capacity + (shard_amount - 1) & !(shard_amount - 1);
+        }
         let cps = capacity / shard_amount;
+
         let shards = (0..shard_amount)
             .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, hasher.clone())))
             .collect();
