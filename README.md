@@ -20,8 +20,6 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 ## TO-DO
 
-- Leapfrog probing
-
 - Support for other architectures than amd64
 
 - DashSet
@@ -29,6 +27,8 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 - no_std
 
 - Documentation
+
+- Leapfrog rewrite
 
 ## Contributing
 
