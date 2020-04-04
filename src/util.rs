@@ -128,7 +128,7 @@ pub fn set_cache(pointer: usize, cache: u8) -> usize {
 #[derive(PartialEq, Eq)]
 #[repr(u8)]
 pub enum PtrTag {
-    None,
+    None = 0,
     Tombstone = 1,
     Resize = 2,
 }
