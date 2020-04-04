@@ -30,6 +30,10 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - Support for other architectures than amd64
 
+- DashSet
+
+- no_std
+
 - Documentation
 
 ## Contributing
