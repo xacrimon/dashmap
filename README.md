@@ -20,8 +20,6 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 ## TO-DO
 
-- Filter probing for all table operations
-
 - Concurrent GC marking
 
 - Tombstone elimination

@@ -237,48 +237,53 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             return next.optimistic_update(search_key, do_update);
         }
         let hash = do_hash(&*self.hash_builder, search_key);
+        let filter = derive_filter(hash);
         let idx_start = hash as usize % self.buckets.len();
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
                 let cache = get_cache(bucket_ptr as _);
-                match get_tag_type(bucket_ptr as _) {
-                    PtrTag::Resize => {
-                        return self
-                            .fetch_next()
-                            .unwrap()
-                            .optimistic_update(search_key, do_update);
-                    }
-                    PtrTag::Tombstone => break 'inner,
-                    PtrTag::None => (),
-                }
                 if unlikely!(bucket_ptr.is_null()) {
                     return None;
                 }
-                let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
-                let bucket_data = sarc_deref(stripped);
-                if search_key == bucket_data.key.borrow() {
-                    let updated_value = do_update(&bucket_data.key, &bucket_data.value);
-                    let new_bucket_uc = sarc_new(Element::new(
-                        bucket_data.key.clone(),
-                        bucket_data.hash,
-                        updated_value,
-                    ));
-                    let new_bucket = set_cache(new_bucket_uc as _, cache);
-                    if self.buckets[idx].compare_and_swap(
-                        bucket_ptr,
-                        new_bucket as _,
-                        Ordering::AcqRel,
-                    ) == bucket_ptr
-                    {
-                        defer(self.era, move || sarc_remove_copy(stripped));
-                        return Some(new_bucket_uc);
+                if unlikely!(filter == cache) {
+                    match get_tag_type(bucket_ptr as _) {
+                        PtrTag::Resize => {
+                            return self
+                                .fetch_next()
+                                .unwrap()
+                                .optimistic_update(search_key, do_update);
+                        }
+                        PtrTag::Tombstone => break 'inner,
+                        PtrTag::None => (),
+                    }
+                    let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
+                    let bucket_data = sarc_deref(stripped);
+                    if search_key == bucket_data.key.borrow() {
+                        let updated_value = do_update(&bucket_data.key, &bucket_data.value);
+                        let new_bucket_uc = sarc_new(Element::new(
+                            bucket_data.key.clone(),
+                            bucket_data.hash,
+                            updated_value,
+                        ));
+                        let new_bucket = set_cache(new_bucket_uc as _, cache);
+                        if self.buckets[idx].compare_and_swap(
+                            bucket_ptr,
+                            new_bucket as _,
+                            Ordering::AcqRel,
+                        ) == bucket_ptr
+                        {
+                            defer(self.era, move || sarc_remove_copy(stripped));
+                            return Some(new_bucket_uc);
+                        } else {
+                            sarc_remove_copy(new_bucket_uc);
+                            continue 'inner;
+                        }
                     } else {
-                        sarc_remove_copy(new_bucket_uc);
-                        continue 'inner;
+                        break;
                     }
                 } else {
-                    break;
+                    break 'inner;
                 }
             }
         }
@@ -298,37 +303,44 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             return next.remove_if(search_key, predicate);
         }
         let hash = do_hash(&*self.hash_builder, search_key);
+        let filter = derive_filter(hash);
         let idx_start = hash as usize % self.buckets.len();
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
-                match get_tag_type(bucket_ptr as _) {
-                    PtrTag::Resize => {
-                        return self.fetch_next().unwrap().remove_if(search_key, predicate);
-                    }
-                    PtrTag::Tombstone => break 'inner,
-                    PtrTag::None => (),
-                }
+                let cache = get_cache(bucket_ptr as _);
                 if bucket_ptr.is_null() {
                     return None;
-                } else if {
-                    let cs = tag_strip(bucket_ptr as _);
-                    let bucket_data = sarc_deref(cs as *mut ABox<Element<K, V>>);
-                    search_key == bucket_data.key.borrow()
-                        && predicate(&bucket_data.key, &bucket_data.value)
-                } {
-                    let tombstone = set_tag_type(0, PtrTag::Tombstone);
-                    if self.buckets[idx].compare_and_swap(
-                        bucket_ptr,
-                        tombstone as _,
-                        Ordering::AcqRel,
-                    ) == bucket_ptr
-                    {
-                        let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
-                        defer(self.era, move || sarc_remove_copy(stripped));
-                        return Some(stripped);
+                }
+                if unlikely!(filter == cache) {
+                    match get_tag_type(bucket_ptr as _) {
+                        PtrTag::Resize => {
+                            return self.fetch_next().unwrap().remove_if(search_key, predicate);
+                        }
+                        PtrTag::Tombstone => break 'inner,
+                        PtrTag::None => (),
+                    }
+                    if {
+                        let cs = tag_strip(bucket_ptr as _);
+                        let bucket_data = sarc_deref(cs as *mut ABox<Element<K, V>>);
+                        search_key == bucket_data.key.borrow()
+                            && predicate(&bucket_data.key, &bucket_data.value)
+                    } {
+                        let tombstone = set_tag_type(0, PtrTag::Tombstone);
+                        if self.buckets[idx].compare_and_swap(
+                            bucket_ptr,
+                            tombstone as _,
+                            Ordering::AcqRel,
+                        ) == bucket_ptr
+                        {
+                            let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
+                            defer(self.era, move || sarc_remove_copy(stripped));
+                            return Some(stripped);
+                        } else {
+                            continue 'inner;
+                        }
                     } else {
-                        continue 'inner;
+                        break 'inner;
                     }
                 } else {
                     break 'inner;
@@ -391,7 +403,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
-                let _cache = get_cache(bucket_ptr as _);
+                let cache = get_cache(bucket_ptr as _);
                 match get_tag_type(bucket_ptr as _) {
                     PtrTag::None => (),
                     PtrTag::Resize => {
@@ -418,6 +430,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         continue 'inner;
                     }
                 } else {
+                    if filter != cache {
+                        break 'inner;
+                    }
                     let bucket_data =
                         sarc_deref(tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>);
                     if bucket_data.key == node_data.key {
@@ -482,9 +497,8 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
         for idx in 0..self.buckets.len() {
             let bucket_ptr = self.buckets[idx].load(Ordering::Acquire);
             let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
-            //defer(self.era, move || sarc_remove_copy(stripped));
             if !stripped.is_null() {
-                sarc_remove_copy(stripped)
+                sarc_remove_copy(stripped);
             }
         }
     }
