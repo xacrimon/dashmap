@@ -444,7 +444,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         }
         for idx in 0..self.buckets.len() {
             'inner: loop {
-                let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed   );
+                let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
                 let _cache = get_cache(bucket_ptr as _);
                 match get_tag_type(bucket_ptr as _) {
                     PtrTag::Resize => return self.fetch_next().unwrap().retain(predicate),

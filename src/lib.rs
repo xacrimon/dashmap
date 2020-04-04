@@ -121,22 +121,24 @@ impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
         self.table.extract(search_key, do_extract)
     }
 
-    pub fn update<Q, F>(&self, search_key: &Q, do_update: &mut F) -> bool
+    pub fn update<Q, F>(&self, search_key: &Q, do_update: F) -> bool
     where
         K: Borrow<Q> + Clone,
         Q: ?Sized + Eq + Hash,
         F: FnMut(&K, &V) -> V,
     {
-        self.table.update(search_key, do_update)
+        let mut do_update = do_update;
+        self.table.update(search_key, &mut do_update)
     }
 
-    pub fn update_get<Q, F>(&self, search_key: &Q, do_update: &mut F) -> Option<ElementGuard<K, V>>
+    pub fn update_get<Q, F>(&self, search_key: &Q, do_update: F) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q> + Clone,
         Q: ?Sized + Eq + Hash,
         F: FnMut(&K, &V) -> V,
     {
-        self.table.update_get(search_key, do_update)
+        let mut do_update = do_update;
+        self.table.update_get(search_key, &mut do_update)
     }
 
     pub fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {
