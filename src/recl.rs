@@ -148,9 +148,6 @@ struct Global {
     // Global epoch. This value is always 0, 1 or 2.
     epoch: AtomicUsize,
 
-    // Deferred functions.
-    deferred: Mutex<[Vec<Deferred>; 3]>,
-
     // List of participants.
     locals: Mutex<Vec<*const Local>>,
 }
@@ -172,7 +169,6 @@ impl Global {
     fn new() -> Self {
         Self {
             epoch: AtomicUsize::new(0),
-            deferred: Mutex::new([Vec::new(), Vec::new(), Vec::new()]),
             locals: Mutex::new(Vec::new()),
         }
     }
@@ -189,50 +185,54 @@ impl Global {
     }
 
     fn purge_era(&self, era: usize) {
-        let mut deferred_lists = self.deferred.lock().unwrap();
-        let mut to_collect = Vec::new();
-        for rlist in &mut *deferred_lists {
-            let llist = take(rlist);
-            for deferred in llist {
-                if deferred.era == era {
-                    to_collect.push(deferred);
-                } else {
-                    rlist.push(deferred);
+        let locals = self.locals.lock().unwrap();
+        for local_ptr in &*locals {
+            unsafe {
+                let local = &**local_ptr;
+                let mut deferred_lists = local.deferred.lock().unwrap();
+                let mut to_collect = Vec::new();
+                for rlist in &mut *deferred_lists {
+                    let llist = take(rlist);
+                    for deferred in llist {
+                        if deferred.era == era {
+                            to_collect.push(deferred);
+                        } else {
+                            rlist.push(deferred);
+                        }
+                    }
+                }
+                drop(deferred_lists);
+                for deferred in to_collect {
+                    deferred.run();
                 }
             }
-        }
-        drop(deferred_lists);
-        for deferred in to_collect {
-            deferred.run();
         }
     }
 
     fn collect(&self) {
         let start_global_epoch = self.epoch.load(Ordering::Acquire);
-        let mut can_collect = true;
         let locals = self.locals.lock().unwrap();
-
+        let mut local_lists = Vec::new();
         for local_ptr in &*locals {
             unsafe {
                 let local = &**local_ptr;
+                local_lists.push(&local.deferred);
                 if local.active.load(Ordering::Acquire) > 0
                     && local.epoch.load(Ordering::Acquire) != start_global_epoch
                 {
-                    can_collect = false;
+                    return;
                 }
             }
         }
         drop(locals);
-
         if start_global_epoch != self.epoch.load(Ordering::Acquire) {
             return;
         }
-
-        if can_collect {
-            let next = increment_epoch(&self.epoch);
-            let mut deferred = self.deferred.lock().unwrap();
-            let to_collect = take(&mut deferred[next]);
-            drop(deferred);
+        let next = increment_epoch(&self.epoch);
+        for local_deferred_l in local_lists {
+            let mut local_deferred = local_deferred_l.lock().unwrap();
+            let to_collect = take(&mut local_deferred[next]);
+            drop(local_deferred);
             for deferred in to_collect {
                 deferred.run();
             }
@@ -249,6 +249,9 @@ pub struct Local {
 
     // Reference to global state.
     global: Arc<Global>,
+
+    // Objects market for deletetion.
+    deferred: Mutex<[Vec<Deferred>; 3]>,
 }
 
 impl Local {
@@ -257,6 +260,7 @@ impl Local {
             active: AtomicUsize::new(0),
             epoch: AtomicUsize::new(0),
             global,
+            deferred: Mutex::new([Vec::new(), Vec::new(), Vec::new()]),
         }
     }
 
@@ -282,7 +286,6 @@ impl Local {
     fn defer(&self, f: Deferred) {
         let global_epoch = self.global.epoch.load(Ordering::Relaxed);
         let mut deferred = self
-            .global
             .deferred
             .lock()
             .unwrap_or_else(|_| std::process::abort());

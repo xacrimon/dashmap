@@ -73,7 +73,6 @@ name = "dashmap"
 version = "4.0.0"
 dependencies = [
  "once_cell",
- "rand",
 ]
 
 [[package]]

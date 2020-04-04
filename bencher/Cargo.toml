@@ -6,6 +6,7 @@ edition = "2018"
 
 [profile.release]
 panic = "abort"
+debug = true
 
 [dependencies]
 dashmap = { path = ".." }
