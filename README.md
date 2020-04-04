@@ -18,7 +18,7 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - `nightly` - Enables optimizations that require nightly.
 
-## TO-DO Optimizations
+## TO-DO
 
 - Filter probing for all table operations
 
@@ -29,6 +29,10 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 - Object pool for elements
 
 - Leapfrog probing
+
+- Support for other architectures than amd64
+
+- Documentation
 
 ## Contributing
 
