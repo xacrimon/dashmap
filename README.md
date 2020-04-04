@@ -28,7 +28,7 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - Documentation
 
-- Leapfrog rewrite
+- Leapfrog probing
 
 ## Contributing
 
