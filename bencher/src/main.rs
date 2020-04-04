@@ -50,7 +50,7 @@ where
 
     fn update(&mut self, key: &Self::Key) -> bool {
         //dbg!("update");
-        let r = self.0.update(key, &mut |_, v| v + 1);
+        let r = self.0.update(key, |_, v| v + 1);
         r
     }
 }
