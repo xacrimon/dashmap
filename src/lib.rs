@@ -176,7 +176,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         let shard_amount = shard_amount();
         let shift = util::ptr_size_bits() - ncb(shard_amount);
         if capacity != 0 {
-            capacity = capacity + (shard_amount - 1) & !(shard_amount - 1);
+            capacity = (capacity + (shard_amount - 1)) & !(shard_amount - 1);
         }
         let cps = capacity / shard_amount;
 
@@ -252,8 +252,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
                 Q: Hash + Eq + ?Sized,
             {
                 let hash = self.hash_usize(&key);
-
-                hash >> self.shift
+                self.determine_shard(hash)
             }
         }
     }
@@ -276,12 +275,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// ```
             #[inline]
             pub fn determine_shard(&self, hash: usize) -> usize {
-                hash >> self.shift
+                // Leave the high 7 bits for the HashBrown SIMD tag.
+                (hash << 7) >> self.shift
             }
         } else {
             #[inline]
             pub(crate) fn determine_shard(&self, hash: usize) -> usize {
-                hash >> self.shift
+                // Leave the high 7 bits for the HashBrown SIMD tag.
+                (hash << 7) >> self.shift
             }
         }
     }
