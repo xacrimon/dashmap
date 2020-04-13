@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 
 macro_rules! maybe_grow {
     ($s:expr) => {
-        if likely!($s.cells_remaining.fetch_sub(1, Ordering::AcqRel) == 1) {
+        if unlikely!($s.cells_remaining.fetch_sub(1, Ordering::AcqRel) == 1) {
             $s.grow();
         }
     };
