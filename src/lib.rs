@@ -6,7 +6,7 @@ mod element;
 mod recl;
 mod table;
 mod util;
-mod fallback;
+mod spec;
 
 pub use element::ElementGuard;
 use recl::{new_era, purge_era};
@@ -14,7 +14,7 @@ use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
 use std::sync::Arc;
-use table::Table;
+use spec::x86_64::Table;
 
 pub struct DashMap<K, V, S = RandomState> {
     era: usize,
