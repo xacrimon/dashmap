@@ -1,7 +1,7 @@
-use std::hash::{Hash, BuildHasher};
 use crate::element::ElementGuard;
-use std::sync::Arc;
 use std::borrow::Borrow;
+use std::hash::{BuildHasher, Hash};
+use std::sync::Arc;
 
 pub trait Table<K: Eq + Hash, V, S: BuildHasher> {
     type Iter: Iterator<Item = ElementGuard<K, V>>;
@@ -40,7 +40,7 @@ pub trait Table<K: Eq + Hash, V, S: BuildHasher> {
     {
         self.remove_if_take(search_key, &mut |_, _| true)
     }
-    
+
     fn remove_if<Q>(&self, search_key: &Q, predicate: &mut impl FnMut(&K, &V) -> bool) -> bool
     where
         K: Borrow<Q>,
