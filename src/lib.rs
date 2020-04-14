@@ -87,7 +87,6 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
             hasher: self.hasher.clone(),
         }
     }
-    // TODO - this should have a custom clone_from
 }
 
 impl<K, V, S> Default for DashMap<K, V, S>
