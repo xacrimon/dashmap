@@ -53,27 +53,27 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(current) = self.current.as_mut() {
-            if let Some((k, v)) = current.next() {
-                return Some((k, v.into_inner()));
+        loop {
+            if let Some(current) = self.current.as_mut() {
+                if let Some((k, v)) = current.next() {
+                    return Some((k, v.into_inner()));
+                }
             }
+
+            if self.shard_i == self.map._shard_count() {
+                return None;
+            }
+
+            //let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+            let mut shard_wl = unsafe { self.map._yield_write_shard(self.shard_i) };
+            let hasher = self.map._hasher();
+            let map = mem::replace(&mut *shard_wl, HashMap::with_hasher(hasher));
+            drop(shard_wl);
+            let iter = map.into_iter();
+            //unsafe { ptr::write(&mut self.current, Some((arcee, iter))); }
+            self.current = Some(iter);
+            self.shard_i += 1;
         }
-
-        if self.shard_i == self.map._shard_count() {
-            return None;
-        }
-
-        //let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
-        let mut shard_wl = unsafe { self.map._yield_write_shard(self.shard_i) };
-        let hasher = self.map._hasher();
-        let map = mem::replace(&mut *shard_wl, HashMap::with_hasher(hasher));
-        drop(shard_wl);
-        let iter = map.into_iter();
-        //unsafe { ptr::write(&mut self.current, Some((arcee, iter))); }
-        self.current = Some(iter);
-        self.shard_i += 1;
-
-        self.next()
     }
 }
 
@@ -155,24 +155,24 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(current) = self.current.as_mut() {
-            if let Some((k, v)) = current.1.next() {
-                let guard = current.0.clone();
-                return Some(RefMulti::new(guard, k, v.get()));
+        loop {
+            if let Some(current) = self.current.as_mut() {
+                if let Some((k, v)) = current.1.next() {
+                    let guard = current.0.clone();
+                    return Some(RefMulti::new(guard, k, v.get()));
+                }
             }
+
+            if self.shard_i == self.map._shard_count() {
+                return None;
+            }
+
+            let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+            let sref: &HashMap<K, V, S> = unsafe { util::change_lifetime_const(&*guard) };
+            let iter = sref.iter();
+            self.current = Some((Arc::new(guard), iter));
+            self.shard_i += 1;
         }
-
-        if self.shard_i == self.map._shard_count() {
-            return None;
-        }
-
-        let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
-        let sref: &HashMap<K, V, S> = unsafe { util::change_lifetime_const(&*guard) };
-        let iter = sref.iter();
-        self.current = Some((Arc::new(guard), iter));
-        self.shard_i += 1;
-
-        self.next()
     }
 }
 
@@ -231,28 +231,28 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(current) = self.current.as_mut() {
-            if let Some((k, v)) = current.1.next() {
-                let guard = current.0.clone();
-                unsafe {
-                    let k = util::change_lifetime_const(k);
-                    let v = &mut *v.as_ptr();
-                    return Some(RefMutMulti::new(guard, k, v));
+        loop {
+            if let Some(current) = self.current.as_mut() {
+                if let Some((k, v)) = current.1.next() {
+                    let guard = current.0.clone();
+                    unsafe {
+                        let k = util::change_lifetime_const(k);
+                        let v = &mut *v.as_ptr();
+                        return Some(RefMutMulti::new(guard, k, v));
+                    }
                 }
             }
+
+            if self.shard_i == self.map._shard_count() {
+                return None;
+            }
+
+            let mut guard = unsafe { self.map._yield_write_shard(self.shard_i) };
+            let sref: &mut HashMap<K, V, S> = unsafe { util::change_lifetime_mut(&mut *guard) };
+            let iter = sref.iter_mut();
+            self.current = Some((Arc::new(guard), iter));
+            self.shard_i += 1;
         }
-
-        if self.shard_i == self.map._shard_count() {
-            return None;
-        }
-
-        let mut guard = unsafe { self.map._yield_write_shard(self.shard_i) };
-        let sref: &mut HashMap<K, V, S> = unsafe { util::change_lifetime_mut(&mut *guard) };
-        let iter = sref.iter_mut();
-        self.current = Some((Arc::new(guard), iter));
-        self.shard_i += 1;
-
-        self.next()
     }
 }
 
