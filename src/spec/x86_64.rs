@@ -15,6 +15,7 @@ use std::ops::Range;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{spin_loop_hint, AtomicPtr, AtomicU16, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use crate::table::Table as TableTrait;
 
 macro_rules! maybe_grow {
     ($s:expr) => {
@@ -525,7 +526,13 @@ unsafe impl<K: Send, V: Send, S: Send> Send for Table<K, V, S> {}
 unsafe impl<K: Sync, V: Sync, S: Sync> Sync for Table<K, V, S> {}
 
 impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
-    pub fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
+    fn array<'a>(&self) -> &'a BucketArray<K, V, S> {
+        unsafe { &*self.array.load(Ordering::Relaxed) }
+    }
+}
+
+impl<K: Eq + Hash, V, S: BuildHasher> TableTrait<K, V, S> for Table<K, V, S> {
+    fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
         let mut atomic = Box::new(AtomicPtr::new(ptr::null_mut()));
         let table = BucketArray::new(&mut *atomic, capacity, era, Arc::clone(&hash_builder));
         atomic.store(on_heap!(table), Ordering::Release);
@@ -537,11 +544,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         }
     }
 
-    fn array<'a>(&self) -> &'a BucketArray<K, V, S> {
-        unsafe { &*self.array.load(Ordering::Relaxed) }
-    }
-
-    pub fn insert(&self, key: K, value: V) -> bool {
+    fn insert(&self, key: K, value: V) -> bool {
         let hash = do_hash(&*self.hash_builder, &key);
         let node = sarc_new(Element::new(key, hash, value));
         if likely!(protected(|| self.array().put_node(node)).is_none()) {
@@ -552,7 +555,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         }
     }
 
-    pub fn insert_and_get(&self, key: K, value: V) -> ElementGuard<K, V> {
+    fn insert_and_get(&self, key: K, value: V) -> ElementGuard<K, V> {
         let hash = do_hash(&*self.hash_builder, &key);
         let node = sarc_new(Element::new(key, hash, value));
         let g = Element::read(node);
@@ -564,7 +567,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         }
     }
 
-    pub fn replace(&self, key: K, value: V) -> Option<ElementGuard<K, V>> {
+    fn replace(&self, key: K, value: V) -> Option<ElementGuard<K, V>> {
         let hash = do_hash(&*self.hash_builder, &key);
         let node = sarc_new(Element::new(key, hash, value));
         if let Some(r) = protected(|| self.array().put_node(node).map(Element::read)) {
@@ -575,7 +578,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         }
     }
 
-    pub fn get<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
+    fn get<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -583,7 +586,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         protected(|| self.array().find_node(search_key).map(Element::read))
     }
 
-    pub fn contains_key<Q>(&self, search_key: &Q) -> bool
+    fn contains_key<Q>(&self, search_key: &Q) -> bool
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -591,7 +594,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         protected(|| self.array().find_node(search_key)).is_some()
     }
 
-    pub fn remove<Q>(&self, search_key: &Q) -> bool
+    fn remove<Q>(&self, search_key: &Q) -> bool
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -604,7 +607,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         }
     }
 
-    pub fn remove_if<Q>(&self, search_key: &Q, predicate: &mut impl FnMut(&K, &V) -> bool) -> bool
+    fn remove_if<Q>(&self, search_key: &Q, predicate: &mut impl FnMut(&K, &V) -> bool) -> bool
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -617,7 +620,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         }
     }
 
-    pub fn remove_take<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
+    fn remove_take<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -634,7 +637,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         }
     }
 
-    pub fn remove_if_take<Q>(
+    fn remove_if_take<Q>(
         &self,
         search_key: &Q,
         predicate: &mut impl FnMut(&K, &V) -> bool,
@@ -655,7 +658,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         }
     }
 
-    pub fn extract<T, Q, F>(&self, search_key: &Q, do_extract: F) -> Option<T>
+    fn extract<T, Q, F>(&self, search_key: &Q, do_extract: F) -> Option<T>
     where
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
@@ -669,7 +672,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         })
     }
 
-    pub fn update<Q, F>(&self, search_key: &Q, do_update: &mut F) -> bool
+    fn update<Q, F>(&self, search_key: &Q, do_update: &mut F) -> bool
     where
         K: Borrow<Q> + Clone,
         Q: ?Sized + Eq + Hash,
@@ -678,7 +681,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         protected(|| self.array().optimistic_update(search_key, do_update)).is_some()
     }
 
-    pub fn update_get<Q, F>(&self, search_key: &Q, do_update: &mut F) -> Option<ElementGuard<K, V>>
+    fn update_get<Q, F>(&self, search_key: &Q, do_update: &mut F) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q> + Clone,
         Q: ?Sized + Eq + Hash,
@@ -691,19 +694,19 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
         })
     }
 
-    pub fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {
+    fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {
         protected(|| self.array().retain(predicate));
     }
 
-    pub fn clear(&self) {
+    fn clear(&self) {
         self.retain(&mut |_, _| false);
     }
 
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.len.read()
     }
 
-    pub fn capacity(&self) -> usize {
+    fn capacity(&self) -> usize {
         protected(|| self.array().buckets.len())
     }
 }
@@ -713,6 +716,7 @@ mod tests {
     use super::Table;
     use std::collections::hash_map::RandomState;
     use std::sync::Arc;
+    use crate::table::Table as TableTrait;
 
     #[test]
     fn insert_get() {
