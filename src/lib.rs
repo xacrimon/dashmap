@@ -15,6 +15,7 @@ use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
 use std::sync::Arc;
+use table::Table as TableTrait;
 
 pub struct DashMap<K, V, S = RandomState> {
     era: usize,
