@@ -1,53 +1,16 @@
-use std::collections::HashMap;
 use std::sync::Mutex;
 use std::hash::{Hash, Hasher, BuildHasher};
 use crate::table::Table as TableTrait;
 use crate::element::{Element, ElementGuard};
 use crate::alloc::{ABox, sarc_new, sarc_add_copy, sarc_remove_copy, sarc_deref};
 use std::borrow::Borrow;
+use std::marker::PhantomData;
 
-struct KeyWrapper<K, V>(pub *mut ABox<Element<K, V>>);
-
-impl<K, V> KeyWrapper<K, V> {
-    fn key(&self) -> &K {
-        &sarc_deref(self.0).key
-    }
-}
-
-impl<K: Eq, V> PartialEq for KeyWrapper<K, V> {
-    fn eq(&self, other: &Self) -> bool {
-        let d1 = sarc_deref(self.0);
-        let d2 = sarc_deref(other.0);
-        d1.key == d2.key
-    }
-}
-
-impl<K: Eq, V> Eq for KeyWrapper<K, V> {}
-
-impl<K: Hash, V> Hash for KeyWrapper<K, V> {
-    fn hash<H>(&self, hasher: &mut H)
-    where
-        H: Hasher,
-    {
-        let d = sarc_deref(self.0);
-        d.key.hash(hasher);
-    }
-}
-
-struct ValueWrapper<K, V>(pub *mut ABox<Element<K, V>>);
-
-impl<K, V> ValueWrapper<K, V> {
-    fn value(&self) -> &V {
-        &sarc_deref(self.0).value
-    }
-
-    fn guard(self) -> ElementGuard<K, V> {
-        Element::read(self.0)
-    }
-}
+type T<K, V> = *mut ABox<Element<K, V>>;
 
 pub struct Table<K, V, S> {
-    inner: Mutex<HashMap<KeyWrapper<K, V>, ValueWrapper<K, V>, S>>,
+    inner: Mutex<Vec<T<K, V>>>,
+    _phantom: PhantomData<S>,
 }
 
 impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K, V, S> for Table<K, V, S> {
@@ -57,19 +20,39 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         todo!()
     }
 
-    fn new(capacity: usize, build_hasher: S) -> Self {
+    fn new(capacity: usize, _build_hasher: S) -> Self {
         Self {
-            inner: Mutex::new(HashMap::with_capacity_and_hasher(capacity, build_hasher)),
+            inner: Mutex::new(Vec::with_capacity(capacity)),
+            _phantom: PhantomData,
         }
     }
 
     fn insert_and_get(&self, key: K, value: V) -> ElementGuard<K, V> {
-        todo!()
+        let boxed = sarc_new(Element::new(key, 0, value));
+        let mut inner = self.inner.lock().unwrap();
+        inner.retain(|t| *t != boxed);
+        inner.push(boxed);
+        Element::read(boxed)
     }
 
     fn replace(&self, key: K, value: V) -> Option<ElementGuard<K, V>> {
         let boxed = sarc_new(Element::new(key, 0, value));
-        self.inner.lock().unwrap().insert(KeyWrapper(boxed), ValueWrapper(boxed)).map(ValueWrapper::guard)
+        let mut inner = self.inner.lock().unwrap();
+        let mut r= None;
+
+        inner.retain(|sptr| {
+            let sd = sarc_deref(*sptr);
+            let bd = sarc_deref(boxed);
+            if sd.key == bd.key {
+                r = Some(Element::read(*sptr));
+                false
+            } else {
+                true
+            }
+        });
+
+        inner.push(boxed);
+        r
     }
 
     fn get<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
@@ -77,7 +60,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash
     {
-        todo!()
+        self.inner.lock().unwrap().iter().find(|sptr| sarc_deref(**sptr).key.borrow() == search_key).map(|sptr| Element::read(*sptr))
     }
 
     fn remove_if_take<Q>(
@@ -89,20 +72,24 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash
     {
-        todo!()
-    }
+        let mut inner = self.inner.lock().unwrap();
+        let iter = inner.iter().enumerate();
 
+        let mut tr = None;
 
-    fn remove<Q>(&self, search_key: &Q) -> bool
-    where
-        K: Borrow<Q>,
-        Q: ?Sized + Eq + Hash,
-    {
-        self.remove_if(search_key, &mut |_, _| true)
-    }
+        for (i, sptr) in iter {
+            let sd = sarc_deref(*sptr);
+            if sd.key.borrow() == search_key && predicate(&sd.key, &sd.value) {
+                tr = Some(i);
+                break;
+            }
+        }
 
-    fn insert(&self, key: K, value: V) -> bool {
-        self.replace(key, value).is_none()
+        tr.map(|i| {
+            let guard = Element::read(inner[i]);
+            inner.remove(i);
+            guard
+        })
     }
 
     fn update_get<Q, F>(&self, search_key: &Q, do_update: &mut F) -> Option<ElementGuard<K, V>>
@@ -115,7 +102,10 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
     }
 
     fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {
-        self.inner.lock().unwrap().retain(|k, v| predicate(k.key(), v.value()))
+        self.inner.lock().unwrap().retain(|sptr| {
+            let sd = sarc_deref(*sptr);
+            predicate(&sd.key, &sd.value)
+        })
     }
 
     fn len(&self) -> usize {

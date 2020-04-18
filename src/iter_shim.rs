@@ -2,11 +2,11 @@ use crate::ElementGuard;
 use std::hash::Hash;
 
 pub struct Iter<K, V> {
-    inner: Box<dyn Iterator<Item = ElementGuard<K, V>> + Send + Sync>,
+    inner: Box<dyn Iterator<Item = ElementGuard<K, V>>>,
 }
 
 impl<K: Eq + Hash, V> Iter<K, V> {
-    pub fn new(inner: Box<dyn Iterator<Item = ElementGuard<K, V>> + Send + Sync>) -> Self {
+    pub fn new(inner: Box<dyn Iterator<Item = ElementGuard<K, V>>>) -> Self {
         Self { inner }
     }
 }
