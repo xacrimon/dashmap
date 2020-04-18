@@ -168,8 +168,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         capacity: usize,
         hash_builder: Arc<S>,
     ) -> Self {
-        debug_assert!(capacity.is_power_of_two());
-        let capacity = cmp::max(capacity, 16);
+        let capacity = cmp::max(capacity, 16).next_power_of_two();
         let cells_remaining = calc_cells_remaining(capacity);
         let buckets = make_groups(capacity);
 
@@ -719,12 +718,11 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
 mod tests {
     use super::Table;
     use std::collections::hash_map::RandomState;
-    use std::sync::Arc;
     use crate::table::Table as TableTrait;
 
     #[test]
     fn insert_get() {
-        let table = Table::new(16, Arc::new(RandomState::new()));
+        let table = Table::new(16, RandomState::new());
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(*table.get(&4).unwrap(), 9);
@@ -733,7 +731,7 @@ mod tests {
 
     #[test]
     fn insert_remove() {
-        let table = Table::new(16, Arc::new(RandomState::new()));
+        let table = Table::new(16, RandomState::new());
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(*table.remove_take(&4).unwrap(), 9);
@@ -743,7 +741,7 @@ mod tests {
 
     #[test]
     fn insert_len() {
-        let table = Table::new(16, Arc::new(RandomState::new()));
+        let table = Table::new(16, RandomState::new());
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(table.len(), 2);
@@ -751,13 +749,13 @@ mod tests {
 
     #[test]
     fn capacity() {
-        let table: Table<(), (), RandomState> = Table::new(128, Arc::new(RandomState::new()));
+        let table: Table<(), (), RandomState> = Table::new(128, RandomState::new());
         assert_eq!(table.capacity(), 128);
     }
 
     #[test]
     fn insert_update_get() {
-        let table = Table::new(16, Arc::new(RandomState::new()));
+        let table = Table::new(16, RandomState::new());
         table.insert(8i32, 24i32);
         table.update(&8, &mut |_, v| v * 2);
         assert_eq!(*table.get(&8).unwrap(), 48);
@@ -765,7 +763,7 @@ mod tests {
 
     #[test]
     fn insert_update_get_fused() {
-        let table = Table::new(16, Arc::new(RandomState::new()));
+        let table = Table::new(16, RandomState::new());
         table.insert(8i32, 24i32);
         assert_eq!(*table.update_get(&8, &mut |_, v| v * 2).unwrap(), 48);
     }
