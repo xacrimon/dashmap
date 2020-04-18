@@ -10,7 +10,7 @@ mod iter_shim;
 
 pub use element::ElementGuard;
 pub use iter_shim::Iter;
-use spec::x86_64::Table;
+use spec::Table;
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
