@@ -574,9 +574,9 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         let hash = do_hash(&*self.hash_builder, &key);
         let node = sarc_new(Element::new(key, hash, value));
         if let Some(r) = protected(|| self.array().put_node(node).map(Element::read)) {
-            self.len.increment();
             return Some(r);
         } else {
+            self.len.increment();
             return None;
         }
     }
