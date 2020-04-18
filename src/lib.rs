@@ -30,7 +30,7 @@ impl<K, V, S> Drop for DashMap<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
+impl<K: Eq + Hash + 'static, V: 'static> DashMap<K, V, RandomState> {
     pub fn new() -> Self {
         Self::with_capacity_and_hasher(0, RandomState::new())
     }
@@ -40,7 +40,7 @@ impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
+impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V, S> {
     pub fn with_hasher(build_hasher: S) -> Self {
         Self::with_capacity_and_hasher(0, build_hasher)
     }
