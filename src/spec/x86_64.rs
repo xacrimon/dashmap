@@ -532,6 +532,12 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
 }
 
 impl<K: Eq + Hash, V, S: BuildHasher> TableTrait<K, V, S> for Table<K, V, S> {
+    type Iter = Box<dyn Iterator<Item = ElementGuard<K, V>> + Send + Sync>;
+
+    fn iter(&self) -> Self::Iter {
+        todo!()
+    }
+
     fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
         let mut atomic = Box::new(AtomicPtr::new(ptr::null_mut()));
         let table = BucketArray::new(&mut *atomic, capacity, era, Arc::clone(&hash_builder));

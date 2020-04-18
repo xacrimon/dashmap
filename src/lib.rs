@@ -7,8 +7,10 @@ mod recl;
 mod spec;
 mod table;
 mod util;
+mod iter_shim;
 
 pub use element::ElementGuard;
+pub use iter_shim::Iter;
 use recl::{new_era, purge_era};
 use spec::x86_64::Table;
 use std::borrow::Borrow;
@@ -141,6 +143,11 @@ impl<K: Eq + Hash, V, S: BuildHasher> DashMap<K, V, S> {
     {
         let mut do_update = do_update;
         self.table.update_get(search_key, &mut do_update)
+    }
+
+    pub fn iter(&self) -> Iter<K, V> {
+        let internal = Box::new(self.table.iter());
+        Iter::new(internal)
     }
 
     pub fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {

@@ -4,9 +4,9 @@ use std::hash::{BuildHasher, Hash};
 use std::sync::Arc;
 
 pub trait Table<K: Eq + Hash, V, S: BuildHasher> {
-    type Iter: Iterator<Item = ElementGuard<K, V>>;
+    type Iter: Iterator<Item = ElementGuard<K, V>> + Send + Sync;
 
-    fn iter<'a>(&'a self) -> Self::Iter;
+    fn iter(&self) -> Self::Iter;
     fn new(capacity: usize, era: usize, build_hasher: Arc<S>) -> Self;
     fn insert_and_get(&self, key: K, value: V) -> ElementGuard<K, V>;
     fn replace(&self, key: K, value: V) -> Option<ElementGuard<K, V>>;
