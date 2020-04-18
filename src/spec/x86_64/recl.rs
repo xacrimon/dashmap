@@ -210,7 +210,7 @@ pub struct Local {
     // Reference to global state.
     global: Arc<Global>,
 
-    // Objects market for deletetion.
+    // Objects marked for deletetion.
     deferred: Mutex<[Vec<Deferred>; 3]>,
 }
 
