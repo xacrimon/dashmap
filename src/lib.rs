@@ -14,7 +14,6 @@ use spec::Table;
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
-use std::sync::Arc;
 use table::Table as TableTrait;
 
 pub struct DashMap<K, V, S = RandomState> {
@@ -22,6 +21,16 @@ pub struct DashMap<K, V, S = RandomState> {
 }
 
 impl<K: Eq + Hash + 'static, V: 'static> DashMap<K, V, RandomState> {
+    /// Creates a new DashMap with a capacity of 0.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let reviews = DashMap::new();
+    /// reviews.insert("Veloren", "What a fantastic game!");
+    /// ```
     pub fn new() -> Self {
         Self::with_capacity_and_hasher(0, RandomState::new())
     }
@@ -37,7 +46,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     }
 
     pub fn with_capacity_and_hasher(capacity: usize, build_hasher: S) -> Self {
-        let table = Table::new(capacity, Arc::new(build_hasher));
+        let table = Table::new(capacity, build_hasher);
 
         Self { table }
     }

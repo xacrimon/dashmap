@@ -535,7 +535,8 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         todo!()
     }
 
-    fn new(capacity: usize, hash_builder: Arc<S>) -> Self {
+    fn new(capacity: usize, hash_builder: S) -> Self {
+        let hash_builder = Arc::new(hash_builder);
         let mut atomic = Box::new(AtomicPtr::new(ptr::null_mut()));
         let table = BucketArray::new(&mut *atomic, capacity, Arc::clone(&hash_builder));
         atomic.store(on_heap!(table), Ordering::Release);
