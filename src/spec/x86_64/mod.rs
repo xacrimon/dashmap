@@ -438,7 +438,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                             == bucket_ptr
                         {
                             // Don't update cells_remaining since we are replacing an entry.
-                            return None;
+                            return Some(bucket_ptr);
                         } else {
                             continue 'inner;
                         }
