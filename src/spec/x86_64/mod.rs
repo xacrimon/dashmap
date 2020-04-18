@@ -1,6 +1,8 @@
+mod recl;
+
 use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
 use crate::element::{Element, ElementGuard};
-use crate::recl::{defer, protected};
+use recl::{defer, protected};
 use crate::util::{
     derive_filter, get_cache, get_tag_type, range_split, set_cache, set_tag_type, tag_strip,
     unreachable, CircularRange, FastCounter, PtrTag,
@@ -40,8 +42,8 @@ macro_rules! reap_now {
 }
 
 macro_rules! reap_defer {
-    ($era:expr, $ptr:expr) => {{
-        defer($era, move || reap_now!($ptr));
+    ($ptr:expr) => {{
+        defer(move || reap_now!($ptr));
     }};
 }
 
@@ -78,11 +80,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             let old_table = NonNull::new_unchecked(old_table);
             let old_slot_amount = old_table.as_ref().buckets.len();
             let hash_builder = old_table.as_ref().hash_builder.clone();
-            let era = old_table.as_ref().era;
             let new_table = on_heap!(BucketArray::new(
                 root_ptr,
                 old_slot_amount * 2,
-                era,
                 hash_builder,
             ));
             let task_list = Mutex::new(range_split(0..old_slot_amount, 1024));
@@ -97,7 +97,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
         }
     }
 
-    fn run(&self, era: usize) {
+    fn run(&self) {
         self.work();
         self.wait();
         unsafe {
@@ -108,7 +108,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
             ) == self.old_table.as_ptr()
             {
                 let old_table_ptr = self.old_table.as_ptr();
-                reap_defer!(era, old_table_ptr);
+                reap_defer!(old_table_ptr);
             }
         }
     }
@@ -158,7 +158,6 @@ struct BucketArray<K, V, S> {
     root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
     cells_remaining: AtomicUsize,
     hash_builder: Arc<S>,
-    era: usize,
     next: AtomicPtr<ResizeCoordinator<K, V, S>>,
     buckets: Box<[AtomicPtr<Bucket<K, V>>]>,
 }
@@ -167,7 +166,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     fn new(
         root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
         capacity: usize,
-        era: usize,
         hash_builder: Arc<S>,
     ) -> Self {
         debug_assert!(capacity.is_power_of_two());
@@ -179,7 +177,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             root_ptr,
             cells_remaining: AtomicUsize::new(cells_remaining),
             hash_builder,
-            era,
             next: AtomicPtr::new(ptr::null_mut()),
             buckets,
         }
@@ -211,7 +208,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     self.next
                         .compare_and_swap(ptr::null_mut(), new_coordinator, Ordering::AcqRel);
                 if old.is_null() {
-                    (*new_coordinator).run(self.era);
+                    (*new_coordinator).run();
                     reap_now!(new_coordinator);
                 } else {
                     reap_now!(new_coordinator);
@@ -274,7 +271,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                             Ordering::AcqRel,
                         ) == bucket_ptr
                         {
-                            defer(self.era, move || sarc_remove_copy(stripped));
+                            defer(move || sarc_remove_copy(stripped));
                             return Some(new_bucket_uc);
                         } else {
                             sarc_remove_copy(new_bucket_uc);
@@ -335,7 +332,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         ) == bucket_ptr
                         {
                             let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
-                            defer(self.era, move || sarc_remove_copy(stripped));
+                            defer(move || sarc_remove_copy(stripped));
                             return Some(stripped);
                         } else {
                             continue 'inner;
@@ -480,7 +477,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         Ordering::AcqRel,
                     ) == bucket_ptr
                     {
-                        defer(self.era, move || sarc_remove_copy(cs));
+                        defer(move || sarc_remove_copy(cs));
                         break 'inner;
                     } else {
                         continue 'inner;
@@ -531,16 +528,16 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher> TableTrait<K, V, S> for Table<K, V, S> {
+impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K, V, S> for Table<K, V, S> {
     type Iter = Box<dyn Iterator<Item = ElementGuard<K, V>> + Send + Sync>;
 
     fn iter(&self) -> Self::Iter {
         todo!()
     }
 
-    fn new(capacity: usize, era: usize, hash_builder: Arc<S>) -> Self {
+    fn new(capacity: usize, hash_builder: Arc<S>) -> Self {
         let mut atomic = Box::new(AtomicPtr::new(ptr::null_mut()));
-        let table = BucketArray::new(&mut *atomic, capacity, era, Arc::clone(&hash_builder));
+        let table = BucketArray::new(&mut *atomic, capacity, Arc::clone(&hash_builder));
         atomic.store(on_heap!(table), Ordering::Release);
 
         Self {
@@ -726,7 +723,7 @@ mod tests {
 
     #[test]
     fn insert_get() {
-        let table = Table::new(16, 1, Arc::new(RandomState::new()));
+        let table = Table::new(16, Arc::new(RandomState::new()));
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(*table.get(&4).unwrap(), 9);
@@ -735,7 +732,7 @@ mod tests {
 
     #[test]
     fn insert_remove() {
-        let table = Table::new(16, 1, Arc::new(RandomState::new()));
+        let table = Table::new(16, Arc::new(RandomState::new()));
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(*table.remove_take(&4).unwrap(), 9);
@@ -745,7 +742,7 @@ mod tests {
 
     #[test]
     fn insert_len() {
-        let table = Table::new(16, 1, Arc::new(RandomState::new()));
+        let table = Table::new(16, Arc::new(RandomState::new()));
         table.insert(4i32, 9i32);
         table.insert(8i32, 24i32);
         assert_eq!(table.len(), 2);
@@ -753,13 +750,13 @@ mod tests {
 
     #[test]
     fn capacity() {
-        let table: Table<(), (), RandomState> = Table::new(128, 1, Arc::new(RandomState::new()));
+        let table: Table<(), (), RandomState> = Table::new(128, Arc::new(RandomState::new()));
         assert_eq!(table.capacity(), 128);
     }
 
     #[test]
     fn insert_update_get() {
-        let table = Table::new(16, 1, Arc::new(RandomState::new()));
+        let table = Table::new(16, Arc::new(RandomState::new()));
         table.insert(8i32, 24i32);
         table.update(&8, &mut |_, v| v * 2);
         assert_eq!(*table.get(&8).unwrap(), 48);
@@ -767,7 +764,7 @@ mod tests {
 
     #[test]
     fn insert_update_get_fused() {
-        let table = Table::new(16, 1, Arc::new(RandomState::new()));
+        let table = Table::new(16, Arc::new(RandomState::new()));
         table.insert(8i32, 24i32);
         assert_eq!(*table.update_get(&8, &mut |_, v| v * 2).unwrap(), 48);
     }

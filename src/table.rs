@@ -3,11 +3,11 @@ use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash};
 use std::sync::Arc;
 
-pub trait Table<K: Eq + Hash, V, S: BuildHasher> {
+pub trait Table<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> {
     type Iter: Iterator<Item = ElementGuard<K, V>> + Send + Sync;
 
     fn iter(&self) -> Self::Iter;
-    fn new(capacity: usize, era: usize, build_hasher: Arc<S>) -> Self;
+    fn new(capacity: usize, build_hasher: Arc<S>) -> Self;
     fn insert_and_get(&self, key: K, value: V) -> ElementGuard<K, V>;
     fn replace(&self, key: K, value: V) -> Option<ElementGuard<K, V>>;
 
