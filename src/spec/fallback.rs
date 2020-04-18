@@ -1,8 +1,8 @@
-use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
+use crate::alloc::{sarc_deref, sarc_new, ABox};
 use crate::element::{Element, ElementGuard};
 use crate::table::Table as TableTrait;
 use std::borrow::Borrow;
-use std::hash::{BuildHasher, Hash, Hasher};
+use std::hash::{BuildHasher, Hash};
 use std::marker::PhantomData;
 use std::sync::Mutex;
 
