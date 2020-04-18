@@ -3,10 +3,10 @@
 
 mod alloc;
 mod element;
+mod iter_shim;
 mod spec;
 mod table;
 mod util;
-mod iter_shim;
 
 pub use element::ElementGuard;
 pub use iter_shim::Iter;

@@ -1,10 +1,10 @@
-use std::sync::Mutex;
-use std::hash::{Hash, Hasher, BuildHasher};
-use crate::table::Table as TableTrait;
+use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
 use crate::element::{Element, ElementGuard};
-use crate::alloc::{ABox, sarc_new, sarc_add_copy, sarc_remove_copy, sarc_deref};
+use crate::table::Table as TableTrait;
 use std::borrow::Borrow;
+use std::hash::{BuildHasher, Hash, Hasher};
 use std::marker::PhantomData;
+use std::sync::Mutex;
 
 type T<K, V> = *mut ABox<Element<K, V>>;
 
@@ -13,11 +13,20 @@ pub struct Table<K, V, S> {
     _phantom: PhantomData<S>,
 }
 
-impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K, V, S> for Table<K, V, S> {
-    type Iter = Box<dyn Iterator<Item = ElementGuard<K, V>> + Send + Sync>;
+impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K, V, S>
+    for Table<K, V, S>
+{
+    type Iter = Box<dyn Iterator<Item = ElementGuard<K, V>>>;
 
     fn iter(&self) -> Self::Iter {
-        todo!()
+        Box::new(
+            self.inner
+                .lock()
+                .unwrap()
+                .clone()
+                .into_iter()
+                .map(|sptr| Element::read(sptr)),
+        )
     }
 
     fn new(capacity: usize, _build_hasher: S) -> Self {
@@ -38,7 +47,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
     fn replace(&self, key: K, value: V) -> Option<ElementGuard<K, V>> {
         let boxed = sarc_new(Element::new(key, 0, value));
         let mut inner = self.inner.lock().unwrap();
-        let mut r= None;
+        let mut r = None;
 
         inner.retain(|sptr| {
             let sd = sarc_deref(*sptr);
@@ -58,9 +67,14 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
     fn get<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q>,
-        Q: ?Sized + Eq + Hash
+        Q: ?Sized + Eq + Hash,
     {
-        self.inner.lock().unwrap().iter().find(|sptr| sarc_deref(**sptr).key.borrow() == search_key).map(|sptr| Element::read(*sptr))
+        self.inner
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|sptr| sarc_deref(**sptr).key.borrow() == search_key)
+            .map(|sptr| Element::read(*sptr))
     }
 
     fn remove_if_take<Q>(
@@ -70,11 +84,10 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
     ) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q>,
-        Q: ?Sized + Eq + Hash
+        Q: ?Sized + Eq + Hash,
     {
         let mut inner = self.inner.lock().unwrap();
         let iter = inner.iter().enumerate();
-
         let mut tr = None;
 
         for (i, sptr) in iter {
@@ -96,9 +109,28 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
     where
         K: Borrow<Q> + Clone,
         Q: ?Sized + Eq + Hash,
-        F: FnMut(&K, &V) -> V
+        F: FnMut(&K, &V) -> V,
     {
-        todo!()
+        let mut inner = self.inner.lock().unwrap();
+        let iter = inner.iter().enumerate();
+        let mut apply = None;
+
+        for (i, sptr) in iter {
+            let sd = sarc_deref(*sptr);
+            if sd.key.borrow() == search_key {
+                let new_value = do_update(&sd.key, &sd.value);
+                let key = sd.key.clone();
+                let boxed = sarc_new(Element::new(key, 0, new_value));
+                apply = Some((i, boxed));
+                break;
+            }
+        }
+
+        if let Some((i, new)) = apply {
+            inner[i] = new;
+        }
+
+        None
     }
 
     fn retain(&self, predicate: &mut impl FnMut(&K, &V) -> bool) {

@@ -3,7 +3,7 @@ use std::borrow::Borrow;
 use std::hash::{BuildHasher, Hash};
 
 pub trait Table<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> {
-    type Iter: Iterator<Item = ElementGuard<K, V>> + Send + Sync;
+    type Iter: Iterator<Item = ElementGuard<K, V>>;
 
     fn iter(&self) -> Self::Iter;
     fn new(capacity: usize, build_hasher: S) -> Self;
