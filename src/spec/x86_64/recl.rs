@@ -13,16 +13,6 @@ use std::time::Duration;
 
 static GUARDIAN_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
-/// Generate a new GC era.
-pub fn new_era() -> usize {
-    NEXT_ERA.fetch_add(1, Ordering::Relaxed)
-}
-
-/// Purge a GC era.
-pub fn purge_era(era: usize) {
-    GC.purge_era(era);
-}
-
 /// Execute a closure in protected mode. This permits it to load protected pointers.
 pub fn protected<T>(f: impl FnOnce() -> T) -> T {
     PARTICIPANT_HANDLE.with(|key| {
@@ -34,8 +24,8 @@ pub fn protected<T>(f: impl FnOnce() -> T) -> T {
 }
 
 /// Defer a function.
-pub fn defer(era: usize, f: impl FnOnce()) {
-    let deferred = Deferred::new(era, f);
+pub fn defer(f: impl FnOnce()) {
+    let deferred = Deferred::new(f);
     PARTICIPANT_HANDLE.with(|key| key.defer(deferred));
 }
 
@@ -52,8 +42,6 @@ static GC: Lazy<Arc<Global>> = Lazy::new(|| {
     thread::spawn(|| guardian_thread_fn(state2));
     state
 });
-
-static NEXT_ERA: AtomicUsize = AtomicUsize::new(1);
 
 thread_local! {
     pub static PARTICIPANT_HANDLE: UnsyncLazy<TSLocal> = UnsyncLazy::new(|| TSLocal::new(Arc::clone(&GC)));
@@ -89,7 +77,6 @@ impl Drop for TSLocal {
 }
 
 struct Deferred {
-    era: usize,
     call: fn([usize; 4]),
     task: [usize; 4],
 }
@@ -110,7 +97,7 @@ fn deferred_exec_internal<F: FnOnce()>(mut task: [usize; 4]) {
 }
 
 impl Deferred {
-    fn new<'a, F: FnOnce() + 'a>(era: usize, f: F) -> Self {
+    fn new<'a, F: FnOnce() + 'a>(f: F) -> Self {
         let size = size_of::<F>();
         let align = align_of::<F>();
         unsafe {
@@ -118,7 +105,6 @@ impl Deferred {
                 let mut task = [0; 4];
                 ptr::write(task.as_mut_ptr() as *mut F, f);
                 Self {
-                    era,
                     task,
                     call: deferred_exec_internal::<F>,
                 }
@@ -128,7 +114,6 @@ impl Deferred {
                 let mut task = [0; 4];
                 ptr::write(&mut task as *mut [usize; 4] as usize as _, fat_ptr);
                 Self {
-                    era,
                     task,
                     call: deferred_exec_external,
                 }
@@ -182,31 +167,6 @@ impl Global {
             .lock()
             .unwrap()
             .retain(|maybe_this| *maybe_this != local);
-    }
-
-    fn purge_era(&self, era: usize) {
-        let locals = self.locals.lock().unwrap();
-        for local_ptr in &*locals {
-            unsafe {
-                let local = &**local_ptr;
-                let mut deferred_lists = local.deferred.lock().unwrap();
-                let mut to_collect = Vec::new();
-                for rlist in &mut *deferred_lists {
-                    let llist = take(rlist);
-                    for deferred in llist {
-                        if deferred.era == era {
-                            to_collect.push(deferred);
-                        } else {
-                            rlist.push(deferred);
-                        }
-                    }
-                }
-                drop(deferred_lists);
-                for deferred in to_collect {
-                    deferred.run();
-                }
-            }
-        }
     }
 
     fn collect(&self) {

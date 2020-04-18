@@ -3,7 +3,6 @@
 
 mod alloc;
 mod element;
-mod recl;
 mod spec;
 mod table;
 mod util;
@@ -11,7 +10,6 @@ mod iter_shim;
 
 pub use element::ElementGuard;
 pub use iter_shim::Iter;
-use recl::{new_era, purge_era};
 use spec::x86_64::Table;
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
@@ -20,14 +18,7 @@ use std::sync::Arc;
 use table::Table as TableTrait;
 
 pub struct DashMap<K, V, S = RandomState> {
-    era: usize,
     table: Table<K, V, S>,
-}
-
-impl<K, V, S> Drop for DashMap<K, V, S> {
-    fn drop(&mut self) {
-        purge_era(self.era);
-    }
 }
 
 impl<K: Eq + Hash + 'static, V: 'static> DashMap<K, V, RandomState> {
@@ -46,10 +37,9 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     }
 
     pub fn with_capacity_and_hasher(capacity: usize, build_hasher: S) -> Self {
-        let era = new_era();
-        let table = Table::new(capacity, era, Arc::new(build_hasher));
+        let table = Table::new(capacity, Arc::new(build_hasher));
 
-        Self { era, table }
+        Self { table }
     }
 
     pub fn insert(&self, key: K, value: V) -> bool {
