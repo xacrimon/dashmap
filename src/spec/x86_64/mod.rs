@@ -7,7 +7,7 @@ use crate::util::{
     derive_filter, get_cache, get_tag_type, range_split, set_cache, set_tag_type, tag_strip,
     unreachable, CircularRange, FastCounter, PtrTag,
 };
-use recl::{defer, protected};
+use recl::{defer, protected, enter_critical, exit_critical};
 use std::borrow::Borrow;
 use std::cmp;
 use std::collections::LinkedList;
@@ -153,6 +153,39 @@ fn calc_cells_remaining(capacity: usize) -> usize {
     (LOAD_FACTOR * capacity as f32) as usize
 }
 
+pub struct BucketArrayIter<K, V> {
+    buckets: *const [AtomicPtr<Bucket<K, V>>],
+    next: usize,
+}
+
+impl<K: Eq + Hash, V> Iterator for BucketArrayIter<K, V> {
+    type Item = ElementGuard<K, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        unsafe {
+            self.next = self.next.wrapping_add(1);
+
+            if self.next >= (&*self.buckets).len() {
+                return None;
+            }
+
+            let bucket_ptr = (&*self.buckets).get_unchecked(self.next).load(Ordering::Relaxed);
+
+            if !bucket_ptr.is_null() {
+                return Some(Element::read(bucket_ptr));
+            } else {
+                return self.next();
+            }
+        }
+    }
+}
+
+impl<K, V> Drop for BucketArrayIter<K, V> {
+    fn drop(&mut self) {
+        exit_critical();
+    }
+}
+
 struct BucketArray<K, V, S> {
     root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
     cells_remaining: AtomicUsize,
@@ -162,6 +195,15 @@ struct BucketArray<K, V, S> {
 }
 
 impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
+    fn iter(&self) -> BucketArrayIter<K, V> {
+        enter_critical();
+
+        BucketArrayIter {
+            buckets: &*self.buckets,
+            next: std::usize::MAX,
+        }
+    }
+
     fn new(
         root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
         capacity: usize,
@@ -529,10 +571,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
 impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K, V, S>
     for Table<K, V, S>
 {
-    type Iter = Box<dyn Iterator<Item = ElementGuard<K, V>> + Send + Sync>;
+    type Iter = BucketArrayIter<K, V>;
 
     fn iter(&self) -> Self::Iter {
-        todo!()
+        protected(|| self.array().iter())
     }
 
     fn new(capacity: usize, hash_builder: S) -> Self {
