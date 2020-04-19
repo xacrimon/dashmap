@@ -6,7 +6,6 @@ mod iter_shim;
 mod spec;
 mod table;
 mod util;
-pub mod entry;
 
 pub use element::ElementGuard;
 pub use iter_shim::Iter;
@@ -15,7 +14,6 @@ use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
 use table::Table as TableTrait;
-use entry::Entry;
 
 pub struct DashMap<K, V, S = RandomState> {
     table: Table<K, V, S>,
@@ -143,10 +141,6 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     {
         let mut do_update = do_update;
         self.table.update_get(search_key, &mut do_update)
-    }
-
-    pub fn entry<'a>(&'a self, key: K) -> Entry<'a, K, V, S> {
-        Entry::new(self, key)
     }
 
     pub fn iter(&self) -> Iter<K, V> {
