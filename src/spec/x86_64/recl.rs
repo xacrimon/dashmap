@@ -1,6 +1,5 @@
 //! EBR based garbage collector.
 
-use crate::likely;
 use once_cell::sync::Lazy;
 use once_cell::unsync::Lazy as UnsyncLazy;
 use std::mem::{align_of, size_of, take};
@@ -101,7 +100,7 @@ impl Deferred {
         let size = size_of::<F>();
         let align = align_of::<F>();
         unsafe {
-            if likely!(size < size_of::<[usize; 4]>() && align <= align_of::<[usize; 4]>()) {
+            if size < size_of::<[usize; 4]>() && align <= align_of::<[usize; 4]>() {
                 let mut task = [0; 4];
                 ptr::write(task.as_mut_ptr() as *mut F, f);
                 Self {
@@ -144,7 +143,7 @@ fn increment_epoch(a: &AtomicUsize) -> usize {
     loop {
         let current = a.load(Ordering::Acquire);
         let next = (current + 1) % 3;
-        if likely!(a.compare_and_swap(current, next, Ordering::AcqRel) == current) {
+        if a.compare_and_swap(current, next, Ordering::AcqRel) == current {
             break next;
         }
     }
@@ -225,7 +224,7 @@ impl Local {
     }
 
     pub fn enter_critical(&self) {
-        if likely!(self.active.fetch_add(1, Ordering::Relaxed) == 0) {
+        if self.active.fetch_add(1, Ordering::Relaxed) == 0 {
             let global_epoch = self.global.epoch.load(Ordering::Relaxed);
             self.epoch.store(global_epoch, Ordering::Relaxed);
         }

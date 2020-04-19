@@ -7,7 +7,6 @@ use crate::util::{
     derive_filter, get_cache, get_tag_type, range_split, set_cache, set_tag_type, tag_strip,
     unreachable, CircularRange, FastCounter, PtrTag,
 };
-use crate::{likely, unlikely};
 use std::borrow::Borrow;
 use std::cmp;
 use std::collections::LinkedList;
@@ -21,7 +20,7 @@ use crate::table::Table as TableTrait;
 
 macro_rules! maybe_grow {
     ($s:expr) => {
-        if unlikely!($s.cells_remaining.fetch_sub(1, Ordering::AcqRel) == 1) {
+        if $s.cells_remaining.fetch_sub(1, Ordering::AcqRel) == 1 {
             $s.grow();
         }
     };
@@ -183,7 +182,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 
     fn fetch_next<'a>(&self) -> Option<&'a Self> {
         let coordinator = self.next.load(Ordering::Relaxed);
-        if likely!(coordinator.is_null()) {
+        if coordinator.is_null() {
             None
         } else {
             unsafe {
@@ -229,7 +228,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         F: FnMut(&K, &V) -> V,
     {
         let maybe_next = self.fetch_next();
-        if unlikely!(maybe_next.is_some()) {
+        if maybe_next.is_some() {
             let next: &BucketArray<K, V, S> = unsafe { mem::transmute(maybe_next) };
             return next.optimistic_update(search_key, do_update);
         }
@@ -240,10 +239,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
                 let cache = get_cache(bucket_ptr as _);
-                if unlikely!(bucket_ptr.is_null()) {
+                if bucket_ptr.is_null() {
                     return None;
                 }
-                if unlikely!(filter == cache) {
+                if filter == cache {
                     match get_tag_type(bucket_ptr as _) {
                         PtrTag::Resize => {
                             return self
@@ -309,7 +308,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 if bucket_ptr.is_null() {
                     return None;
                 }
-                if unlikely!(filter == cache) {
+                if filter == cache {
                     match get_tag_type(bucket_ptr as _) {
                         PtrTag::Resize => {
                             return self.fetch_next().unwrap().remove_if(search_key, predicate);
@@ -353,7 +352,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         Q: ?Sized + Eq + Hash,
     {
         let maybe_next = self.fetch_next();
-        if unlikely!(maybe_next.is_some()) {
+        if maybe_next.is_some() {
             let next: &BucketArray<K, V, S> = unsafe { mem::transmute(maybe_next) };
             return next.find_node(search_key);
         }
@@ -362,10 +361,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let filter = derive_filter(hash);
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             let bucket_ptr = unsafe { self.buckets.get_unchecked(idx).load(Ordering::Relaxed) };
-            if unlikely!(bucket_ptr.is_null()) {
+            if bucket_ptr.is_null() {
                 return None;
             }
-            if unlikely!(filter == get_cache(bucket_ptr as _)) {
+            if filter == get_cache(bucket_ptr as _) {
                 match get_tag_type(bucket_ptr as _) {
                     PtrTag::Resize => {
                         return self.fetch_next().unwrap().find_node(search_key);
@@ -377,7 +376,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 }
                 let cs = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
                 let bucket_data = sarc_deref(cs);
-                if unlikely!(search_key == bucket_data.key.borrow()) {
+                if search_key == bucket_data.key.borrow() {
                     return Some(cs as _);
                 } else {
                     continue;
@@ -550,7 +549,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
     fn insert(&self, key: K, value: V) -> bool {
         let hash = do_hash(&*self.hash_builder, &key);
         let node = sarc_new(Element::new(key, hash, value));
-        if likely!(protected(|| self.array().put_node(node)).is_none()) {
+        if protected(|| self.array().put_node(node)).is_none() {
             self.len.increment();
             false
         } else {
@@ -562,7 +561,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         let hash = do_hash(&*self.hash_builder, &key);
         let node = sarc_new(Element::new(key, hash, value));
         let g = Element::read(node);
-        if likely!(protected(|| self.array().put_node(node)).is_none()) {
+        if protected(|| self.array().put_node(node)).is_none() {
             self.len.increment();
             g
         } else {
@@ -602,7 +601,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        if likely!(protected(|| self.array().remove_if(search_key, &mut |_, _| true)).is_some()) {
+        if protected(|| self.array().remove_if(search_key, &mut |_, _| true)).is_some() {
             self.len.decrement();
             true
         } else {
@@ -615,7 +614,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        if likely!(protected(|| self.array().remove_if(search_key, predicate)).is_some()) {
+        if protected(|| self.array().remove_if(search_key, predicate)).is_some() {
             self.len.decrement();
             true
         } else {

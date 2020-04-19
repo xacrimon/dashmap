@@ -1,5 +1,4 @@
 #![allow(unused_unsafe)]
-#![cfg_attr(feature = "nightly", feature(core_intrinsics))]
 
 mod alloc;
 mod element;
