@@ -27,7 +27,7 @@ Benchmarks are a best effort and we try to make them as unbiased and realistic a
 
 ## Support
 
-[![Foo](https://c5.patreon.com/external/logo/become_a_patron_button@2x.png)](https://patreon.com/acrimon)
+[![Patreon](https://c5.patreon.com/external/logo/become_a_patron_button@2x.png)](https://patreon.com/acrimon)
 
 Creating and testing open-source software like DashMap takes up a large portion of my time
 and comes with costs such as test hardware. Please consider supporting me and everything I make for the public
