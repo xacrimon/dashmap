@@ -31,6 +31,18 @@ pub struct ElementGuard<K, V> {
     value: *const V,
 }
 
+impl<K, V> Clone for ElementGuard<K, V> {
+    fn clone(&self) -> Self {
+        sarc_add_copy(self.mem_guard);
+
+        Self {
+            mem_guard: self.mem_guard,
+            key: self.key,
+            value: self.value,
+        }
+    }
+}
+
 impl<K, V> Drop for ElementGuard<K, V> {
     fn drop(&mut self) {
         sarc_remove_copy(self.mem_guard);
