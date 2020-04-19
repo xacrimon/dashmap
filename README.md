@@ -47,13 +47,7 @@ Benchmarks are a best effort and we try to make them as unbiased and realistic a
 
 - [Krishna Sannasi](https://github.com/KrishnaSannasi) 
 
-- [Karl Bergström](https://github.com/kabergstrom)
-
 - [Dylan DPC](https://github.com/Dylan-DPC)
-
-- Jon Gjengset
-
-- Karl Bergström
 
 - [namibj](https://github.com/namibj)
 
