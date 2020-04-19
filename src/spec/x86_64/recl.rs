@@ -12,6 +12,18 @@ use std::time::Duration;
 
 static GUARDIAN_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
+pub fn enter_critical() {
+    PARTICIPANT_HANDLE.with(|key| {
+        key.enter_critical();
+    });
+}
+
+pub fn exit_critical() {
+    PARTICIPANT_HANDLE.with(|key| {
+        key.exit_critical();
+    });
+}
+
 /// Execute a closure in protected mode. This permits it to load protected pointers.
 pub fn protected<T>(f: impl FnOnce() -> T) -> T {
     PARTICIPANT_HANDLE.with(|key| {
