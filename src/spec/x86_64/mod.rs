@@ -796,12 +796,6 @@ mod tests {
     }
 
     #[test]
-    fn capacity() {
-        let table: Table<(), (), RandomState> = Table::new(128, RandomState::new());
-        assert_eq!(table.capacity(), 128);
-    }
-
-    #[test]
     fn insert_update_get() {
         let table = Table::new(16, RandomState::new());
         table.insert(8i32, 24i32);
