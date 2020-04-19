@@ -769,6 +769,16 @@ mod tests {
     use std::collections::hash_map::RandomState;
 
     #[test]
+    fn insert_replace() {
+        let map = Table::new(16, RandomState::new());
+        map.insert("I am the key!", "I'm the old value!");
+        let maybe_old_entry = map.replace("I am the key!", "And I am the value!");
+        assert!(maybe_old_entry.is_some());
+        let old_entry = maybe_old_entry.unwrap();
+        assert!(*old_entry.value() == "I'm the old value!");
+    }
+
+    #[test]
     fn insert_get() {
         let table = Table::new(16, RandomState::new());
         table.insert(4i32, 9i32);
