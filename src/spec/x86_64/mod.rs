@@ -619,14 +619,24 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
     }
 
     fn replace(&self, key: K, value: V) -> Option<ElementGuard<K, V>> {
+        println!("sc1");
         let hash = do_hash(&*self.hash_builder, &key);
+        println!("sc2");
         let node = sarc_new(Element::new(key, hash, value));
-        if let Some(r) = protected(|| self.array().put_node(node).map(Element::read)) {
-            return Some(r);
-        } else {
-            self.len.increment();
-            return None;
-        }
+
+        protected(|| {
+            println!("sc3");
+            if let Some(old_ptr) = self.array().put_node(node) {
+                println!("sc4 {:x}", old_ptr as usize);
+                let guard = Element::read(old_ptr);
+                println!("sc5");
+                return Some(guard);
+            } else {
+                println!("sc6");
+                self.len.increment();
+                return None;
+            }
+        })
     }
 
     fn get<Q>(&self, search_key: &Q) -> Option<ElementGuard<K, V>>
