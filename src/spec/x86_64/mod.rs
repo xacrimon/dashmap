@@ -153,6 +153,11 @@ fn calc_cells_remaining(capacity: usize) -> usize {
     (LOAD_FACTOR * capacity as f32) as usize
 }
 
+fn calc_capacity(capacity: usize) -> usize {
+    let factor = 1.0 / LOAD_FACTOR;
+    (capacity as f32 * factor) as usize
+}
+
 pub struct BucketArrayIter<K, V> {
     buckets: *const [AtomicPtr<Bucket<K, V>>],
     next: usize,
@@ -209,7 +214,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         capacity: usize,
         hash_builder: Arc<S>,
     ) -> Self {
-        let capacity = cmp::max(capacity, 16).next_power_of_two();
+        let capacity = calc_capacity(cmp::max(capacity, 16)).next_power_of_two();
         let cells_remaining = calc_cells_remaining(capacity);
         let buckets = make_groups(capacity);
 
@@ -753,7 +758,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
     }
 
     fn capacity(&self) -> usize {
-        protected(|| self.array().buckets.len())
+        protected(|| self.array().buckets.len() as f32 * LOAD_FACTOR) as usize
     }
 }
 
