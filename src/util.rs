@@ -5,38 +5,6 @@ use std::ops::Range;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-#[macro_export]
-#[cfg(feature = "nightly")]
-macro_rules! likely {
-    ($b:expr) => {
-        std::intrinsics::likely($b)
-    };
-}
-
-#[macro_export]
-#[cfg(not(feature = "nightly"))]
-macro_rules! likely {
-    ($b:expr) => {
-        $b
-    };
-}
-
-#[macro_export]
-#[cfg(feature = "nightly")]
-macro_rules! unlikely {
-    ($b:expr) => {
-        std::intrinsics::unlikely($b)
-    };
-}
-
-#[macro_export]
-#[cfg(not(feature = "nightly"))]
-macro_rules! unlikely {
-    ($b:expr) => {
-        $b
-    };
-}
-
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(target_arch = "x86_64", repr(align(128)))]
 #[cfg_attr(not(target_arch = "x86_64"), repr(align(64)))]
@@ -175,7 +143,7 @@ impl Iterator for CircularRange {
         let r = self.next;
         self.step += 1;
         self.next += self.step * self.step;
-        if unlikely!(self.next >= self.end) {
+        if self.next >= self.end {
             self.next &= self.end - 1;
         }
         Some(r)
