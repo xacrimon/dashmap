@@ -2,11 +2,12 @@ mod recl;
 
 use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
 use crate::element::{Element, ElementGuard};
-use recl::{defer, protected};
+use crate::table::Table as TableTrait;
 use crate::util::{
     derive_filter, get_cache, get_tag_type, range_split, set_cache, set_tag_type, tag_strip,
     unreachable, CircularRange, FastCounter, PtrTag,
 };
+use recl::{defer, protected};
 use std::borrow::Borrow;
 use std::cmp;
 use std::collections::LinkedList;
@@ -16,7 +17,6 @@ use std::ops::Range;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{spin_loop_hint, AtomicPtr, AtomicU16, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use crate::table::Table as TableTrait;
 
 macro_rules! maybe_grow {
     ($s:expr) => {
@@ -526,7 +526,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K, V, S> for Table<K, V, S> {
+impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K, V, S>
+    for Table<K, V, S>
+{
     type Iter = Box<dyn Iterator<Item = ElementGuard<K, V>> + Send + Sync>;
 
     fn iter(&self) -> Self::Iter {
@@ -716,8 +718,8 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
 #[cfg(test)]
 mod tests {
     use super::Table;
-    use std::collections::hash_map::RandomState;
     use crate::table::Table as TableTrait;
+    use std::collections::hash_map::RandomState;
 
     #[test]
     fn insert_get() {
