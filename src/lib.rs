@@ -15,10 +15,10 @@ pub use iter_shim::Iter;
 use spec::Table;
 use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
-use std::hash::{BuildHasher, Hash};
-use table::Table as TableTrait;
 use std::fmt;
+use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
+use table::Table as TableTrait;
 
 /// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
 ///
@@ -348,17 +348,21 @@ impl<K: Eq + Hash + 'static, V: 'static> Default for DashMap<K, V, RandomState> 
     }
 }
 
-impl<K: Eq + Hash + 'static + fmt::Debug, V: 'static + fmt::Debug, S: BuildHasher + 'static> fmt::Debug for DashMap<K, V, S> {
+impl<K: Eq + Hash + 'static + fmt::Debug, V: 'static + fmt::Debug, S: BuildHasher + 'static>
+    fmt::Debug for DashMap<K, V, S>
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let guards: Vec<_> = self.iter().collect();
-        f.debug_map().entries(guards.iter().map(|guard| (guard.key(), guard.value()))).finish()
+        f.debug_map()
+            .entries(guards.iter().map(|guard| (guard.key(), guard.value())))
+            .finish()
     }
 }
 
 impl<K: Eq + Hash + 'static, V: 'static> FromIterator<(K, V)> for DashMap<K, V, RandomState> {
     fn from_iter<T>(iter: T) -> Self
     where
-        T: IntoIterator<Item = (K, V)>
+        T: IntoIterator<Item = (K, V)>,
     {
         Self::from_iter(iter)
     }
