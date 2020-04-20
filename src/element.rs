@@ -26,7 +26,7 @@ impl<K, V> Element<K, V> {
 }
 
 /// `ElementGuard<K, V>`'s are references to active or past map entries.
-/// They provide access to the key, value and they exist to automatically manage memory
+/// They provide access to the key and value. They exist to automatically manage memory
 /// across threads to ensure a safe interface.
 pub struct ElementGuard<K, V> {
     mem_guard: *mut ABox<Element<K, V>>,
