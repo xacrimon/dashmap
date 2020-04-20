@@ -476,14 +476,14 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     if filter != cache {
                         break 'inner;
                     }
-                    let bucket_data =
-                        sarc_deref(tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>);
+                    let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
+                    let bucket_data = sarc_deref(stripped);
                     if bucket_data.key == node_data.key {
                         if self.buckets[idx].compare_and_swap(bucket_ptr, node, Ordering::AcqRel)
                             == bucket_ptr
                         {
                             // Don't update cells_remaining since we are replacing an entry.
-                            return Some(bucket_ptr);
+                            return Some(stripped);
                         } else {
                             continue 'inner;
                         }
