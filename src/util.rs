@@ -24,12 +24,14 @@ impl<T> CachePadded<T> {
 impl<T> Deref for CachePadded<T> {
     type Target = T;
 
+    #[inline(always)]
     fn deref(&self) -> &T {
         &self.value
     }
 }
 
 impl<T> DerefMut for CachePadded<T> {
+    #[inline(always)]
     fn deref_mut(&mut self) -> &mut T {
         &mut self.value
     }
@@ -44,6 +46,7 @@ impl<T: fmt::Debug> fmt::Debug for CachePadded<T> {
 }
 
 impl<T> From<T> for CachePadded<T> {
+    #[inline(always)]
     fn from(t: T) -> Self {
         CachePadded::new(t)
     }
@@ -52,16 +55,19 @@ impl<T> From<T> for CachePadded<T> {
 const DISCRIMINANT_MASK: usize = std::usize::MAX >> 16;
 const POINTER_WIDTH: usize = 48;
 
+#[inline(always)]
 pub fn tag_strip(pointer: usize) -> usize {
     pointer & DISCRIMINANT_MASK
 }
 
+#[inline(always)]
 fn tag_discriminant(pointer: usize) -> Discriminant {
     Discriminant {
         a: (pointer >> POINTER_WIDTH) as u16,
     }
 }
 
+#[inline(always)]
 fn store_discriminant(pointer: usize, discriminant: Discriminant) -> usize {
     unsafe {
         let discriminant = discriminant.a as usize;
@@ -69,10 +75,12 @@ fn store_discriminant(pointer: usize, discriminant: Discriminant) -> usize {
     }
 }
 
+#[inline(always)]
 pub fn get_tag_type(pointer: usize) -> PtrTag {
     unsafe { std::mem::transmute(tag_discriminant(pointer).b[0]) }
 }
 
+#[inline(always)]
 pub fn set_tag_type(pointer: usize, tag: PtrTag) -> usize {
     unsafe {
         let mut d = tag_discriminant(pointer);
@@ -81,10 +89,12 @@ pub fn set_tag_type(pointer: usize, tag: PtrTag) -> usize {
     }
 }
 
+#[inline(always)]
 pub fn get_cache(pointer: usize) -> u8 {
     unsafe { tag_discriminant(pointer).b[1] }
 }
 
+#[inline(always)]
 pub fn set_cache(pointer: usize, cache: u8) -> usize {
     unsafe {
         let mut d = tag_discriminant(pointer);
@@ -106,6 +116,7 @@ union Discriminant {
     b: [u8; 2],
 }
 
+#[inline(always)]
 pub fn derive_filter(x: u64) -> u8 {
     x as u8
 }
@@ -165,14 +176,17 @@ impl FastCounter {
         }
     }
 
+    #[inline(always)]
     pub fn increment(&self) {
         self.inner.fetch_add(1, Ordering::AcqRel);
     }
 
+    #[inline(always)]
     pub fn decrement(&self) {
         self.inner.fetch_sub(1, Ordering::AcqRel);
     }
 
+    #[inline(always)]
     pub fn read(&self) -> usize {
         self.inner.load(Ordering::Relaxed)
     }
