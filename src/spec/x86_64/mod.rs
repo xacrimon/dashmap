@@ -353,6 +353,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
+                if bucket_ptr.is_null() {
+                    return None;
+                }
                 let cache = get_cache(bucket_ptr as _);
                 match get_tag_type(bucket_ptr as _) {
                     PtrTag::Resize => {
@@ -361,16 +364,16 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                     PtrTag::Tombstone => break 'inner,
                     PtrTag::None => (),
                 }
-                if tag_strip(bucket_ptr as _) == 0 {
-                    return None;
-                }
+                let cs = tag_strip(bucket_ptr as _);
                 if filter == cache {
+                    let bucket_data = sarc_deref(cs as *mut ABox<Element<K, V>>);
                     if {
-                        let cs = tag_strip(bucket_ptr as _);
-                        let bucket_data = sarc_deref(cs as *mut ABox<Element<K, V>>);
                         search_key == bucket_data.key.borrow()
-                            && predicate(&bucket_data.key, &bucket_data.value)
                     } {
+                        if !predicate(&bucket_data.key, &bucket_data.value) {
+                            return None;
+                        }
+
                         let tombstone = set_tag_type(0, PtrTag::Tombstone);
                         if self.buckets[idx].compare_and_swap(
                             bucket_ptr,
@@ -378,7 +381,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                             Ordering::SeqCst,
                         ) == bucket_ptr
                         {
-                            let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
+                            let stripped = cs as *mut ABox<Element<K, V>>;
                             defer(move || sarc_remove_copy(stripped));
                             return Some(stripped);
                         } else {
@@ -648,7 +651,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        protected(|| self.array().find_node(search_key)).is_some()
+        protected(|| self.array().find_node(search_key).is_some())
     }
 
     fn remove<Q>(&self, search_key: &Q) -> bool
@@ -656,7 +659,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        if protected(|| self.array().remove_if(search_key, &mut |_, _| true)).is_some() {
+        if protected(|| self.array().remove_if(search_key, &mut |_, _| true).is_some()) {
             self.len.decrement();
             true
         } else {
@@ -669,7 +672,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        if protected(|| self.array().remove_if(search_key, predicate)).is_some() {
+        if protected(|| self.array().remove_if(search_key, predicate).is_some()) {
             self.len.decrement();
             true
         } else {
