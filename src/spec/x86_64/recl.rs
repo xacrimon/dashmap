@@ -12,12 +12,14 @@ use std::time::Duration;
 
 static GUARDIAN_SLEEP_DURATION: Duration = Duration::from_millis(100);
 
+#[inline(always)]
 pub fn enter_critical() {
     PARTICIPANT_HANDLE.with(|key| {
         key.enter_critical();
     });
 }
 
+#[inline(always)]
 pub fn exit_critical() {
     PARTICIPANT_HANDLE.with(|key| {
         key.exit_critical();
@@ -25,6 +27,7 @@ pub fn exit_critical() {
 }
 
 /// Execute a closure in protected mode. This permits it to load protected pointers.
+#[inline(always)]
 pub fn protected<T>(f: impl FnOnce() -> T) -> T {
     PARTICIPANT_HANDLE.with(|key| {
         key.enter_critical();
@@ -35,6 +38,7 @@ pub fn protected<T>(f: impl FnOnce() -> T) -> T {
 }
 
 /// Defer a function.
+#[inline(always)]
 pub fn defer(f: impl FnOnce()) {
     let deferred = Deferred::new(f);
     PARTICIPANT_HANDLE.with(|key| key.defer(deferred));
@@ -132,6 +136,7 @@ impl Deferred {
         }
     }
 
+    #[inline(always)]
     fn run(self) {
         (self.call)(self.task);
     }
@@ -151,6 +156,7 @@ struct Global {
 unsafe impl Send for Global {}
 unsafe impl Sync for Global {}
 
+#[inline(always)]
 fn increment_epoch(a: &AtomicUsize) -> usize {
     loop {
         let current = a.load(Ordering::Acquire);
@@ -235,6 +241,7 @@ impl Local {
         }
     }
 
+    #[inline(always)]
     pub fn enter_critical(&self) {
         if self.active.fetch_add(1, Ordering::Relaxed) == 0 {
             let global_epoch = self.global.epoch.load(Ordering::Relaxed);
@@ -242,6 +249,7 @@ impl Local {
         }
     }
 
+    #[inline(always)]
     pub fn exit_critical(&self) {
         #[cfg(debug_assertions)]
         {
@@ -254,6 +262,7 @@ impl Local {
         self.active.fetch_sub(1, Ordering::Relaxed);
     }
 
+    #[inline(always)]
     fn defer(&self, f: Deferred) {
         let global_epoch = self.global.epoch.load(Ordering::Relaxed);
         let mut deferred = self
