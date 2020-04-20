@@ -24,6 +24,10 @@ use std::iter::FromIterator;
 /// Instead we prefer speed and leave more complex constructs to libraries that can build on top of this.
 ///
 /// In essence, this is meant to be a high performance core that can be built upon.
+///
+/// In contrast to v3 and prior versions. You cannot deadlock this.
+/// You are free to run any combination of operations and
+/// keep any combination of guards and be guaranteed not to deadlock.
 pub struct DashMap<K, V, S = RandomState> {
     table: Table<K, V, S>,
 }
