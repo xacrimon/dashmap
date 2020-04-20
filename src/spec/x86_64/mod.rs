@@ -382,7 +382,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         ) == bucket_ptr
                         {
                             let stripped = cs as *mut ABox<Element<K, V>>;
-                            sarc_remove_copy(stripped);
                             return Some(stripped);
                         } else {
                             continue 'inner;
