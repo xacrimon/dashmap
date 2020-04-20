@@ -7,7 +7,7 @@ use crate::util::{
     derive_filter, get_cache, get_tag_type, range_split, set_cache, set_tag_type, tag_strip,
     unreachable, CircularRange, FastCounter, PtrTag,
 };
-use recl::{defer, protected, enter_critical, exit_critical};
+use recl::{defer, enter_critical, exit_critical, protected};
 use std::borrow::Borrow;
 use std::cmp;
 use std::collections::LinkedList;
@@ -172,7 +172,9 @@ impl<K: Eq + Hash, V> Iterator for BucketArrayIter<K, V> {
                 return None;
             }
 
-            let bucket_ptr = (&*self.buckets).get_unchecked(self.next).load(Ordering::Relaxed);
+            let bucket_ptr = (&*self.buckets)
+                .get_unchecked(self.next)
+                .load(Ordering::Relaxed);
             let data_ptr = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
             self.next += 1;
 
@@ -192,7 +194,7 @@ impl<K, V> Drop for BucketArrayIter<K, V> {
 }
 
 struct BucketArray<K, V, S> {
-    root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
+    root_ptr: *mut AtomicPtr<Self>,
     cells_remaining: AtomicUsize,
     hash_builder: Arc<S>,
     next: AtomicPtr<ResizeCoordinator<K, V, S>>,
