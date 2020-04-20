@@ -318,7 +318,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                             Ordering::AcqRel,
                         ) == bucket_ptr
                         {
-                            defer(move || sarc_remove_copy(stripped));
+                            // TO-DO: fix bug here
+                            //defer(move || sarc_remove_copy(stripped));
                             return Some(new_bucket_uc);
                         } else {
                             sarc_remove_copy(new_bucket_uc);
@@ -382,6 +383,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         ) == bucket_ptr
                         {
                             let stripped = cs as *mut ABox<Element<K, V>>;
+                            // wierd shit here
+                            defer(move || sarc_remove_copy(stripped));
                             return Some(stripped);
                         } else {
                             continue 'inner;
@@ -546,7 +549,7 @@ impl<K, V, S> Drop for BucketArray<K, V, S> {
             let bucket_ptr = self.buckets[idx].load(Ordering::Acquire);
             let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
             if !stripped.is_null() {
-                sarc_remove_copy(stripped);
+                defer(move || sarc_remove_copy(stripped));
             }
         }
     }
