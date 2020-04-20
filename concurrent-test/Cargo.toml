@@ -1,0 +1,10 @@
+[package]
+name = "concurrent-test"
+version = "0.1.0"
+authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+dashmap = { path = ".." }
+bustle = "0.4.1"
+tracing-subscriber = "0.2.4"
