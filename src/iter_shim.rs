@@ -6,7 +6,7 @@ pub struct Iter<K, V> {
 }
 
 impl<K: Eq + Hash, V> Iter<K, V> {
-    pub fn new(inner: Box<dyn Iterator<Item = ElementGuard<K, V>>>) -> Self {
+    pub(crate) fn new(inner: Box<dyn Iterator<Item = ElementGuard<K, V>>>) -> Self {
         Self { inner }
     }
 }
