@@ -1,6 +1,7 @@
 use crate::ElementGuard;
 use std::hash::Hash;
 
+/// Iterator over entries in a map.
 pub struct Iter<K, V> {
     inner: Box<dyn Iterator<Item = ElementGuard<K, V>>>,
 }
