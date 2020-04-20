@@ -382,7 +382,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         ) == bucket_ptr
                         {
                             let stripped = cs as *mut ABox<Element<K, V>>;
-                            defer(move || sarc_remove_copy(stripped));
+                            sarc_remove_copy(stripped);
                             return Some(stripped);
                         } else {
                             continue 'inner;
@@ -488,6 +488,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                             == bucket_ptr
                         {
                             // Don't update cells_remaining since we are replacing an entry.
+                            defer(move || sarc_remove_copy(stripped));
                             return Some(stripped);
                         } else {
                             continue 'inner;
