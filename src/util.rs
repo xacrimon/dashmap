@@ -82,7 +82,7 @@ pub fn set_tag_type(pointer: usize, tag: PtrTag) -> usize {
 }
 
 pub fn get_cache(pointer: usize) -> u8 {
-    unsafe { std::mem::transmute(tag_discriminant(pointer).b[1]) }
+    unsafe { tag_discriminant(pointer).b[1] }
 }
 
 pub fn set_cache(pointer: usize, cache: u8) -> usize {
