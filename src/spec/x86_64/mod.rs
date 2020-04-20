@@ -354,7 +354,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
             'inner: loop {
                 let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
                 let cache = get_cache(bucket_ptr as _);
-                if bucket_ptr.is_null() {
+                if tag_strip(bucket_ptr as _) == 0 {
                     return None;
                 }
                 if filter == cache {
