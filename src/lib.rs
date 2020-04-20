@@ -39,6 +39,7 @@ impl<K: Eq + Hash + 'static, V: 'static> DashMap<K, V, RandomState> {
     /// let reviews = DashMap::new();
     /// reviews.insert("Veloren", "What a fantastic game!");
     /// ```
+    #[inline]
     pub fn new() -> Self {
         Self::with_capacity_and_hasher(0, RandomState::new())
     }
@@ -54,6 +55,7 @@ impl<K: Eq + Hash + 'static, V: 'static> DashMap<K, V, RandomState> {
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
+    #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self::with_capacity_and_hasher(capacity, RandomState::new())
     }
@@ -72,6 +74,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     /// let reviews = DashMap::with_hasher(s);
     /// reviews.insert("Veloren", "What a fantastic game!");
     /// ```
+    #[inline]
     pub fn with_hasher(build_hasher: S) -> Self {
         Self::with_capacity_and_hasher(0, build_hasher)
     }
@@ -89,6 +92,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
+    #[inline]
     pub fn with_capacity_and_hasher(capacity: usize, build_hasher: S) -> Self {
         let table = Table::new(capacity, build_hasher);
 
@@ -105,6 +109,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     /// let map = DashMap::new();
     /// map.insert("I am the key!", "And I am the value!");
     /// ```
+    #[inline]
     pub fn insert(&self, key: K, value: V) -> bool {
         self.table.insert(key, value)
     }
@@ -120,6 +125,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     /// let new_entry = map.insert_and_get("I am the key!", "And I am the value!");
     /// assert!(*new_entry.value() == "And I am the value!")
     /// ```
+    #[inline]
     pub fn insert_and_get(&self, key: K, value: V) -> ElementGuard<K, V> {
         self.table.insert_and_get(key, value)
     }
@@ -138,11 +144,13 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     /// let old_entry = maybe_old_entry.unwrap();
     /// assert!(*old_entry.value() == "I'm the old value!");
     /// ```
+    #[inline]
     pub fn replace(&self, key: K, value: V) -> Option<ElementGuard<K, V>> {
         self.table.replace(key, value)
     }
 
     /// Get the entry of a key if it exists in the map.
+    #[inline]
     pub fn get<Q>(&self, key: &Q) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q>,
@@ -152,6 +160,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     }
 
     /// Check if the map contains a specific key.
+    #[inline]
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
@@ -162,6 +171,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
 
     /// Removes an entry from the map.
     /// Returns true if the key existed and the entry was removed. Otherwise returns false.
+    #[inline]
     pub fn remove<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
@@ -172,6 +182,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
 
     /// Removes an entry from the map if the conditional returns true.
     /// Returns true if the key existed and the entry was removed. Otherwise returns false.
+    #[inline]
     pub fn remove_if<Q, P>(&self, key: &Q, predicate: P) -> bool
     where
         K: Borrow<Q>,
@@ -184,6 +195,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
 
     /// Removes an entry from the map.
     /// Returns the entry if it existed in the map. Otherwise returns `None`.
+    #[inline]
     pub fn remove_take<Q>(&self, key: &Q) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q>,
@@ -194,6 +206,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
 
     /// Removes an entry from the map if the conditional returns true.
     /// Returns the entry if it existed in the map. Otherwise returns `None`.
+    #[inline]
     pub fn remove_if_take<Q, P>(&self, key: &Q, predicate: P) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q>,
@@ -206,6 +219,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
 
     /// Run a closure on an entry in the map.
     /// If the key existed the function's output is returned. Otherwise returns `None`.
+    #[inline]
     pub fn extract<T, Q, F>(&self, search_key: &Q, do_extract: F) -> Option<T>
     where
         K: Borrow<Q>,
@@ -217,6 +231,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
 
     /// Update the value of a key in the map by supplying a mutation closure.
     /// Returns true if the key existed. Otherwise returns false.
+    #[inline]
     pub fn update<Q, F>(&self, search_key: &Q, do_update: F) -> bool
     where
         K: Borrow<Q> + Clone,
@@ -229,6 +244,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
 
     /// Update the value of a key in the map by supplying a mutation closure.
     /// Returns the updated entry of the key if the key existed. Otherwise returns false.
+    #[inline]
     pub fn update_get<Q, F>(&self, search_key: &Q, do_update: F) -> Option<ElementGuard<K, V>>
     where
         K: Borrow<Q> + Clone,
@@ -253,38 +269,45 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     /// words.insert("macn", "cheese");
     /// assert_eq!(words.iter().count(), 2);
     /// ```
+    #[inline]
     pub fn iter(&self) -> Iter<K, V> {
         let internal = Box::new(self.table.iter());
         Iter::new(internal)
     }
 
     /// Retain elements that the filter closure returns true for.
+    #[inline]
     pub fn retain(&self, mut predicate: impl FnMut(&K, &V) -> bool) {
         self.table.retain(&mut predicate)
     }
 
     /// Clear all entries in the map.
+    #[inline]
     pub fn clear(&self) {
         self.table.clear();
     }
 
     /// Get the amount of entries in the map.
+    #[inline]
     pub fn len(&self) -> usize {
         self.table.len()
     }
 
     /// Checks if the map is empty.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Returns the capacity of the map. That is the maximum amount of entries before a reallocation is needed.
     /// The backend implementation cannot always know the capacity. If this function returns 0, the capacity is unknown.
+    #[inline]
     pub fn capacity(&self) -> usize {
         self.table.capacity()
     }
 
     /// Create a map from an iterator over key + value pairs.
+    #[inline]
     pub fn from_iter<T>(iter: T) -> Self
     where
         T: IntoIterator<Item = (K, V)>,
@@ -300,6 +323,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     }
 
     /// Extend the map with an iterator over key + value pairs.
+    #[inline]
     pub fn extend<T>(&self, iter: T)
     where
         T: IntoIterator<Item = (K, V)>,
@@ -311,6 +335,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
 }
 
 impl<K: Eq + Hash + 'static, V: 'static> Default for DashMap<K, V, RandomState> {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }

@@ -15,6 +15,7 @@ impl<K: Eq + Hash, V> Iter<K, V> {
 impl<K: Eq + Hash, V> Iterator for Iter<K, V> {
     type Item = ElementGuard<K, V>;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
     }
