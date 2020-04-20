@@ -7,6 +7,9 @@ mod spec;
 mod table;
 mod util;
 
+#[cfg(feature = "serde")]
+mod serde;
+
 pub use element::ElementGuard;
 pub use iter_shim::Iter;
 use spec::Table;
