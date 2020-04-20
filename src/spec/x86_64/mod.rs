@@ -352,19 +352,19 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let idx_start = hash as usize % self.buckets.len();
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
             'inner: loop {
-                let bucket_ptr = self.buckets[idx].load(Ordering::Relaxed);
+                let bucket_ptr = self.buckets[idx].load(Ordering::SeqCst);
                 let cache = get_cache(bucket_ptr as _);
+                match get_tag_type(bucket_ptr as _) {
+                    PtrTag::Resize => {
+                        return self.fetch_next().unwrap().remove_if(search_key, predicate);
+                    }
+                    PtrTag::Tombstone => break 'inner,
+                    PtrTag::None => (),
+                }
                 if tag_strip(bucket_ptr as _) == 0 {
                     return None;
                 }
                 if filter == cache {
-                    match get_tag_type(bucket_ptr as _) {
-                        PtrTag::Resize => {
-                            return self.fetch_next().unwrap().remove_if(search_key, predicate);
-                        }
-                        PtrTag::Tombstone => break 'inner,
-                        PtrTag::None => (),
-                    }
                     if {
                         let cs = tag_strip(bucket_ptr as _);
                         let bucket_data = sarc_deref(cs as *mut ABox<Element<K, V>>);
@@ -375,7 +375,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         if self.buckets[idx].compare_and_swap(
                             bucket_ptr,
                             tombstone as _,
-                            Ordering::AcqRel,
+                            Ordering::SeqCst,
                         ) == bucket_ptr
                         {
                             let stripped = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
