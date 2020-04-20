@@ -168,16 +168,17 @@ impl<K: Eq + Hash, V> Iterator for BucketArrayIter<K, V> {
 
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
-            self.next = self.next.wrapping_add(1);
-
             if self.next >= (&*self.buckets).len() {
                 return None;
             }
 
             let bucket_ptr = (&*self.buckets).get_unchecked(self.next).load(Ordering::Relaxed);
+            let data_ptr = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
 
-            if !bucket_ptr.is_null() {
-                return Some(Element::read(bucket_ptr));
+            self.next += 1;
+
+            if !data_ptr.is_null() {
+                return Some(Element::read(data_ptr));
             } else {
                 return self.next();
             }
@@ -205,7 +206,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
 
         BucketArrayIter {
             buckets: &*self.buckets,
-            next: std::usize::MAX,
+            next: 0,
         }
     }
 

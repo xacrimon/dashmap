@@ -18,3 +18,16 @@ impl<K: Eq + Hash, V> Iterator for Iter<K, V> {
         self.inner.next()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::DashMap;
+
+    #[test]
+    fn iter_count() {
+        let words = DashMap::new();
+        words.insert("hello", "world");
+        words.insert("macn", "cheese");
+        assert_eq!(words.iter().count(), 2);
+    }
+}
