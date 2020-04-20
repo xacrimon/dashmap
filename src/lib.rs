@@ -14,6 +14,8 @@ use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hash};
 use table::Table as TableTrait;
+use std::fmt;
+use std::iter::FromIterator;
 
 /// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
 ///
@@ -281,7 +283,55 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     }
 
     /// Returns the capacity of the map. That is the maximum amount of entries before a reallocation is needed.
+    /// The backend implementation cannot always know the capacity. If this function returns 0, the capacity is unknown.
     pub fn capacity(&self) -> usize {
         self.table.capacity()
+    }
+
+    /// Create a map from an iterator over key + value pairs.
+    pub fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = (K, V)>,
+        S: Default,
+    {
+        let map = DashMap::with_hasher(S::default());
+
+        for (key, value) in iter {
+            map.insert(key, value);
+        }
+
+        map
+    }
+
+    /// Extend the map with an iterator over key + value pairs.
+    pub fn extend<T>(&self, iter: T)
+    where
+        T: IntoIterator<Item = (K, V)>,
+    {
+        for (key, value) in iter {
+            self.insert(key, value);
+        }
+    }
+}
+
+impl<K: Eq + Hash + 'static, V: 'static> Default for DashMap<K, V, RandomState> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K: Eq + Hash + 'static + fmt::Debug, V: 'static + fmt::Debug, S: BuildHasher + 'static> fmt::Debug for DashMap<K, V, S> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let guards: Vec<_> = self.iter().collect();
+        f.debug_map().entries(guards.iter().map(|guard| (guard.key(), guard.value()))).finish()
+    }
+}
+
+impl<K: Eq + Hash + 'static, V: 'static> FromIterator<(K, V)> for DashMap<K, V, RandomState> {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = (K, V)>
+    {
+        Self::from_iter(iter)
     }
 }
