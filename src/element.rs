@@ -25,6 +25,9 @@ impl<K, V> Element<K, V> {
     }
 }
 
+/// `ElementGuard<K, V>`'s are references to active or past map entries.
+/// They provide access to the key, value and they exist to automatically manage memory
+/// across threads to ensure a safe interface.
 pub struct ElementGuard<K, V> {
     mem_guard: *mut ABox<Element<K, V>>,
     key: *const K,
@@ -50,14 +53,17 @@ impl<K, V> Drop for ElementGuard<K, V> {
 }
 
 impl<K, V> ElementGuard<K, V> {
+    /// Get references to the key and value.
     pub fn pair(&self) -> (&K, &V) {
         unsafe { (&*self.key, &*self.value) }
     }
 
+    /// Get a reference to the key.
     pub fn key(&self) -> &K {
         self.pair().0
     }
 
+    /// Get a reference to the value.
     pub fn value(&self) -> &V {
         self.pair().1
     }

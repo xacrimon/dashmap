@@ -174,7 +174,6 @@ impl<K: Eq + Hash, V> Iterator for BucketArrayIter<K, V> {
 
             let bucket_ptr = (&*self.buckets).get_unchecked(self.next).load(Ordering::Relaxed);
             let data_ptr = tag_strip(bucket_ptr as _) as *mut ABox<Element<K, V>>;
-
             self.next += 1;
 
             if !data_ptr.is_null() {
