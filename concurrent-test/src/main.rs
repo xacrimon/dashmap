@@ -1,6 +1,14 @@
 fn main() {
     tracing_subscriber::fmt::init();
-    exchange(4).run::<DashMapTable<u64>>();
+
+    loop {
+        for _ in 0..10 {
+            exchange(2).run::<DashMapTable<u64>>();
+        }
+    
+        println!("resting");
+        std::thread::sleep(std::time::Duration::from_secs(10));
+    }
 }
 
 use std::sync::Arc;
@@ -21,7 +29,7 @@ fn exchange(n: usize) -> Workload {
     *Workload::new(n, ex_mix())
         .initial_capacity_log2(24)
         .prefill_fraction(0.6)
-        .operations(200.0)
+        .operations(20.0)
 }
 
 
