@@ -19,21 +19,17 @@ use std::iter::FromIterator;
 
 /// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
 ///
-/// DashMap tries to implement an easy to use API similar to `std::collections::HashMap`
-/// with some slight changes to handle concurrency.
+/// This library attempts to be a replacement for most uses of `RwLock<HashMap<K, V>>` but does not cover
+/// all scenarios such as multi key serializable operations that are possible with `RwLock<HashMap<K, V>>`.
+/// Instead we prefer speed and leave more complex constructs to libraries that can build on top of this.
 ///
-/// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V, S>>`.
-/// To accomplish these all methods take `&self` instead modifying methods taking `&mut self`.
-/// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
-///
-/// DashMap does not supply methods for multi key atomic transactions and other high level constructs.
-/// We want to build a fast base layer other libraries can use.
+/// In essence, this is meant to be a high performance core that can be built upon.
 pub struct DashMap<K, V, S = RandomState> {
     table: Table<K, V, S>,
 }
 
 impl<K: Eq + Hash + 'static, V: 'static> DashMap<K, V, RandomState> {
-    /// Creates a new DashMap with a capacity of 0.
+    /// Creates a new DashMap.
     ///
     /// # Examples
     ///
