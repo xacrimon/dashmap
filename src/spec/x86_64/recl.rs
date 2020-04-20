@@ -91,6 +91,18 @@ impl Drop for TSLocal {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::Deferred;
+
+    #[test]
+    fn defer_external() {
+        let a = [61; 32];
+        let deferred = Deferred::new(|| println!("{:?}", a));
+        deferred.run();
+    }
+}
+
 struct Deferred {
     call: fn([usize; 4]),
     task: [usize; 4],
