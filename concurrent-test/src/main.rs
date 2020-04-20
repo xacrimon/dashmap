@@ -21,7 +21,7 @@ fn exchange(n: usize) -> Workload {
     *Workload::new(n, ex_mix())
         .initial_capacity_log2(24)
         .prefill_fraction(0.6)
-        .operations(20.0)
+        .operations(200.0)
 }
 
 
