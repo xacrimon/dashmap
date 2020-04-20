@@ -244,6 +244,17 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     /// Create an iterator over all entries in the map.
     /// This does not take a snapshot of the map and thus changes
     /// during the lifetime of the iterator may or may not become visible in the iterator.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let words = DashMap::new();
+    /// words.insert("hello", "world");
+    /// words.insert("macn", "cheese");
+    /// assert_eq!(words.iter().count(), 2);
+    /// ```
     pub fn iter(&self) -> Iter<K, V> {
         let internal = Box::new(self.table.iter());
         Iter::new(internal)
