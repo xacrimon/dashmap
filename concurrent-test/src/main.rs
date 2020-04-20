@@ -2,8 +2,8 @@ fn main() {
     tracing_subscriber::fmt::init();
 
     loop {
-        for _ in 0..10 {
-            exchange(2).run::<DashMapTable<u64>>();
+        for _ in 0..5 {
+            exchange(7).run::<DashMapTable<u64>>();
         }
     
         println!("resting");
@@ -29,7 +29,7 @@ fn exchange(n: usize) -> Workload {
     *Workload::new(n, ex_mix())
         .initial_capacity_log2(24)
         .prefill_fraction(0.6)
-        .operations(20.0)
+        .operations(1.0)
 }
 
 
