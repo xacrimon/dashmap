@@ -2,7 +2,7 @@
 
 use once_cell::sync::Lazy;
 use once_cell::unsync::Lazy as UnsyncLazy;
-use std::mem::{align_of, size_of, take};
+use std::mem::{align_of, size_of, replace};
 use std::ops::Deref;
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -63,14 +63,13 @@ thread_local! {
 }
 
 pub struct TSLocal {
-    local: Box<Local>,
+    local: Arc<Local>,
 }
 
 impl TSLocal {
     fn new(global: Arc<Global>) -> TSLocal {
-        let local = Box::new(Local::new(Arc::clone(&global)));
-        let local_ptr = &*local as *const Local;
-        global.add_local(local_ptr);
+        let local = Arc::new(Local::new(Arc::clone(&global)));
+        global.add_local(local.clone());
         Self { local }
     }
 }
@@ -80,14 +79,6 @@ impl Deref for TSLocal {
 
     fn deref(&self) -> &Self::Target {
         &self.local
-    }
-}
-
-impl Drop for TSLocal {
-    fn drop(&mut self) {
-        let global = Arc::clone(&self.local.global);
-        let local_ptr = &*self.local as *const Local;
-        global.remove_local(local_ptr);
     }
 }
 
@@ -162,7 +153,7 @@ struct Global {
     epoch: AtomicUsize,
 
     // List of participants.
-    locals: Mutex<Vec<*const Local>>,
+    locals: Mutex<Vec<Arc<Local>>>,
 }
 
 unsafe impl Send for Global {}
@@ -187,20 +178,14 @@ impl Global {
         }
     }
 
-    fn add_local(&self, local: *const Local) {
+    fn add_local(&self, local: Arc<Local>) {
         self.locals.lock().unwrap().push(local);
     }
 
-    fn remove_local(&self, local: *const Local) {
-        self.locals
-            .lock()
-            .unwrap()
-            .retain(|maybe_this| *maybe_this != local);
-    }
-
+    #[inline(always)]
     fn collect(&self) {
         let start_global_epoch = self.epoch.load(Ordering::Acquire);
-        let locals = self.locals.lock().unwrap();
+        let mut locals = self.locals.lock().unwrap();
         let mut local_lists = Vec::new();
         for local_ptr in &*locals {
             unsafe {
@@ -213,19 +198,20 @@ impl Global {
                 }
             }
         }
-        drop(locals);
         if start_global_epoch != self.epoch.load(Ordering::Acquire) {
             return;
         }
         let next = increment_epoch(&self.epoch);
         for local_deferred_l in local_lists {
             let mut local_deferred = local_deferred_l.lock().unwrap();
-            let to_collect = take(&mut local_deferred[next]);
+            let to_collect = replace(&mut local_deferred[next], Vec::new());
             drop(local_deferred);
             for deferred in to_collect {
                 deferred.run();
             }
         }
+
+        locals.retain(|arc| Arc::strong_count(arc) > 1)
     }
 }
 
@@ -239,8 +225,20 @@ pub struct Local {
     // Reference to global state.
     global: Arc<Global>,
 
-    // Objects marked for deletetion.
+    // Objects marked for deletion.
     deferred: Mutex<[Vec<Deferred>; 3]>,
+}
+
+impl Drop for Local {
+    fn drop(&mut self) {
+        let mut deferred = self.deferred.lock().unwrap();
+        
+        for i in 0..3 {
+            for deferred in replace(&mut deferred[i], Vec::new()) {
+                deferred.run();
+            }
+        }
+    }
 }
 
 impl Local {
