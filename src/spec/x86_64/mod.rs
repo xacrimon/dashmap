@@ -318,8 +318,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                             Ordering::AcqRel,
                         ) == bucket_ptr
                         {
-                            // TO-DO: fix bug here
-                            //defer(move || sarc_remove_copy(stripped));
+                            defer(move || sarc_remove_copy(stripped));
                             return Some(new_bucket_uc);
                         } else {
                             sarc_remove_copy(new_bucket_uc);
@@ -383,7 +382,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                         ) == bucket_ptr
                         {
                             let stripped = cs as *mut ABox<Element<K, V>>;
-                            // wierd shit here
                             defer(move || sarc_remove_copy(stripped));
                             return Some(stripped);
                         } else {

@@ -8,3 +8,6 @@ edition = "2018"
 dashmap = { path = ".." }
 bustle = "0.4.1"
 tracing-subscriber = "0.2.4"
+
+[profile.release]
+lto = true
