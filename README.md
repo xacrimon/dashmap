@@ -5,7 +5,7 @@ DashMap is a blazing fast implementation of a concurrent key -> value map.
 DashMap tries to implement an easy to use API while also having more advanced interfaces
 for squeezing out performance.
 
-We puts great effort into performance and aims to be as fast as possible.
+We put great effort into performance and aims to be as fast as possible.
 If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 [Documentation](https://docs.rs/dashmap)
