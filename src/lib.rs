@@ -367,3 +367,12 @@ impl<K: Eq + Hash + 'static, V: 'static> FromIterator<(K, V)> for DashMap<K, V, 
         Self::from_iter(iter)
     }
 }
+
+impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> IntoIterator for &DashMap<K, V, S> {
+    type Item = ElementGuard<K, V>;
+    type IntoIter = Iter<K, V>;
+
+    fn into_iter(self) -> Iter<K, V> {
+        self.iter()
+    }
+}
