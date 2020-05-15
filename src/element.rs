@@ -84,3 +84,6 @@ impl<K, V> Deref for ElementGuard<K, V> {
         self.value()
     }
 }
+
+unsafe impl<K: Send, V: Send> Send for ElementGuard<K, V> {}
+unsafe impl<K: Sync, V: Sync> Sync for ElementGuard<K, V> {}
