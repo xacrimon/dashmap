@@ -148,3 +148,6 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         self.inner.lock().unwrap().capacity()
     }
 }
+
+unsafe impl<K: Send, V: Send, S: Send> Send for Table<K, V, S> {}
+unsafe impl<K: Sync, V: Sync, S: Sync> Sync for Table<K, V, S> {}
