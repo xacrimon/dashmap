@@ -368,7 +368,9 @@ impl<K: Eq + Hash + 'static, V: 'static> FromIterator<(K, V)> for DashMap<K, V, 
     }
 }
 
-impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> IntoIterator for &DashMap<K, V, S> {
+impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> IntoIterator
+    for &DashMap<K, V, S>
+{
     type Item = ElementGuard<K, V>;
     type IntoIter = Iter<K, V>;
 
