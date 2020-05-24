@@ -367,9 +367,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 let cs = tag_strip(bucket_ptr as _);
                 if filter == cache {
                     let bucket_data = sarc_deref(cs as *mut ABox<Element<K, V>>);
-                    if {
-                        search_key == bucket_data.key.borrow()
-                    } {
+                    if { search_key == bucket_data.key.borrow() } {
                         if !predicate(&bucket_data.key, &bucket_data.value) {
                             return None;
                         }
@@ -660,7 +658,11 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        if protected(|| self.array().remove_if(search_key, &mut |_, _| true).is_some()) {
+        if protected(|| {
+            self.array()
+                .remove_if(search_key, &mut |_, _| true)
+                .is_some()
+        }) {
             self.len.decrement();
             true
         } else {

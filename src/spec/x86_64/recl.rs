@@ -2,7 +2,7 @@
 
 use once_cell::sync::Lazy;
 use once_cell::unsync::Lazy as UnsyncLazy;
-use std::mem::{align_of, size_of, replace};
+use std::mem::{align_of, replace, size_of};
 use std::ops::Deref;
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -184,6 +184,7 @@ impl Global {
 
     #[inline(always)]
     fn collect(&self) {
+        PARTICIPANT_HANDLE.with(|key| drop(UnsyncLazy::force(key)));
         let start_global_epoch = self.epoch.load(Ordering::Acquire);
         let mut locals = self.locals.lock().unwrap();
         let mut local_lists = Vec::new();
@@ -232,7 +233,7 @@ pub struct Local {
 impl Drop for Local {
     fn drop(&mut self) {
         let mut deferred = self.deferred.lock().unwrap();
-        
+
         for i in 0..3 {
             for deferred in replace(&mut deferred[i], Vec::new()) {
                 deferred.run();
