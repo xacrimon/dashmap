@@ -34,6 +34,7 @@ macro_rules! on_heap {
 
 macro_rules! reap_now {
     ($ptr:expr) => {
+        // This is safe as long as the pointer provided to this macro is valid.
         unsafe {
             Box::from_raw($ptr);
         }
@@ -75,6 +76,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
         root_ptr: *mut AtomicPtr<BucketArray<K, V, S>>,
         old_table: *mut BucketArray<K, V, S>,
     ) -> Self {
+        // # Safety
+        // This is safe to do but we have to call some new functions from `NonNull` which requires unsafe.
+        // Those pointers are freshly allocated and thus must be valid.
+        // We assume `root_ptr` and `old_table` are valid pointers. If not this is undefined behaviour.
         unsafe {
             let old_table = NonNull::new_unchecked(old_table);
             let old_slot_amount = old_table.as_ref().buckets.len();
@@ -99,6 +104,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
     fn run(&self) {
         self.work();
         self.wait();
+
+        // # Safety
+        // This is safe because `root_ptr` must be a valid pointer.
+        // If it wasn't the program would have crashed the coordinator was constructed.
         unsafe {
             if (*self.root_ptr).compare_and_swap(
                 self.old_table.as_ptr(),
@@ -122,6 +131,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
         self.running.fetch_add(1, Ordering::AcqRel);
         while let Some(range) = self.task_list.lock().unwrap().pop_front() {
             for idx in range {
+                // # Safety
+                // This is safe as long as all pointers that are not a tombstone or null are valid.
+                // This also assumes that the pointer tags are all valid. Otherwise it is undefined behaviour.
                 unsafe {
                     'inner: loop {
                         let bucket_ptr =
@@ -167,6 +179,10 @@ impl<K: Eq + Hash, V> Iterator for BucketArrayIter<K, V> {
     type Item = ElementGuard<K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // # Safety
+        // This is safe as long as the table integrity is good.
+        // That means that pointers and their tags are all valid.
+        // Unsafe is needed to deal with raw pointers.
         unsafe {
             if self.next >= (&*self.buckets).len() {
                 return None;
@@ -234,6 +250,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         if coordinator.is_null() {
             None
         } else {
+            // # Safety
+            // This is safe as long as the coordinator pointer null or valid.
+            // Null here is used instead of an `Option` to save space.
             unsafe {
                 (*coordinator).work();
                 (*coordinator).wait();
@@ -243,6 +262,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
     }
 
     fn grow(&self) {
+        // # Safety
+        // This is safe as long as the table integrity is good.
+        // That means that pointers and their tags are all valid.
+        // Unsafe is needed to deal with raw pointers.
         unsafe {
             let coordinator = self.next.load(Ordering::Acquire);
             if !coordinator.is_null() {
@@ -410,6 +433,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
         let idx_start = hash as usize & (self.buckets.len() - 1);
         let filter = derive_filter(hash);
         for idx in CircularRange::new(0, self.buckets.len(), idx_start) {
+            // # Safety
+            // This is fine as long as the table integrity is good.
+            // That means if the pointer is not valid it must be null or have a tombstone or resize tag.
             let bucket_ptr = unsafe { self.buckets.get_unchecked(idx).load(Ordering::Relaxed) };
             if bucket_ptr.is_null() {
                 return None;
@@ -559,6 +585,9 @@ pub struct Table<K, V, S> {
 
 impl<K, V, S> Drop for Table<K, V, S> {
     fn drop(&mut self) {
+        // # Safety
+        // This is safe as long as the bucket array this points to is valid.
+        // That is always the case since it is never set to an invalid state.
         unsafe {
             let array = self.array.load(Ordering::Acquire);
             if !array.is_null() {
@@ -568,11 +597,17 @@ impl<K, V, S> Drop for Table<K, V, S> {
     }
 }
 
+// # Safety
+// This is safe to do since the table does not have any other
+// non threadsafe state.
 unsafe impl<K: Send, V: Send, S: Send> Send for Table<K, V, S> {}
 unsafe impl<K: Sync, V: Sync, S: Sync> Sync for Table<K, V, S> {}
 
 impl<K: Eq + Hash, V, S: BuildHasher> Table<K, V, S> {
     fn array<'a>(&self) -> &'a BucketArray<K, V, S> {
+        // # Safety
+        // This is safe as long as the bucket array this points to is valid.
+        // That is always the case since it is never set to an invalid state.
         unsafe { &*self.array.load(Ordering::Relaxed) }
     }
 }

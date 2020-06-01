@@ -8,6 +8,10 @@ use std::sync::Mutex;
 
 type T<K, V> = *mut ABox<Element<K, V>>;
 
+/// This is a bit of a temporary fallback.
+/// But it works fow now.
+/// If you aren't on amd64 or POWER9 chances are concurrent
+/// performance isn't super high on your list.
 pub struct Table<K, V, S> {
     inner: Mutex<Vec<T<K, V>>>,
     _phantom: PhantomData<S>,
