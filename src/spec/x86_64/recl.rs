@@ -100,6 +100,9 @@ struct Deferred {
 }
 
 fn deferred_exec_external(mut task: [usize; 4]) {
+    // # Safety
+    // This is safe as long as the deferred function is properly encoded in the task data.
+    // Which it is as long as it's only called by `Deferred`.
     unsafe {
         let fat_ptr: *mut dyn FnOnce() = ptr::read(&mut task as *mut [usize; 4] as usize as _);
         let boxed = Box::from_raw(fat_ptr);
@@ -108,6 +111,9 @@ fn deferred_exec_external(mut task: [usize; 4]) {
 }
 
 fn deferred_exec_internal<F: FnOnce()>(mut task: [usize; 4]) {
+    // # Safety
+    // This is safe as long as the deferred function is properly encoded in the task data.
+    // Which it is as long as it's only called by `Deferred`.
     unsafe {
         let f: F = ptr::read(task.as_mut_ptr() as *mut F);
         f();
@@ -118,6 +124,11 @@ impl Deferred {
     fn new<'a, F: FnOnce() + 'a>(f: F) -> Self {
         let size = size_of::<F>();
         let align = align_of::<F>();
+
+        // # Safety
+        // Here we do some cursed trickery to pack a closure into a usize array.
+        // If it doesn't fit we allocate it seperately and store the pointer in the array instead.
+        // Because size and align was determined earlier in this function this is always safe.
         unsafe {
             if size < size_of::<[usize; 4]>() && align <= align_of::<[usize; 4]>() {
                 let mut task = [0; 4];
@@ -145,9 +156,6 @@ impl Deferred {
     }
 }
 
-unsafe impl Send for Deferred {}
-unsafe impl Sync for Deferred {}
-
 struct Global {
     // Global epoch. This value is always 0, 1 or 2.
     epoch: AtomicUsize,
@@ -155,9 +163,6 @@ struct Global {
     // List of participants.
     locals: Mutex<Vec<Arc<Local>>>,
 }
-
-unsafe impl Send for Global {}
-unsafe impl Sync for Global {}
 
 #[inline(always)]
 fn increment_epoch(a: &AtomicUsize) -> usize {
@@ -189,14 +194,12 @@ impl Global {
         let mut locals = self.locals.lock().unwrap();
         let mut local_lists = Vec::new();
         for local_ptr in &*locals {
-            unsafe {
-                let local = &**local_ptr;
-                local_lists.push(&local.deferred);
-                if local.active.load(Ordering::Acquire) > 0
-                    && local.epoch.load(Ordering::Acquire) != start_global_epoch
-                {
-                    return;
-                }
+            let local = &**local_ptr;
+            local_lists.push(&local.deferred);
+            if local.active.load(Ordering::Acquire) > 0
+                && local.epoch.load(Ordering::Acquire) != start_global_epoch
+            {
+                return;
             }
         }
         if start_global_epoch != self.epoch.load(Ordering::Acquire) {

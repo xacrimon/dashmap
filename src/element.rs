@@ -60,6 +60,9 @@ impl<K, V> ElementGuard<K, V> {
     /// Get references to the key and value.
     #[inline(always)]
     pub fn pair(&self) -> (&K, &V) {
+        // # Safety
+        // This is okay to do becaues the references created here may
+        // not outlive the guard and thus always point to valid data.
         unsafe { (&*self.key, &*self.value) }
     }
 
@@ -85,5 +88,8 @@ impl<K, V> Deref for ElementGuard<K, V> {
     }
 }
 
+/// # Safety
+/// This is okay since we are not keeping any state that is not unsafe to share across threads.
+/// We are just working around the fact that pointers are not `Send` nor `Sync`.
 unsafe impl<K: Send, V: Send> Send for ElementGuard<K, V> {}
 unsafe impl<K: Sync, V: Sync> Sync for ElementGuard<K, V> {}

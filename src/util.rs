@@ -12,9 +12,6 @@ pub struct CachePadded<T> {
     value: T,
 }
 
-unsafe impl<T: Send> Send for CachePadded<T> {}
-unsafe impl<T: Sync> Sync for CachePadded<T> {}
-
 impl<T> CachePadded<T> {
     pub fn new(t: T) -> CachePadded<T> {
         CachePadded::<T> { value: t }
@@ -55,11 +52,13 @@ impl<T> From<T> for CachePadded<T> {
 const DISCRIMINANT_MASK: usize = std::usize::MAX >> 16;
 const POINTER_WIDTH: usize = 48;
 
+/// Strip the tag from a pointer, making it safe to deref assuming it is valid.
 #[inline(always)]
 pub fn tag_strip(pointer: usize) -> usize {
     pointer & DISCRIMINANT_MASK
 }
 
+/// Get the full tag of a pointer.
 #[inline(always)]
 fn tag_discriminant(pointer: usize) -> Discriminant {
     Discriminant {
@@ -67,21 +66,30 @@ fn tag_discriminant(pointer: usize) -> Discriminant {
     }
 }
 
+/// Store the complete 16 bit discriminant in a pointer.
 #[inline(always)]
 fn store_discriminant(pointer: usize, discriminant: Discriminant) -> usize {
+    // # Safety
+    // This is safe, we are just reading an union here.
     unsafe {
         let discriminant = discriminant.a as usize;
         pointer | ((discriminant) << POINTER_WIDTH)
     }
 }
 
+/// Get the tag type of a tagged pointer.
 #[inline(always)]
 pub fn get_tag_type(pointer: usize) -> PtrTag {
+    // # Safety
+    // Completely safe, just union bitfiddling.
     unsafe { std::mem::transmute(tag_discriminant(pointer).b[0]) }
 }
 
+/// Set the tag type of a pointer.
 #[inline(always)]
 pub fn set_tag_type(pointer: usize, tag: PtrTag) -> usize {
+    // # Safety
+    // This is safe, we're just doing union bitfiddling.
     unsafe {
         let mut d = tag_discriminant(pointer);
         d.b[0] = tag as u8;
@@ -89,13 +97,20 @@ pub fn set_tag_type(pointer: usize, tag: PtrTag) -> usize {
     }
 }
 
+/// Get the filter bytes from a tagged pointer.
 #[inline(always)]
 pub fn get_cache(pointer: usize) -> u8 {
+    // # Safety
+    // This is safe, we're just reading a few off the high bits and using unions to do that.
     unsafe { tag_discriminant(pointer).b[1] }
 }
 
+/// Set the cached filter bytes of a pointer.
 #[inline(always)]
 pub fn set_cache(pointer: usize, cache: u8) -> usize {
+    // # Safety
+    // This completely safe but uses unions to do a transmutation to a bit more
+    // clear. This may possibly be replaced with bitshifting.
     unsafe {
         let mut d = tag_discriminant(pointer);
         d.b[1] = cache;
@@ -103,6 +118,7 @@ pub fn set_cache(pointer: usize, cache: u8) -> usize {
     }
 }
 
+/// Represents a couple of states a pointer inside a table may have.
 #[derive(PartialEq, Eq)]
 #[repr(u8)]
 pub enum PtrTag {
@@ -111,11 +127,15 @@ pub enum PtrTag {
     Resize = 2,
 }
 
+/// The full pointer tag.
 union Discriminant {
     a: u16,
     b: [u8; 2],
 }
 
+/// Derive filter bytes from a hash.
+/// This is used as a cheap approxite filter to determine if
+/// we should probe a bucket or not.
 #[inline(always)]
 pub fn derive_filter(x: u64) -> u8 {
     x as u8
@@ -135,6 +155,7 @@ pub fn range_split(range: Range<usize>, chunk_size: usize) -> LinkedList<Range<u
     ranges
 }
 
+/// A circular iterator, we use this to search the table.
 pub struct CircularRange {
     end: usize,
     next: usize,
@@ -165,6 +186,8 @@ pub fn unreachable() -> ! {
     unreachable!()
 }
 
+/// A fast approximate counter.
+/// The current implementation is very naive and optimizing this should be looked into.
 pub struct FastCounter {
     inner: CachePadded<AtomicUsize>,
 }
