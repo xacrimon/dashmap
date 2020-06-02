@@ -307,6 +307,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Inserts a key and a value into the map.
     ///
+    /// **Locking behaviour:** May deadlock if called when holding holding any sort of reference into the map.
+    ///
     /// # Examples
     ///
     /// ```
@@ -321,6 +323,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Removes an entry from the map, returning the key and value if they existed in the map.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding holding any sort of reference into the map.
     ///
     /// # Examples
     ///
@@ -342,6 +346,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Removes an entry from the map, returning the key and value
     /// if the entry existed and the provided conditional function returned true.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding holding any sort of reference into the map.
     ///
     /// ```
     /// use dashmap::DashMap;
@@ -370,6 +376,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Creates an iterator over a DashMap yielding immutable references.
     ///
+    /// **Locking behaviour:** May deadlock if called when holding holding a mutable reference into the map.
+    ///
     /// # Examples
     ///
     /// ```
@@ -385,6 +393,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Iterator over a DashMap yielding mutable references.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding holding any sort of reference into the map.
     ///
     /// # Examples
     ///
@@ -402,6 +412,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Get a immutable reference to an entry in the map
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding holding a mutable reference into the map.
     ///
     /// # Examples
     ///
@@ -423,6 +435,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Get a mutable reference to an entry in the map
     ///
+    /// **Locking behaviour:** May deadlock if called when holding holding any sort of reference into the map.
+    ///
     /// # Examples
     ///
     /// ```
@@ -443,6 +457,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Remove excess capacity to reduce memory usage.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding holding any sort of reference into the map.
     #[inline]
     pub fn shrink_to_fit(&self) {
         self._shrink_to_fit();
@@ -450,6 +466,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Retain elements that whose predicates return true
     /// and discard elements whose predicates return false.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding holding any sort of reference into the map.
     ///
     /// # Examples
     ///
@@ -470,6 +488,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Fetches the total number of key-value pairs stored in the map.
     ///
+    /// **Locking behaviour:** May deadlock if called when holding holding a mutable reference into the map.
+    ///
     /// # Examples
     ///
     /// ```
@@ -488,6 +508,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Checks if the map is empty or not.
     ///
+    /// **Locking behaviour:** May deadlock if called when holding holding a mutable reference into the map.
+    ///
     /// # Examples
     ///
     /// ```
@@ -502,6 +524,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Removes all key-value pairs in the map.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding holding any sort of reference into the map.
     ///
     /// # Examples
     ///
@@ -520,12 +544,16 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Returns how many key-value pairs the map can store without reallocating.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding holding a mutable reference into the map.
     #[inline]
     pub fn capacity(&self) -> usize {
         self._capacity()
     }
 
     /// Modify a specific value according to a function.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding holding any sort of reference into the map.
     ///
     /// # Examples
     ///
@@ -552,6 +580,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Modify every value in the map according to a function.
     ///
+    /// **Locking behaviour:** May deadlock if called when holding holding any sort of reference into the map.
+    ///
     /// # Examples
     ///
     /// ```
@@ -575,6 +605,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Checks if the map contains a specific key.
     ///
+    /// **Locking behaviour:** May deadlock if called when holding holding a mutable reference into the map.
+    ///
     /// # Examples
     ///
     /// ```
@@ -595,6 +627,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Advanced entry API that tries to mimic `std::collections::HashMap`.
     /// See the documentation on `dashmap::mapref::entry` for more details.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding holding any sort of reference into the map.
     #[inline]
     pub fn entry(&'a self, key: K) -> Entry<'a, K, V, S> {
         self._entry(key)
