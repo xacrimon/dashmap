@@ -14,6 +14,10 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 [![downloads](https://img.shields.io/crates/d/dashmap)](https://crates.io/crates/dashmap)
 
+## Serde support
+
+Turn on the `serde` feature and `DashMap` will implement `Serialize` and `Deserialize`.
+
 ## Contributing
 
 DashMap is gladly accepts contributions!
