@@ -196,9 +196,9 @@ impl<K: Eq + Hash, V> Iterator for BucketArrayIter<K, V> {
             self.next += 1;
 
             if !data_ptr.is_null() {
-                return Some(Element::read(data_ptr));
+                Some(Element::read(data_ptr))
             } else {
-                return self.next();
+                self.next()
             }
         }
     }
@@ -274,7 +274,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 (*coordinator).wait();
             } else {
                 let new_coordinator =
-                    on_heap!(ResizeCoordinator::new(self.root_ptr, mem::transmute(self),));
+                    on_heap!(ResizeCoordinator::new(self.root_ptr, self as *const _ as _));
                 let old =
                     self.next
                         .compare_and_swap(ptr::null_mut(), new_coordinator, Ordering::AcqRel);
@@ -391,7 +391,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> BucketArray<K, V, S> {
                 let cs = tag_strip(bucket_ptr as _);
                 if filter == cache {
                     let bucket_data = sarc_deref(cs as *mut ABox<Element<K, V>>);
-                    if { search_key == bucket_data.key.borrow() } {
+                    if search_key == bucket_data.key.borrow() {
                         if !predicate(&bucket_data.key, &bucket_data.value) {
                             return None;
                         }
@@ -665,10 +665,10 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         protected(|| {
             if let Some(old_ptr) = self.array().put_node(node) {
                 let guard = Element::read(old_ptr);
-                return Some(guard);
+                Some(guard)
             } else {
                 self.len.increment();
-                return None;
+                None
             }
         })
     }
@@ -694,11 +694,13 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> TableTrait<K,
         K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
     {
-        if protected(|| {
+        let removed = protected(|| {
             self.array()
                 .remove_if(search_key, &mut |_, _| true)
                 .is_some()
-        }) {
+        });
+
+        if removed {
             self.len.decrement();
             true
         } else {
