@@ -4,7 +4,6 @@
 #![warn(clippy::style)]
 #![warn(clippy::complexity)]
 #![warn(clippy::perf)]
-#![warn(clippy::pedantic)]
 #![warn(clippy::cargo)]
 
 //! `dashmap` provides a relatively low level high performance concurrent hash map.
