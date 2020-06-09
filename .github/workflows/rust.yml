@@ -3,9 +3,13 @@ name: CI
 on: [push]
 
 jobs:
-  tests:
+  check:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - name: Run tests
+    - name: tests
       run: cargo test --verbose
+    - name: style
+      run: cargo fmt -- --check
+    - name: lint
+      run: cargo clippy --all-targets --all-features -- -D warnings

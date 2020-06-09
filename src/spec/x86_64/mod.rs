@@ -1,12 +1,9 @@
 mod recl;
+mod util;
 
 use crate::alloc::{sarc_add_copy, sarc_deref, sarc_new, sarc_remove_copy, ABox};
 use crate::element::{Element, ElementGuard};
 use crate::table::Table as TableTrait;
-use crate::util::{
-    derive_filter, get_cache, get_tag_type, range_split, set_cache, set_tag_type, tag_strip,
-    unreachable, CircularRange, FastCounter, PtrTag,
-};
 use recl::{defer, enter_critical, exit_critical, protected};
 use std::borrow::Borrow;
 use std::cmp;
@@ -17,6 +14,10 @@ use std::ops::Range;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{spin_loop_hint, AtomicPtr, AtomicU16, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use util::{
+    derive_filter, get_cache, get_tag_type, range_split, set_cache, set_tag_type, tag_strip,
+    unreachable, CircularRange, FastCounter, PtrTag,
+};
 
 macro_rules! maybe_grow {
     ($s:expr) => {
