@@ -318,6 +318,7 @@ impl<K: Eq + Hash + 'static, V: 'static, S: BuildHasher + 'static> DashMap<K, V,
     }
 
     /// Create a map from an iterator over key + value pairs.
+    #[allow(clippy::should_implement_trait)]
     #[inline]
     pub fn from_iter<T>(iter: T) -> Self
     where

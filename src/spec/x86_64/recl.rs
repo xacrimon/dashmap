@@ -189,7 +189,10 @@ impl Global {
 
     #[inline(always)]
     fn collect(&self) {
-        PARTICIPANT_HANDLE.with(|key| drop(UnsyncLazy::force(key)));
+        PARTICIPANT_HANDLE.with(|key| {
+            UnsyncLazy::force(key);
+        });
+
         let start_global_epoch = self.epoch.load(Ordering::Acquire);
         let mut locals = self.locals.lock().unwrap();
         let mut local_lists = Vec::new();
