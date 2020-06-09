@@ -1,11 +1,15 @@
 #![allow(unused_unsafe)]
 
+///! `dashmap` provides a relatively low level high performance concurrent hash map.
+///! See struct level docs for more details.
+///!
+///! Serde is supported if the `serde` feature is enabled.
+///! Then `DashMap` will implement `Serialize` and `Deserialize`.
 mod alloc;
 mod element;
 mod iter_shim;
 mod spec;
 mod table;
-mod util;
 
 #[cfg(feature = "serde")]
 mod serde;
@@ -20,7 +24,7 @@ use std::hash::{BuildHasher, Hash};
 use std::iter::FromIterator;
 use table::Table as TableTrait;
 
-/// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
+/// DashMap is an implementation of a concurrent associative array/hash map in Rust.
 ///
 /// This library attempts to be a replacement for most uses of `RwLock<HashMap<K, V>>` but does not cover
 /// all scenarios such as multi key serializable operations that are possible with `RwLock<HashMap<K, V>>`.

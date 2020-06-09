@@ -13,8 +13,8 @@ keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
 [dependencies]
-once_cell = "1.3.1"
-serde = { version = "1.0.106", optional = true }
+once_cell = "1.4.0"
+serde = { version = "1.0.111", optional = true }
 
 [package.metadata.docs.rs]
 features = ["serde"]

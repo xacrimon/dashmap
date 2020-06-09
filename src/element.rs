@@ -31,7 +31,7 @@ impl<K, V> Element<K, V> {
 /// They provide access to the key and value. They exist to automatically manage memory
 /// across threads to ensure a safe interface.
 pub struct ElementGuard<K, V> {
-    mem_guard: *mut ABox<Element<K, V>>,
+    pub(crate) mem_guard: *mut ABox<Element<K, V>>,
     key: *const K,
     value: *const V,
 }
@@ -88,8 +88,8 @@ impl<K, V> Deref for ElementGuard<K, V> {
     }
 }
 
-/// # Safety
-/// This is okay since we are not keeping any state that is not unsafe to share across threads.
-/// We are just working around the fact that pointers are not `Send` nor `Sync`.
+// # Safety
+// This is okay since we are not keeping any state that is not unsafe to share across threads.
+// We are just working around the fact that pointers are not `Send` nor `Sync`.
 unsafe impl<K: Send, V: Send> Send for ElementGuard<K, V> {}
 unsafe impl<K: Sync, V: Sync> Sync for ElementGuard<K, V> {}
