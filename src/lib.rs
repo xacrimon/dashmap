@@ -17,10 +17,13 @@ mod element;
 mod iter_shim;
 mod spec;
 mod table;
+mod set;
 
 #[cfg(feature = "serde")]
 mod serde;
 
+pub use set::DashSet;
+pub use set::KeyGuard;
 pub use element::ElementGuard;
 pub use iter_shim::Iter;
 use spec::Table;
