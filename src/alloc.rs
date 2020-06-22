@@ -7,14 +7,14 @@ pub struct ABox<T> {
     data: T,
 }
 
-#[inline(always)]
 pub fn sarc_new<T>(v: T) -> *mut ABox<T> {
     let layout = Layout::new::<ABox<T>>();
+    let p = local_alloc(layout);
+
     let a = ABox {
         refs: AtomicUsize::new(1),
         data: v,
     };
-    let p = local_alloc(layout);
 
     // # Safety
     // We have allocated some memory directly using the
@@ -27,8 +27,7 @@ pub fn sarc_new<T>(v: T) -> *mut ABox<T> {
 }
 
 /// Dereference the opaque reference counted pointer.
-#[inline(always)]
-pub fn sarc_deref<'a, T>(p: *mut ABox<T>) -> &'a T {
+pub fn sarc_deref<'a, T>(p: *const ABox<T>) -> &'a T {
     // # Safety
     // This is safe to do as long as the caller has provided a valid
     // pointer. Otherwise the behaviour is undefined.
@@ -36,7 +35,6 @@ pub fn sarc_deref<'a, T>(p: *mut ABox<T>) -> &'a T {
 }
 
 /// Increments the reference count.
-#[inline(always)]
 pub fn sarc_add_copy<T>(p: *mut ABox<T>) {
     // # Safety
     // This is safe to do as long as the caller has provided a valid pointer.
@@ -46,7 +44,6 @@ pub fn sarc_add_copy<T>(p: *mut ABox<T>) {
 }
 
 /// Decrements the reference count.
-#[inline(always)]
 pub fn sarc_remove_copy<T>(p: *mut ABox<T>) {
     debug_assert!(!p.is_null());
 
@@ -63,7 +60,6 @@ pub fn sarc_remove_copy<T>(p: *mut ABox<T>) {
 ///
 /// # Safety
 /// This is fine as long as the caller has provided a valid pointer.
-#[inline(always)]
 unsafe fn sarc_dealloc<T>(p: *mut ABox<T>) {
     ptr::drop_in_place::<T>(sarc_deref(p) as *const _ as *mut _);
     let layout = Layout::new::<ABox<T>>();
@@ -71,7 +67,6 @@ unsafe fn sarc_dealloc<T>(p: *mut ABox<T>) {
 }
 
 /// Allocates some memory based on a layout.
-#[inline(always)]
 fn local_alloc(layout: Layout) -> *mut u8 {
     // # Safety
     // This is safe but needs an unsafe block because the allocator functions are marked unsafe.
@@ -85,7 +80,6 @@ fn local_alloc(layout: Layout) -> *mut u8 {
 /// This is safe as long as the called has provided a valid pointer
 /// that was previously allocated by `local_alloc`.
 /// Otherwise the behaviour is undefined.
-#[inline(always)]
 unsafe fn local_dealloc(ptr: *mut u8, layout: Layout) {
     dealloc(ptr, layout);
 }
