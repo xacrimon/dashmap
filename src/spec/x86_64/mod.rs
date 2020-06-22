@@ -108,7 +108,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ResizeCoordinator<K, V, S> {
 
         // # Safety
         // This is safe because `root_ptr` must be a valid pointer.
-        // If it wasn't the program would have crashed the coordinator was constructed.
+        // If it wasn't the program would have crashed when the coordinator was constructed.
         unsafe {
             if (*self.root_ptr).compare_and_swap(
                 self.old_table.as_ptr(),
