@@ -6,7 +6,7 @@ jobs:
   lint:
     runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: style
       run: cargo fmt -- --check
     - name: clippy
@@ -15,23 +15,23 @@ jobs:
   test-amd64:
     runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: tests
       run: cargo test
 
-  build-i686:
+  test-i686:
     runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: setup
       run: rustup target add i686-unknown-linux-gnu
     - name: build
-      run: cargo build --target i686-unknown-linux-gnu
+      run: cargo test --target i686-unknown-linux-gnu
 
   build-aarch64:
     runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: setup
       run: |
         sudo apt-get install -y lld
@@ -42,7 +42,7 @@ jobs:
   build-wasm32:
     runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - name: setup
       run: rustup target add wasm32-unknown-unknown
     - name: build
