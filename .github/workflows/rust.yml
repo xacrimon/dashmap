@@ -40,12 +40,13 @@ jobs:
         architecture: aarch64
         distribution: ubuntu18.04
         run: |
+          apt-get update
           apt-get install -y gcc &>> output.txt
           curl https://sh.rustup.rs -sSf | sh -s -- -y &>> output.txt
           cargo test &>> output.txt
-          echo ::set-output name=test::$(cat output.txt)
+          echo ::set-output name=test::$(cat output.txt | base64 -w 0)
     - name: test
-      run: echo '${{ steps.test.outputs.test }}'
+      run: $(echo '${{ steps.test.outputs.test }}' | base64 -d)
 
   build-wasm32:
     runs-on: ubuntu-18.04
