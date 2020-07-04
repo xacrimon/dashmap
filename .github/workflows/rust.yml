@@ -40,10 +40,12 @@ jobs:
         architecture: aarch64
         distribution: ubuntu18.04
         run: |
-          cargo test &> output.txt
+          apt-get install -y gcc &>> output.txt
+          curl https://sh.rustup.rs -sSf | sh -s -- -y &>> output.txt
+          cargo test &>> output.txt
           echo ::set-output name=test::$(cat output.txt)
     - name: test
-      run: echo "${{ steps.test.outputs.test }}"
+      run: echo '${{ steps.test.outputs.test }}'
 
   build-wasm32:
     runs-on: ubuntu-18.04
