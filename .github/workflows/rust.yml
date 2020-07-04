@@ -25,7 +25,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: setup
       run: |
-        apt-get install -y gcc-multilib
+        sudo apt-get install -y gcc-multilib
         rustup target add i686-unknown-linux-gnu
     - name: test
       run: cargo test --target i686-unknown-linux-gnu
