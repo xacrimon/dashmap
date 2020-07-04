@@ -1,0 +1,73 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: style
+      run: cargo fmt -- --check
+    - name: clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+  
+  test:
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        target: [
+          x86_64-unknown-linux-gnu,
+          i686-unknown-linux-gnu,
+          aarch64-unknown-linux-gnu,
+          armv7-linux-androideabi,
+          powerpc-unknown-linux-gnu,
+          wasm32-unknown-emscripten
+        ]
+    steps:
+      - uses: actions/checkout@v2
+      - name: setup
+        run: |
+          # install misc packages
+
+          sudo apt-get update
+          sudo apt-get install apt-transport-https ca-certificates curl software-properties-common
+
+          # --
+
+          # add podman ppa
+
+          . /etc/os-release
+          echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+          curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key | sudo apt-key add -
+
+          # --
+
+          # add docker ppa
+
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable"
+
+          # --
+
+          # install packages
+
+          sudo apt-get update
+          sudo apt-get install docker-ce podman
+
+          # --
+
+          # configure docker permissions
+
+          sudo usermod -aG docker ${USER}
+          sudo -u ${USER} /bin/bash
+
+          # --
+
+          # install cross
+
+          cargo install cross
+
+          # --
+      - name: test
+        run: cross test --target ${{ matrix.target }}

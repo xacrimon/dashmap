@@ -92,12 +92,18 @@ impl<T: ?Sized> RwLock<T> {
     }
 
     #[inline]
+    /// # Safety
+    ///
+    /// This is only safe if the lock is currently locked in read mode and the number of readers is not 0.
     pub unsafe fn force_read_decrement(&self) {
         debug_assert!(self.lock.load(Ordering::Relaxed) & !WRITER > 0);
         self.lock.fetch_sub(READER, Ordering::Release);
     }
 
     #[inline]
+    /// # Safety
+    ///
+    /// The lock must be locked in write mode.
     pub unsafe fn force_write_unlock(&self) {
         debug_assert_eq!(self.lock.load(Ordering::Relaxed) & !(WRITER | UPGRADED), 0);
         self.lock.fetch_and(!(WRITER | UPGRADED), Ordering::Release);
@@ -357,6 +363,7 @@ mod tests {
         drop(l.write());
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn test_rw_arc() {
         let arc = Arc::new(RwLock::new(0));
@@ -392,11 +399,12 @@ mod tests {
         assert_eq!(*lock, 10);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn test_rw_access_in_unwind() {
         let arc = Arc::new(RwLock::new(1));
         let arc2 = arc.clone();
-        let _ = thread::spawn(move || -> () {
+        let _ = thread::spawn(move || {
             struct Unwinder {
                 i: Arc<RwLock<isize>>,
             }
@@ -436,10 +444,7 @@ mod tests {
         let write_result = lock.try_write();
         match write_result {
             None => (),
-            Some(_) => assert!(
-                false,
-                "try_write should not succeed while read_guard is in scope"
-            ),
+            Some(_) => panic!("try_write should not succeed while read_guard is in scope"),
         }
 
         drop(read_guard);
