@@ -27,7 +27,7 @@ fn insert_rwlock_std_u64_u64(c: &mut Criterion) {
                     .num_threads(*threads)
                     .build()
                     .unwrap();
-                pool.install(|| b.iter(|| task_insert_rwlock_std_u64_u64()));
+                pool.install(|| b.iter(task_insert_rwlock_std_u64_u64));
             },
         );
     }

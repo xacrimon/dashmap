@@ -27,7 +27,7 @@ fn insert_chashmap_u64_u64(c: &mut Criterion) {
                     .num_threads(*threads)
                     .build()
                     .unwrap();
-                pool.install(|| b.iter(|| task_insert_chashmap_u64_u64()));
+                pool.install(|| b.iter(task_insert_chashmap_u64_u64));
             },
         );
     }

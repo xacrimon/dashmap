@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: tests
-      run: cargo test --verbose
+      run: cargo test
 
   build-i686:
     runs-on: ubuntu-18.04
@@ -26,7 +26,7 @@ jobs:
     - name: setup
       run: rustup target add i686-unknown-linux-gnu
     - name: build
-      run: cargo build --target i686-unknown-linux-gnu --verbose
+      run: cargo build --target i686-unknown-linux-gnu
 
   build-aarch64:
     runs-on: ubuntu-18.04
@@ -37,7 +37,7 @@ jobs:
         sudo apt-get install -y lld
         rustup target add aarch64-unknown-linux-gnu
     - name: build
-      run: RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo build --target aarch64-unknown-linux-gnu --verbose
+      run: RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo build --target aarch64-unknown-linux-gnu
 
   build-wasm32:
     runs-on: ubuntu-18.04
@@ -46,4 +46,4 @@ jobs:
     - name: setup
       run: rustup target add wasm32-unknown-unknown
     - name: build
-      run: cargo build --target wasm32-unknown-unknown --verbose
+      run: cargo build --target wasm32-unknown-unknown

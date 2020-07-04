@@ -402,7 +402,7 @@ mod tests {
     fn test_rw_access_in_unwind() {
         let arc = Arc::new(RwLock::new(1));
         let arc2 = arc.clone();
-        let _ = thread::spawn(move || -> () {
+        let _ = thread::spawn(move || {
             struct Unwinder {
                 i: Arc<RwLock<isize>>,
             }
@@ -442,10 +442,7 @@ mod tests {
         let write_result = lock.try_write();
         match write_result {
             None => (),
-            Some(_) => assert!(
-                false,
-                "try_write should not succeed while read_guard is in scope"
-            ),
+            Some(_) => panic!("try_write should not succeed while read_guard is in scope"),
         }
 
         drop(read_guard);
