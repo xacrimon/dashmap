@@ -46,7 +46,10 @@ jobs:
           cargo test &>> output.txt
           echo ::set-output name=test::$(cat output.txt | base64 -w 0)
     - name: test
-      run: $(echo '${{ steps.test.outputs.test }}' | base64 -d)
+      run: |
+        output='${{ steps.test.outputs.test }}'
+        echo $prev_output > output.txt
+        base64 -d output.txt
 
   build-wasm32:
     runs-on: ubuntu-18.04
