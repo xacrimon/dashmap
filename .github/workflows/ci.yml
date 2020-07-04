@@ -60,7 +60,7 @@ jobs:
           # configure docker permissions
 
           sudo usermod -aG docker ${USER}
-          su - ${USER}
+          sudo -u ${USER} /bin/bash
 
           # --
 
