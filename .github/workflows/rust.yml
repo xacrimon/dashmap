@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
-    - uses: uraimo/run-on-arch-action@v1
+    - uses: uraimo/run-on-arch-action@v1.0.9
       id: test-run
       with:
         architecture: aarch64
