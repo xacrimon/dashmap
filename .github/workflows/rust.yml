@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
-    - name: tests
+    - name: test
       run: cargo test
 
   test-i686:
@@ -25,19 +25,23 @@ jobs:
     - uses: actions/checkout@v2
     - name: setup
       run: rustup target add i686-unknown-linux-gnu
-    - name: build
+    - name: test
       run: cargo test --target i686-unknown-linux-gnu
 
-  build-aarch64:
+  test-aarch64:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
-    - name: setup
-      run: |
-        sudo apt-get install -y lld
-        rustup target add aarch64-unknown-linux-gnu
-    - name: build
-      run: RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo build --target aarch64-unknown-linux-gnu
+    - uses: uraimo/run-on-arch-action@v1
+      id: test-run
+      with:
+        architecture: aarch64
+        distribution: ubuntu18.04
+        run: |
+          cargo test > output.txt
+          echo ::set-output name=test::$(cat output.txt)
+    - name: test-output
+      run: echo "${{ steps.test.outputs.test }}"
 
   build-wasm32:
     runs-on: ubuntu-18.04
