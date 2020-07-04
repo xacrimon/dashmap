@@ -92,12 +92,18 @@ impl<T: ?Sized> RwLock<T> {
     }
 
     #[inline]
+    /// # Safety
+    ///
+    /// This is only safe if the lock is currently locked in read mode and the number of readers is not 0.
     pub unsafe fn force_read_decrement(&self) {
         debug_assert!(self.lock.load(Ordering::Relaxed) & !WRITER > 0);
         self.lock.fetch_sub(READER, Ordering::Release);
     }
 
     #[inline]
+    /// # Safety
+    ///
+    /// The lock must be locked in write mode.
     pub unsafe fn force_write_unlock(&self) {
         debug_assert_eq!(self.lock.load(Ordering::Relaxed) & !(WRITER | UPGRADED), 0);
         self.lock.fetch_and(!(WRITER | UPGRADED), Ordering::Release);
