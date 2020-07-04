@@ -1,4 +1,4 @@
-# dashmap
+# DashMap
 
 Blazingly fast concurrent map in Rust.
 
@@ -47,23 +47,7 @@ I will take a look as soon as I have time for it.
 
 ## Performance
 
-Benchmarks are currently not fantastic and can be improved and more can be created.
-Help is welcomed with open arms.
-
-**NOTE:** Benchmarks are currently being revamped for v4; hopefully a bit more scientific this time, stay tuned.
-
-Also, to be brutally honest, do your own benchmarking with your setup.
-This is one of infinite possible configations. It doesn't speak for how it will work for you.
-
-### Notes
-
-- cht is very broken and has inconsistency and memory safety issues making it a non-option.
-
-<img src="https://raw.githubusercontent.com/xacrimon/dashmap/master/assets/bench-insert.svg?sanitize=true" alt="Insert Benchmark">
-
-<img src="https://raw.githubusercontent.com/xacrimon/dashmap/master/assets/bench-get.svg?sanitize=true" alt="Get Benchmark">
-
-[Google Doc](https://docs.google.com/spreadsheets/d/1q2VR_rMZRzG7YO0ef6V0jMA6hAdkafh_wI8xvY_51fk/edit?usp=sharing)
+A comprehensive benchmark suite including DashMap can be found [here](https://git.acrimon.dev/Acrimon/conc-map-bench).
 
 ## Special thanks
 
