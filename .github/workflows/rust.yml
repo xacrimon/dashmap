@@ -3,9 +3,46 @@ name: Rust
 on: [push]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  lint:
+    runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v1
-    - name: Run tests
+    - name: style
+      run: cargo fmt -- --check
+    - name: clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test-amd64:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v1
+    - name: tests
       run: cargo test --verbose
+
+  build-i686:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v1
+    - name: setup
+      run: rustup target add i686-unknown-linux-gnu
+    - name: build
+      run: cargo build --target i686-unknown-linux-gnu --verbose
+
+  build-aarch64:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v1
+    - name: setup
+      run: sudo apt-get install -y lld
+      run: rustup target add aarch64-unknown-linux-gnu
+    - name: build
+      run: RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo build --target aarch64-unknown-linux-gnu --verbose
+
+  build-wasm32:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v1
+    - name: setup
+      run: rustup target add wasm32-unknown-unknown
+    - name: build
+      run: cargo build --target wasm32-unknown-unknown --verbose
