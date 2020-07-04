@@ -363,7 +363,7 @@ mod tests {
         drop(l.write());
     }
 
-    #[cfg(not(target = "wasm32-unknown-emscripten"))]
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn test_rw_arc() {
         let arc = Arc::new(RwLock::new(0));
@@ -399,7 +399,7 @@ mod tests {
         assert_eq!(*lock, 10);
     }
 
-    #[cfg(not(target = "wasm32-unknown-emscripten"))]
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn test_rw_access_in_unwind() {
         let arc = Arc::new(RwLock::new(1));
