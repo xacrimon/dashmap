@@ -24,7 +24,9 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: setup
-      run: rustup target add i686-unknown-linux-gnu
+      run: |
+        apt-get install -y gcc-multilib
+        rustup target add i686-unknown-linux-gnu
     - name: test
       run: cargo test --target i686-unknown-linux-gnu
 
@@ -33,14 +35,14 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: uraimo/run-on-arch-action@v1.0.9
-      id: test-run
+      id: test
       with:
         architecture: aarch64
         distribution: ubuntu18.04
         run: |
-          cargo test > output.txt
+          cargo test &> output.txt
           echo ::set-output name=test::$(cat output.txt)
-    - name: test-output
+    - name: test
       run: echo "${{ steps.test.outputs.test }}"
 
   build-wasm32:
