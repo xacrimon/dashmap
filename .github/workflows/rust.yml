@@ -48,8 +48,8 @@ jobs:
     - name: test
       run: |
         output='${{ steps.test.outputs.test }}'
-        echo $prev_output > output.txt
-        base64 -d output.txt
+        sudo echo $prev_output > output.txt
+        sudo base64 -d output.txt
 
   build-wasm32:
     runs-on: ubuntu-18.04
