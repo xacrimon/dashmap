@@ -2,13 +2,13 @@ mod entry_manager;
 mod recl;
 mod spec;
 
-use std::hash::{Hash, Hasher, BuildHasher};
-use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
-use std::sync::{Arc, Mutex};
-use std::ops::Range;
 use entry_manager::{EntryManager, NewEntryState};
-use std::cmp;
 use std::borrow::Borrow;
+use std::cmp;
+use std::hash::{BuildHasher, Hash, Hasher};
+use std::ops::Range;
+use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 const LOAD_FACTOR_THRESHOLD: f32 = 0.75;
 
@@ -48,12 +48,18 @@ impl<M: EntryManager, S: BuildHasher> BucketArray<M, S> {
         let next = AtomicPtr::new(0 as _);
         let buckets = (0..capacity).map(|_| M::empty()).collect();
 
-        Self { root_array, cells_remaining, hasher_builder, next, buckets }
+        Self {
+            root_array,
+            cells_remaining,
+            hasher_builder,
+            next,
+            buckets,
+        }
     }
 
     fn next<'a>(&self) -> Option<&'a Self> {
         let coordinator = self.next.load(Ordering::Relaxed);
-        
+
         if coordinator.is_null() {
             None
         } else {
@@ -64,12 +70,15 @@ impl<M: EntryManager, S: BuildHasher> BucketArray<M, S> {
         }
     }
 
-    fn cas<Q, F>(search_key: &Q, f: F) -> bool
+    fn cas<Q, F>(&self, search_key: &Q, f: F) -> bool
     where
         M::K: Borrow<Q>,
         Q: ?Sized + Eq + Hash,
-        F: FnOnce(Option<(*const M::K, *const M::V)>) -> CasOutput<M::K, M::V>
+        F: FnOnce(Option<(*const M::K, *const M::V)>) -> CasOutput<M::K, M::V>,
     {
+        let hash = do_hash(&*self.hasher_builder, search_key);
+        let mut idx = hash & (self.buckets.len() as u64 - 1);
+
         todo!()
     }
 }

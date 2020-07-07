@@ -1,6 +1,8 @@
+use crate::alloc::ABox;
+use crate::element::Element;
+use std::borrow::Borrow;
 use std::hash::Hash;
 use std::sync::atomic::AtomicUsize;
-use std::borrow::Borrow;
 
 pub trait EntryManager {
     type K: 'static + Eq + Hash;
@@ -11,7 +13,10 @@ pub trait EntryManager {
     fn is_resize(entry: usize) -> bool;
     fn cas<F>(entry: &AtomicUsize, f: F) -> bool
     where
-        F: FnOnce(usize, Option<(*const Self::K, *const Self::V)>) -> NewEntryState<Self::K, Self::V>;
+        F: FnOnce(
+            usize,
+            Option<(*const Self::K, *const Self::V)>,
+        ) -> NewEntryState<Self::K, Self::V>;
 
     fn eq<Q>(entry: usize, other: &Q, other_hash: u64) -> bool
     where
@@ -23,5 +28,5 @@ pub enum NewEntryState<K: 'static + Eq + Hash, V: 'static> {
     Empty,
     Keep,
     SetResize,
-    New(K, V),
+    New(*mut ABox<Element<K, V>>),
 }
