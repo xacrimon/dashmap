@@ -36,6 +36,15 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
         }
     }
 
+    /// Into the key of the entry.
+    #[inline]
+    pub fn into_key(self) -> K {
+        match self {
+            Entry::Occupied(entry) => entry.into_key(),
+            Entry::Vacant(entry) => entry.into_key(),
+        }
+    }
+
     /// Return a mutable reference to the element if it exists,
     /// otherwise insert the default and return a mutable reference to that.
     #[inline]
@@ -126,7 +135,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
 pub struct OccupiedEntry<'a, K, V, S> {
     shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
     elem: (&'a K, &'a mut V),
-    key: Option<K>,
+    key: K,
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for OccupiedEntry<'a, K, V, S> {}
@@ -139,7 +148,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
     #[inline]
     pub(crate) fn new(
         shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
-        key: Option<K>,
+        key: K,
         elem: (&'a K, &'a mut V),
     ) -> Self {
         Self { shard, elem, key }
@@ -166,6 +175,11 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
     }
 
     #[inline]
+    pub fn into_key(self) -> K {
+        self.key
+    }
+
+    #[inline]
     pub fn key(&self) -> &K {
         self.elem.0
     }
@@ -184,7 +198,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
 
     #[inline]
     pub fn replace_entry(mut self, value: V) -> (K, V) {
-        let nk = self.key.unwrap();
+        let nk = self.key;
         let (k, v) = self.shard.remove_entry(self.elem.0).unwrap();
         self.shard.insert(nk, SharedValue::new(value));
         (k, v.into_inner())
