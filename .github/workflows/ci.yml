@@ -30,6 +30,7 @@ jobs:
         run: |
           # install misc packages
 
+          echo "installing misc packages"
           sudo apt-get update
           sudo apt-get install apt-transport-https ca-certificates curl software-properties-common
 
@@ -37,6 +38,7 @@ jobs:
 
           # add podman ppa
 
+          echo "adding podman ppa"
           . /etc/os-release
           echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
           curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key | sudo apt-key add -
@@ -45,13 +47,15 @@ jobs:
 
           # add docker ppa
 
+          echo "adding docker ppa"
           curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
           sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable"
 
           # --
 
-          # install packages
+          # install docker and podman
 
+          echo "installing docker and podman"
           sudo apt-get update
           sudo apt-get install docker-ce podman
 
@@ -59,6 +63,7 @@ jobs:
 
           # configure docker permissions
 
+          echo "configuring docker permissions"
           sudo usermod -aG docker ${USER}
           sudo -u ${USER} /bin/bash
 
@@ -66,6 +71,7 @@ jobs:
 
           # install cross
 
+          echo "installing cross"
           cargo install cross
 
           # --
