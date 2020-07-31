@@ -13,6 +13,6 @@
 //! Then `DashMap` will implement `Serialize` and `Deserialize`.
 
 mod alloc;
+mod circular_range;
 mod element;
 mod table;
-mod circular_range;

@@ -2,14 +2,14 @@ mod entry_manager;
 mod recl;
 mod spec;
 
+use crate::circular_range::CircularRange;
 use entry_manager::{EntryManager, NewEntryState};
 use std::borrow::Borrow;
 use std::cmp;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::ops::Range;
-use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering, spin_loop_hint};
+use std::sync::atomic::{spin_loop_hint, AtomicPtr, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use crate::circular_range::CircularRange;
 
 const LOAD_FACTOR_THRESHOLD: f32 = 0.75;
 
@@ -87,9 +87,21 @@ impl<M: EntryManager, S: BuildHasher> BucketArray<M, S> {
 
         for idx in CircularRange::new(slots_amount, start_idx) {
             let bucket_pointer = self.buckets[idx].load(Ordering::SeqCst);
+
+            if M::is_null(bucket_pointer) {
+                break;
+            } else if M::is_tombstone(bucket_pointer) {
+                continue;
+            } else if M::is_resize(bucket_pointer) {
+                if let Some(next) = self.next() {
+                    return next.cas(search_key, f);
+                } else {
+                    break;
+                }
+            }
         }
 
-        todo!()
+        false
     }
 }
 
