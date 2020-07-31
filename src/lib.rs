@@ -804,7 +804,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
                 let vptr = &mut *vptr.as_ptr();
-                Entry::Occupied(OccupiedEntry::new(shard, Some(key), (kptr, vptr)))
+                Entry::Occupied(OccupiedEntry::new(shard, key, (kptr, vptr)))
             }
         } else {
             Entry::Vacant(VacantEntry::new(shard, key))
