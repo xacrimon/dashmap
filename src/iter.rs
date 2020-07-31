@@ -4,6 +4,7 @@ use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::t::Map;
 use crate::util::SharedValue;
 use crate::{DashMap, HashMap};
+use ahash::RandomState;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 
@@ -31,7 +32,7 @@ cfg_if::cfg_if! {
 /// assert_eq!(pairs.len(), 2);
 /// ```
 
-pub struct OwningIter<K, V, S> {
+pub struct OwningIter<K, V, S = RandomState> {
     map: DashMap<K, V, S>,
     shard_i: usize,
     current: Option<GuardOwningIter<K, V>>,
@@ -121,7 +122,7 @@ type GuardIterMut<'a, K, V, S> = (
 /// assert_eq!(map.iter().count(), 1);
 /// ```
 
-pub struct Iter<'a, K, V, S, M> {
+pub struct Iter<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     map: &'a M,
     shard_i: usize,
     current: Option<GuardIter<'a, K, V, S>>,
@@ -200,7 +201,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 /// assert_eq!(*map.get("Johnny").unwrap(), 22);
 /// ```
 
-pub struct IterMut<'a, K, V, S, M> {
+pub struct IterMut<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     map: &'a M,
     shard_i: usize,
     current: Option<GuardIterMut<'a, K, V, S>>,
