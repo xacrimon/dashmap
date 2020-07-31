@@ -86,7 +86,8 @@ impl<M: EntryManager, S: BuildHasher> BucketArray<M, S> {
         let start_idx = hash as usize & (slots_amount - 1);
 
         for idx in CircularRange::new(slots_amount, start_idx) {
-            let bucket_pointer = self.buckets[idx].load(Ordering::SeqCst);
+            let atomic_entry = &self.buckets[idx];
+            let bucket_pointer = atomic_entry.load(Ordering::SeqCst);
 
             if M::is_null(bucket_pointer) {
                 break;
@@ -101,7 +102,11 @@ impl<M: EntryManager, S: BuildHasher> BucketArray<M, S> {
             }
 
             if M::eq(bucket_pointer, search_key, hash) {
-                
+                return M::cas(atomic_entry, |_loaded_bucket_ptr, maybe_existing| {
+                    match f(maybe_existing) {
+                        _ => todo!(),
+                    }
+                });
             }
         }
 
