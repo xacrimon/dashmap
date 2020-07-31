@@ -50,12 +50,10 @@ cfg_if! {
     }
 }
 
-#[inline]
 fn shard_amount() -> usize {
     (num_cpus::get() * 4).next_power_of_two()
 }
 
-#[inline]
 fn ncb(shard_amount: usize) -> usize {
     shard_amount.trailing_zeros() as usize
 }
@@ -94,7 +92,6 @@ where
     K: Eq + Hash,
     S: Default + BuildHasher + Clone,
 {
-    #[inline]
     fn default() -> Self {
         Self::with_hasher(Default::default())
     }
@@ -111,7 +108,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     /// let reviews = DashMap::new();
     /// reviews.insert("Veloren", "What a fantastic game!");
     /// ```
-    #[inline]
+
     pub fn new() -> Self {
         DashMap::with_hasher(RandomState::default())
     }
@@ -127,7 +124,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
-    #[inline]
+
     pub fn with_capacity(capacity: usize) -> Self {
         DashMap::with_capacity_and_hasher(capacity, RandomState::default())
     }
@@ -135,7 +132,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Wraps this `DashMap` into a read-only view. This view allows to obtain raw references to the stored values.
-    #[inline]
+
     pub fn into_read_only(self) -> ReadOnlyView<K, V, S> {
         ReadOnlyView::new(self)
     }
@@ -152,7 +149,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// let reviews = DashMap::with_hasher(s);
     /// reviews.insert("Veloren", "What a fantastic game!");
     /// ```
-    #[inline]
+
     pub fn with_hasher(hasher: S) -> Self {
         Self::with_capacity_and_hasher(0, hasher)
     }
@@ -170,7 +167,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
-    #[inline]
+
     pub fn with_capacity_and_hasher(mut capacity: usize, hasher: S) -> Self {
         let shard_amount = shard_amount();
         let shift = util::ptr_size_bits() - ncb(shard_amount);
@@ -192,7 +189,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Hash a given item to produce a usize.
     /// Uses the provided or default HashBuilder.
-    #[inline]
+
     pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
         let mut hasher = self.hasher.build_hasher();
         item.hash(&mut hasher);
@@ -214,13 +211,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// let map = DashMap::<(), ()>::new();
             /// println!("Amount of shards: {}", map.shards().len());
             /// ```
-            #[inline]
+
             pub fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
                 &self.shards
             }
         } else {
             #[allow(dead_code)]
-            #[inline]
+
             pub(crate) fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
                 &self.shards
             }
@@ -244,7 +241,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// map.insert("coca-cola", 1.4);
             /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
             /// ```
-            #[inline]
+
             pub fn determine_map<Q>(&self, key: &Q) -> usize
             where
                 K: Borrow<Q>,
@@ -272,13 +269,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// let hash = map.hash_usize(&key);
             /// println!("hash is stored in shard: {}", map.determine_shard(hash));
             /// ```
-            #[inline]
+
             pub fn determine_shard(&self, hash: usize) -> usize {
                 // Leave the high 7 bits for the HashBrown SIMD tag.
                 (hash << 7) >> self.shift
             }
         } else {
-            #[inline]
+
             pub(crate) fn determine_shard(&self, hash: usize) -> usize {
                 // Leave the high 7 bits for the HashBrown SIMD tag.
                 (hash << 7) >> self.shift
@@ -300,7 +297,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     ///
     /// [`BuildHasher`]: https://doc.rust-lang.org/std/hash/trait.BuildHasher.html
-    #[inline]
+
     pub fn hasher(&self) -> &S {
         &self.hasher
     }
@@ -317,7 +314,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// let map = DashMap::new();
     /// map.insert("I am the key!", "And I am the value!");
     /// ```
-    #[inline]
+
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         self._insert(key, value)
     }
@@ -335,7 +332,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// soccer_team.insert("Jack", "Goalie");
     /// assert_eq!(soccer_team.remove("Jack").unwrap().1, "Goalie");
     /// ```
-    #[inline]
+
     pub fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
         K: Borrow<Q>,
@@ -365,7 +362,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// soccer_team.remove_if("Sam", |_, position| position == &"Forward");
     /// assert!(!soccer_team.contains_key("Sam"));
     /// ```
-    #[inline]
+
     pub fn remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
     where
         K: Borrow<Q>,
@@ -387,7 +384,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// words.insert("hello", "world");
     /// assert_eq!(words.iter().count(), 1);
     /// ```
-    #[inline]
+
     pub fn iter(&'a self) -> Iter<'a, K, V, S, DashMap<K, V, S>> {
         self._iter()
     }
@@ -406,7 +403,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// map.iter_mut().for_each(|mut r| *r += 1);
     /// assert_eq!(*map.get("Johnny").unwrap(), 22);
     /// ```
-    #[inline]
+
     pub fn iter_mut(&'a self) -> IterMut<'a, K, V, S, DashMap<K, V, S>> {
         self._iter_mut()
     }
@@ -424,7 +421,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// youtubers.insert("Bosnian Bill", 457000);
     /// assert_eq!(*youtubers.get("Bosnian Bill").unwrap(), 457000);
     /// ```
-    #[inline]
+
     pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V, S>>
     where
         K: Borrow<Q>,
@@ -447,7 +444,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// *class.get_mut("Albin").unwrap() -= 1;
     /// assert_eq!(*class.get("Albin").unwrap(), 14);
     /// ```
-    #[inline]
+
     pub fn get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V, S>>
     where
         K: Borrow<Q>,
@@ -459,7 +456,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Remove excess capacity to reduce memory usage.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
-    #[inline]
+
     pub fn shrink_to_fit(&self) {
         self._shrink_to_fit();
     }
@@ -481,7 +478,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// people.retain(|_, v| *v > 20);
     /// assert_eq!(people.len(), 2);
     /// ```
-    #[inline]
+
     pub fn retain(&self, f: impl FnMut(&K, &mut V) -> bool) {
         self._retain(f);
     }
@@ -501,7 +498,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// people.insert("Charlie", 27);
     /// assert_eq!(people.len(), 3);
     /// ```
-    #[inline]
+
     pub fn len(&self) -> usize {
         self._len()
     }
@@ -518,7 +515,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// let map = DashMap::<(), ()>::new();
     /// assert!(map.is_empty());
     /// ```
-    #[inline]
+
     pub fn is_empty(&self) -> bool {
         self._is_empty()
     }
@@ -538,7 +535,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// stats.clear();
     /// assert!(stats.is_empty());
     /// ```
-    #[inline]
+
     pub fn clear(&self) {
         self._clear();
     }
@@ -546,7 +543,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Returns how many key-value pairs the map can store without reallocating.
     ///
     /// **Locking behaviour:** May deadlock if called when holding a mutable reference into the map.
-    #[inline]
+
     pub fn capacity(&self) -> usize {
         self._capacity()
     }
@@ -569,7 +566,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Panics
     ///
     /// If the given closure panics, then `alter_all` will abort the process
-    #[inline]
+
     pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
         K: Borrow<Q>,
@@ -598,7 +595,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Panics
     ///
     /// If the given closure panics, then `alter_all` will abort the process
-    #[inline]
+
     pub fn alter_all(&self, f: impl FnMut(&K, V) -> V) {
         self._alter_all(f);
     }
@@ -616,7 +613,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// team_sizes.insert("Dakota Cherries", 23);
     /// assert!(team_sizes.contains_key("Dakota Cherries"));
     /// ```
-    #[inline]
+
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
@@ -629,7 +626,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// See the documentation on `dashmap::mapref::entry` for more details.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
-    #[inline]
+
     pub fn entry(&'a self, key: K) -> Entry<'a, K, V, S> {
         self._entry(key)
     }
@@ -638,30 +635,25 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     for DashMap<K, V, S>
 {
-    #[inline]
     fn _shard_count(&self) -> usize {
         self.shards.len()
     }
 
-    #[inline]
     unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V, S> {
         debug_assert!(i < self.shards.len());
         self.shards.get_unchecked(i).get()
     }
 
-    #[inline]
     unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, S>> {
         debug_assert!(i < self.shards.len());
         self.shards.get_unchecked(i).read()
     }
 
-    #[inline]
     unsafe fn _yield_write_shard(&'a self, i: usize) -> RwLockWriteGuard<'a, HashMap<K, V, S>> {
         debug_assert!(i < self.shards.len());
         self.shards.get_unchecked(i).write()
     }
 
-    #[inline]
     fn _insert(&self, key: K, value: V) -> Option<V> {
         let hash = self.hash_usize(&key);
         let idx = self.determine_shard(hash);
@@ -671,7 +663,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             .map(|v| v.into_inner())
     }
 
-    #[inline]
     fn _remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
         K: Borrow<Q>,
@@ -683,7 +674,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
     }
 
-    #[inline]
     fn _remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
     where
         K: Borrow<Q>,
@@ -703,17 +693,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         }
     }
 
-    #[inline]
     fn _iter(&'a self) -> Iter<'a, K, V, S, DashMap<K, V, S>> {
         Iter::new(self)
     }
 
-    #[inline]
     fn _iter_mut(&'a self) -> IterMut<'a, K, V, S, DashMap<K, V, S>> {
         IterMut::new(self)
     }
 
-    #[inline]
     fn _get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V, S>>
     where
         K: Borrow<Q>,
@@ -733,7 +720,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         }
     }
 
-    #[inline]
     fn _get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V, S>>
     where
         K: Borrow<Q>,
@@ -753,29 +739,24 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         }
     }
 
-    #[inline]
     fn _shrink_to_fit(&self) {
         self.shards.iter().for_each(|s| s.write().shrink_to_fit());
     }
 
-    #[inline]
     fn _retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
         self.shards
             .iter()
             .for_each(|s| s.write().retain(|k, v| f(k, v.get_mut())));
     }
 
-    #[inline]
     fn _len(&self) -> usize {
         self.shards.iter().map(|s| s.read().len()).sum()
     }
 
-    #[inline]
     fn _capacity(&self) -> usize {
         self.shards.iter().map(|s| s.read().capacity()).sum()
     }
 
-    #[inline]
     fn _alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
         K: Borrow<Q>,
@@ -786,7 +767,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         }
     }
 
-    #[inline]
     fn _alter_all(&self, mut f: impl FnMut(&K, V) -> V) {
         self.shards.iter().for_each(|s| {
             s.write()
@@ -795,7 +775,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         });
     }
 
-    #[inline]
     fn _entry(&'a self, key: K) -> Entry<'a, K, V, S> {
         let hash = self.hash_usize(&key);
         let idx = self.determine_shard(hash);
@@ -811,7 +790,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         }
     }
 
-    #[inline]
     fn _hasher(&self) -> S {
         self.hasher.clone()
     }
@@ -833,7 +811,6 @@ impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debu
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> Shl<(K, V)> for &'a DashMap<K, V, S> {
     type Output = Option<V>;
 
-    #[inline]
     fn shl(self, pair: (K, V)) -> Self::Output {
         self.insert(pair.0, pair.1)
     }
@@ -846,7 +823,6 @@ where
 {
     type Output = Ref<'a, K, V, S>;
 
-    #[inline]
     fn shr(self, key: &Q) -> Self::Output {
         self.get(key).unwrap()
     }
@@ -859,7 +835,6 @@ where
 {
     type Output = RefMut<'a, K, V, S>;
 
-    #[inline]
     fn bitor(self, key: &Q) -> Self::Output {
         self.get_mut(key).unwrap()
     }
@@ -872,7 +847,6 @@ where
 {
     type Output = Option<(K, V)>;
 
-    #[inline]
     fn sub(self, key: &Q) -> Self::Output {
         self.remove(key)
     }
@@ -885,7 +859,6 @@ where
 {
     type Output = bool;
 
-    #[inline]
     fn bitand(self, key: &Q) -> Self::Output {
         self.contains_key(key)
     }

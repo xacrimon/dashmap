@@ -51,7 +51,6 @@ type GuardOwningIter<K, V> = hash_map::IntoIter<K, SharedValue<V>>;
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     type Item = (K, V);
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
@@ -153,7 +152,6 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 {
     type Item = RefMulti<'a, K, V, S>;
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
@@ -229,7 +227,6 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 {
     type Item = RefMutMulti<'a, K, V, S>;
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {

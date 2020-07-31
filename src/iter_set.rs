@@ -15,7 +15,6 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> OwningIter<K, S> {
 impl<K: Eq + Hash, S: BuildHasher + Clone> Iterator for OwningIter<K, S> {
     type Item = K;
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|(k, _)| k)
     }
@@ -66,7 +65,6 @@ impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iterat
 {
     type Item = RefMulti<'a, K, S>;
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(RefMulti::new)
     }

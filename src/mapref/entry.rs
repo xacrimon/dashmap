@@ -15,7 +15,7 @@ pub enum Entry<'a, K, V, S = RandomState> {
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     /// Apply a function to the stored value if it exists.
-    #[inline]
+
     pub fn and_modify(self, f: impl FnOnce(&mut V)) -> Self {
         match self {
             Entry::Occupied(mut entry) => {
@@ -28,7 +28,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     }
 
     /// Get the key of the entry.
-    #[inline]
+
     pub fn key(&self) -> &K {
         match *self {
             Entry::Occupied(ref entry) => entry.key(),
@@ -37,7 +37,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     }
 
     /// Into the key of the entry.
-    #[inline]
+
     pub fn into_key(self) -> K {
         match self {
             Entry::Occupied(entry) => entry.into_key(),
@@ -47,7 +47,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
 
     /// Return a mutable reference to the element if it exists,
     /// otherwise insert the default and return a mutable reference to that.
-    #[inline]
+
     pub fn or_default(self) -> RefMut<'a, K, V, S>
     where
         V: Default,
@@ -60,7 +60,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
 
     /// Return a mutable reference to the element if it exists,
     /// otherwise a provided value and return a mutable reference to that.
-    #[inline]
+
     pub fn or_insert(self, value: V) -> RefMut<'a, K, V, S> {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
@@ -70,7 +70,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
 
     /// Return a mutable reference to the element if it exists,
     /// otherwise insert the result of a provided function and return a mutable reference to that.
-    #[inline]
+
     pub fn or_insert_with(self, value: impl FnOnce() -> V) -> RefMut<'a, K, V, S> {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
@@ -78,7 +78,6 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
         }
     }
 
-    #[inline]
     pub fn or_try_insert_with<E>(
         self,
         value: impl FnOnce() -> Result<V, E>,
@@ -102,12 +101,10 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
-    #[inline]
     pub(crate) fn new(shard: RwLockWriteGuard<'a, HashMap<K, V, S>>, key: K) -> Self {
         Self { shard, key }
     }
 
-    #[inline]
     pub fn insert(mut self, value: V) -> RefMut<'a, K, V, S> {
         unsafe {
             let c: K = ptr::read(&self.key);
@@ -121,12 +118,10 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
         }
     }
 
-    #[inline]
     pub fn into_key(self) -> K {
         self.key
     }
 
-    #[inline]
     pub fn key(&self) -> &K {
         &self.key
     }
@@ -145,7 +140,6 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
-    #[inline]
     pub(crate) fn new(
         shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
         key: K,
@@ -154,49 +148,40 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
         Self { shard, elem, key }
     }
 
-    #[inline]
     pub fn get(&self) -> &V {
         self.elem.1
     }
 
-    #[inline]
     pub fn get_mut(&mut self) -> &mut V {
         self.elem.1
     }
 
-    #[inline]
     pub fn insert(&mut self, value: V) -> V {
         mem::replace(self.elem.1, value)
     }
 
-    #[inline]
     pub fn into_ref(self) -> RefMut<'a, K, V, S> {
         RefMut::new(self.shard, self.elem.0, self.elem.1)
     }
 
-    #[inline]
     pub fn into_key(self) -> K {
         self.key
     }
 
-    #[inline]
     pub fn key(&self) -> &K {
         self.elem.0
     }
 
-    #[inline]
     pub fn remove(mut self) -> V {
         self.shard.remove(self.elem.0).unwrap().into_inner()
     }
 
-    #[inline]
     pub fn remove_entry(mut self) -> (K, V) {
         let (k, v) = self.shard.remove_entry(self.elem.0).unwrap();
 
         (k, v.into_inner())
     }
 
-    #[inline]
     pub fn replace_entry(mut self, value: V) -> (K, V) {
         let nk = self.key;
         let (k, v) = self.shard.remove_entry(self.elem.0).unwrap();
