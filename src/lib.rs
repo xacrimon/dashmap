@@ -14,7 +14,7 @@ mod util;
 #[cfg(feature = "serde")]
 mod serde;
 
-use ahash::RandomState;
+pub use ahash::RandomState;
 use cfg_if::cfg_if;
 use core::borrow::Borrow;
 use core::fmt;
