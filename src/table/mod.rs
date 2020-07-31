@@ -7,8 +7,9 @@ use std::borrow::Borrow;
 use std::cmp;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::ops::Range;
-use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering, spin_loop_hint};
 use std::sync::{Arc, Mutex};
+use crate::circular_range::CircularRange;
 
 const LOAD_FACTOR_THRESHOLD: f32 = 0.75;
 
@@ -76,8 +77,17 @@ impl<M: EntryManager, S: BuildHasher> BucketArray<M, S> {
         Q: ?Sized + Eq + Hash,
         F: FnOnce(Option<(*const M::K, *const M::V)>) -> CasOutput<M::K, M::V>,
     {
+        if let Some(next) = self.next() {
+            return next.cas(search_key, f);
+        }
+
         let hash = do_hash(&*self.hasher_builder, search_key);
-        let mut idx = hash & (self.buckets.len() as u64 - 1);
+        let slots_amount = self.buckets.len();
+        let start_idx = hash as usize & (slots_amount - 1);
+
+        for idx in CircularRange::new(slots_amount, start_idx) {
+            let bucket_pointer = self.buckets[idx].load(Ordering::SeqCst);
+        }
 
         todo!()
     }
@@ -93,7 +103,9 @@ struct ResizeCoordinator<M, S> {
 
 impl<M: EntryManager, S: BuildHasher> ResizeCoordinator<M, S> {
     fn wait(&self) {
-        todo!()
+        while self.running.load(Ordering::SeqCst) != 0 {
+            spin_loop_hint();
+        }
     }
 
     fn work(&self) {

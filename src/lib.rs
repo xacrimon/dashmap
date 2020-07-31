@@ -15,3 +15,4 @@
 mod alloc;
 mod element;
 mod table;
+mod circular_range;

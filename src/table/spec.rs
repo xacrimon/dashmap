@@ -22,6 +22,10 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
         AtomicUsize::new(0)
     }
 
+    fn is_null(entry: usize) -> bool {
+        entry == 0
+    }
+
     fn is_tombstone(entry: usize) -> bool {
         entry & (1 << 0) != 0
     }

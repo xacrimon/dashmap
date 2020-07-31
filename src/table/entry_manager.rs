@@ -9,6 +9,7 @@ pub trait EntryManager {
     type V: 'static;
 
     fn empty() -> AtomicUsize;
+    fn is_null(entry: usize) -> bool;
     fn is_tombstone(entry: usize) -> bool;
     fn is_resize(entry: usize) -> bool;
     fn cas<F>(entry: &AtomicUsize, f: F) -> bool
