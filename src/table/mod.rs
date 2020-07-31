@@ -99,6 +99,10 @@ impl<M: EntryManager, S: BuildHasher> BucketArray<M, S> {
                     break;
                 }
             }
+
+            if M::eq(bucket_pointer, search_key, hash) {
+                
+            }
         }
 
         false

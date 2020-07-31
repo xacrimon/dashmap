@@ -94,7 +94,7 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
         Self::K: Borrow<Q>,
         Q: ?Sized + Eq,
     {
-        if entry == 0 || Self::is_tombstone(entry) || Self::is_resize(entry) {
+        if entry == 0 {
             false
         } else {
             let element_ptr = strip(entry) as *const ABox<Element<K, V>>;
