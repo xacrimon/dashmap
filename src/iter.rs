@@ -30,6 +30,7 @@ cfg_if::cfg_if! {
 /// let pairs: Vec<(&'static str, &'static str)> = map.into_iter().collect();
 /// assert_eq!(pairs.len(), 2);
 /// ```
+
 pub struct OwningIter<K, V, S> {
     map: DashMap<K, V, S>,
     shard_i: usize,
@@ -65,12 +66,18 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
 
             //let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
             let mut shard_wl = unsafe { self.map._yield_write_shard(self.shard_i) };
+
             let hasher = self.map._hasher();
+
             let map = mem::replace(&mut *shard_wl, HashMap::with_hasher(hasher));
+
             drop(shard_wl);
+
             let iter = map.into_iter();
+
             //unsafe { ptr::write(&mut self.current, Some((arcee, iter))); }
             self.current = Some(iter);
+
             self.shard_i += 1;
         }
     }
@@ -113,6 +120,7 @@ type GuardIterMut<'a, K, V, S> = (
 /// map.insert("hello", "world");
 /// assert_eq!(map.iter().count(), 1);
 /// ```
+
 pub struct Iter<'a, K, V, S, M> {
     map: &'a M,
     shard_i: usize,
@@ -157,6 +165,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
             if let Some(current) = self.current.as_mut() {
                 if let Some((k, v)) = current.1.next() {
                     let guard = current.0.clone();
+
                     return Some(RefMulti::new(guard, k, v.get()));
                 }
             }
@@ -166,9 +175,13 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
             }
 
             let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+
             let sref: &HashMap<K, V, S> = unsafe { util::change_lifetime_const(&*guard) };
+
             let iter = sref.iter();
+
             self.current = Some((Arc::new(guard), iter));
+
             self.shard_i += 1;
         }
     }
@@ -186,6 +199,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 /// map.iter_mut().for_each(|mut r| *r += 1);
 /// assert_eq!(*map.get("Johnny").unwrap(), 22);
 /// ```
+
 pub struct IterMut<'a, K, V, S, M> {
     map: &'a M,
     shard_i: usize,
@@ -232,9 +246,12 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
             if let Some(current) = self.current.as_mut() {
                 if let Some((k, v)) = current.1.next() {
                     let guard = current.0.clone();
+
                     unsafe {
                         let k = util::change_lifetime_const(k);
+
                         let v = &mut *v.as_ptr();
+
                         return Some(RefMutMulti::new(guard, k, v));
                     }
                 }
@@ -245,43 +262,63 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
             }
 
             let mut guard = unsafe { self.map._yield_write_shard(self.shard_i) };
+
             let sref: &mut HashMap<K, V, S> = unsafe { util::change_lifetime_mut(&mut *guard) };
+
             let iter = sref.iter_mut();
+
             self.current = Some((Arc::new(guard), iter));
+
             self.shard_i += 1;
         }
     }
 }
 
 #[cfg(test)]
+
 mod tests {
+
     use crate::DashMap;
 
     #[test]
+
     fn iter_mut_manual_count() {
         let map = DashMap::new();
+
         map.insert("Johnny", 21);
+
         assert_eq!(map.len(), 1);
+
         let mut c = 0;
+
         for shard in map.shards() {
             c += shard.write().iter_mut().count();
         }
+
         assert_eq!(c, 1);
     }
 
     #[test]
+
     fn iter_mut_count() {
         let map = DashMap::new();
+
         map.insert("Johnny", 21);
+
         assert_eq!(map.len(), 1);
+
         assert_eq!(map.iter_mut().count(), 1);
     }
 
     #[test]
+
     fn iter_count() {
         let map = DashMap::new();
+
         map.insert("Johnny", 21);
+
         assert_eq!(map.len(), 1);
+
         assert_eq!(map.iter().count(), 1);
     }
 }

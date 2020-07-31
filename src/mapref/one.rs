@@ -5,7 +5,6 @@ use core::hash::{BuildHasher, Hash};
 use core::ops::{Deref, DerefMut};
 
 // -- Shared
-
 pub struct Ref<'a, K, V, S = RandomState> {
     _guard: RwLockReadGuard<'a, HashMap<K, V, S>>,
     k: &'a K,
@@ -13,6 +12,7 @@ pub struct Ref<'a, K, V, S = RandomState> {
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for Ref<'a, K, V, S> {}
+
 unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
     for Ref<'a, K, V, S>
 {
@@ -49,9 +49,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for Ref<'a, K, V, S> {
 }
 
 // --
-
 // -- Unique
-
 pub struct RefMut<'a, K, V, S = RandomState> {
     guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
     k: &'a K,
@@ -59,6 +57,7 @@ pub struct RefMut<'a, K, V, S = RandomState> {
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for RefMut<'a, K, V, S> {}
+
 unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
     for RefMut<'a, K, V, S>
 {

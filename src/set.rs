@@ -16,6 +16,7 @@ use core::iter::FromIterator;
 /// methods and types which are more convenient to work with on a set.
 ///
 /// [`DashMap`]: struct.DashMap.html
+
 pub struct DashSet<K, S = RandomState> {
     inner: DashMap<K, (), S>,
 }
@@ -63,6 +64,7 @@ impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
     pub fn new() -> Self {
         Self::with_hasher(RandomState::default())
     }
+
     /// Creates a new DashMap with a specified starting capacity.
     ///
     /// # Examples
@@ -97,6 +99,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     pub fn with_hasher(hasher: S) -> Self {
         Self::with_capacity_and_hasher(0, hasher)
     }
+
     /// Creates a new DashMap with a specified starting capacity and hasher.
     ///
     /// # Examples
@@ -145,6 +148,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             }
         }
     }
+
     cfg_if! {
         if #[cfg(feature = "raw-api")] {
             /// Finds which shard a certain key is stored in.
@@ -172,6 +176,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             }
         }
     }
+
     cfg_if! {
         if #[cfg(feature = "raw-api")] {
             /// Finds which shard a certain hash is stored in.
@@ -194,6 +199,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             }
         }
     }
+
     /// Inserts a key into the set. Returns true if the key was not already in the set.
     ///
     /// # Examples
@@ -208,6 +214,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     pub fn insert(&self, key: K) -> bool {
         self.inner.insert(key, ()).is_none()
     }
+
     /// Removes an entry from the map, returning the key if it existed in the map.
     ///
     /// # Examples
@@ -227,6 +234,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     {
         self.inner.remove(key).map(|(k, _)| k)
     }
+
     /// Removes an entry from the set, returning the key
     /// if the entry existed and the provided conditional function returned true.
     ///
@@ -255,6 +263,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
         // TODO: Don't create another closure around f
         self.inner.remove_if(key, |k, _| f(k)).map(|(k, _)| k)
     }
+
     /// Creates an iterator over a DashMap yielding immutable references.
     ///
     /// # Examples
@@ -269,8 +278,10 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
 
     pub fn iter(&'a self) -> Iter<'a, K, S, DashMap<K, (), S>> {
         let iter = self.inner.iter();
+
         Iter::new(iter)
     }
+
     /// Get a reference to an entry in the set
     ///
     /// # Examples
@@ -290,11 +301,13 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     {
         self.inner.get(key).map(Ref::new)
     }
+
     /// Remove excess capacity to reduce memory usage.
 
     pub fn shrink_to_fit(&self) {
         self.inner.shrink_to_fit()
     }
+
     /// Retain elements that whose predicates return true
     /// and discard elements whose predicates return false.
     ///
@@ -315,6 +328,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
         // TODO: Don't create another closure
         self.inner.retain(|k, _| f(k))
     }
+
     /// Fetches the total number of keys stored in the set.
     ///
     /// # Examples
@@ -332,6 +346,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     pub fn len(&self) -> usize {
         self.inner.len()
     }
+
     /// Checks if the set is empty or not.
     ///
     /// # Examples
@@ -346,6 +361,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
+
     /// Removes all keys in the set.
     ///
     /// # Examples
@@ -363,11 +379,13 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     pub fn clear(&self) {
         self.inner.clear()
     }
+
     /// Returns how many keys the set can store without reallocating.
 
     pub fn capacity(&self) -> usize {
         self.inner.capacity()
     }
+
     /// Checks if the set contains a specific key.
     ///
     /// # Examples
@@ -391,6 +409,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
 
 impl<'a, K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
     type Item = K;
+
     type IntoIter = OwningIter<K, S>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -401,6 +420,7 @@ impl<'a, K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
 impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for DashSet<K, S> {
     fn extend<T: IntoIterator<Item = K>>(&mut self, iter: T) {
         let iter = iter.into_iter().map(|k| (k, ()));
+
         self.inner.extend(iter)
     }
 }
@@ -408,41 +428,56 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for DashSet<K, S> {
 impl<K: Eq + Hash> FromIterator<K> for DashSet<K, RandomState> {
     fn from_iter<I: IntoIterator<Item = K>>(iter: I) -> Self {
         let mut set = DashSet::new();
+
         set.extend(iter);
+
         set
     }
 }
 
 #[cfg(test)]
+
 mod tests {
+
     use crate::DashSet;
 
     #[test]
+
     fn test_basic() {
         let set = DashSet::new();
+
         set.insert(0);
+
         assert_eq!(set.get(&0).as_deref(), Some(&0));
     }
 
     #[test]
+
     fn test_default() {
         let set: DashSet<u32> = DashSet::default();
+
         set.insert(0);
+
         assert_eq!(set.get(&0).as_deref(), Some(&0));
     }
 
     #[test]
+
     fn test_multiple_hashes() {
         let set = DashSet::<u32>::default();
+
         for i in 0..100 {
             assert!(set.insert(i));
         }
+
         for i in 0..100 {
             assert!(!set.insert(i));
         }
+
         for i in 0..100 {
             assert_eq!(Some(i), set.remove(&i));
         }
+
         for i in 0..100 {
             assert_eq!(None, set.remove(&i));
         }

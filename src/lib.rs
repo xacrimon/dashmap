@@ -6,13 +6,12 @@ pub mod iter_set;
 pub mod lock;
 pub mod mapref;
 mod read_only;
+#[cfg(feature = "serde")]
+mod serde;
 mod set;
 pub mod setref;
 mod t;
 mod util;
-
-#[cfg(feature = "serde")]
-mod serde;
 
 use ahash::RandomState;
 use cfg_if::cfg_if;
@@ -66,6 +65,7 @@ fn ncb(shard_amount: usize) -> usize {
 /// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V, S>>`.
 /// To accomplish these all methods take `&self` instead modifying methods taking `&mut self`.
 /// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
+
 pub struct DashMap<K, V, S = RandomState> {
     shift: usize,
     shards: Box<[RwLock<HashMap<K, V, S>>]>,
@@ -75,10 +75,13 @@ pub struct DashMap<K, V, S = RandomState> {
 impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
     fn clone(&self) -> Self {
         let mut inner_shards = Vec::new();
+
         for shard in self.shards.iter() {
             let shard = shard.read();
+
             inner_shards.push(RwLock::new((*shard).clone()));
         }
+
         Self {
             shift: self.shift,
             shards: inner_shards.into_boxed_slice(),
@@ -170,10 +173,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     pub fn with_capacity_and_hasher(mut capacity: usize, hasher: S) -> Self {
         let shard_amount = shard_amount();
+
         let shift = util::ptr_size_bits() - ncb(shard_amount);
+
         if capacity != 0 {
             capacity = (capacity + (shard_amount - 1)) & !(shard_amount - 1);
         }
+
         let cps = capacity / shard_amount;
 
         let shards = (0..shard_amount)
@@ -192,7 +198,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
         let mut hasher = self.hasher.build_hasher();
+
         item.hash(&mut hasher);
+
         hasher.finish() as usize
     }
 
@@ -641,23 +649,29 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V, S> {
         debug_assert!(i < self.shards.len());
+
         self.shards.get_unchecked(i).get()
     }
 
     unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, S>> {
         debug_assert!(i < self.shards.len());
+
         self.shards.get_unchecked(i).read()
     }
 
     unsafe fn _yield_write_shard(&'a self, i: usize) -> RwLockWriteGuard<'a, HashMap<K, V, S>> {
         debug_assert!(i < self.shards.len());
+
         self.shards.get_unchecked(i).write()
     }
 
     fn _insert(&self, key: K, value: V) -> Option<V> {
         let hash = self.hash_usize(&key);
+
         let idx = self.determine_shard(hash);
+
         let mut shard = unsafe { self._yield_write_shard(idx) };
+
         shard
             .insert(key, SharedValue::new(value))
             .map(|v| v.into_inner())
@@ -669,8 +683,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         Q: Hash + Eq + ?Sized,
     {
         let hash = self.hash_usize(&key);
+
         let idx = self.determine_shard(hash);
+
         let mut shard = unsafe { self._yield_write_shard(idx) };
+
         shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
     }
 
@@ -680,8 +697,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         Q: Hash + Eq + ?Sized,
     {
         let hash = self.hash_usize(&key);
+
         let idx = self.determine_shard(hash);
+
         let mut shard = unsafe { self._yield_write_shard(idx) };
+
         if let Some((k, v)) = shard.get_key_value(key) {
             if f(k, v.get()) {
                 shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
@@ -707,12 +727,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         Q: Hash + Eq + ?Sized,
     {
         let hash = self.hash_usize(&key);
+
         let idx = self.determine_shard(hash);
+
         let shard = unsafe { self._yield_read_shard(idx) };
+
         if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
+
                 let vptr = util::change_lifetime_const(vptr);
+
                 Some(Ref::new(shard, kptr, vptr.get()))
             }
         } else {
@@ -726,12 +751,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         Q: Hash + Eq + ?Sized,
     {
         let hash = self.hash_usize(&key);
+
         let idx = self.determine_shard(hash);
+
         let shard = unsafe { self._yield_write_shard(idx) };
+
         if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
+
                 let vptr = &mut *vptr.as_ptr();
+
                 Some(RefMut::new(shard, kptr, vptr))
             }
         } else {
@@ -777,12 +807,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _entry(&'a self, key: K) -> Entry<'a, K, V, S> {
         let hash = self.hash_usize(&key);
+
         let idx = self.determine_shard(hash);
+
         let shard = unsafe { self._yield_write_shard(idx) };
+
         if let Some((kptr, vptr)) = shard.get_key_value(&key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
+
                 let vptr = &mut *vptr.as_ptr();
+
                 Entry::Occupied(OccupiedEntry::new(shard, key, (kptr, vptr)))
             }
         } else {
@@ -800,10 +835,13 @@ impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debu
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut pmap = f.debug_map();
+
         for r in self {
             let (k, v) = r.pair();
+
             pmap.entry(k, v);
         }
+
         pmap.finish()
     }
 }
@@ -866,6 +904,7 @@ where
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> {
     type Item = (K, V);
+
     type IntoIter = OwningIter<K, V, S>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -875,6 +914,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V,
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a DashMap<K, V, S> {
     type Item = RefMulti<'a, K, V, S>;
+
     type IntoIter = Iter<'a, K, V, S, DashMap<K, V, S>>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -893,13 +933,17 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Extend<(K, V)> for DashMap<K, V, S
 impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V, RandomState> {
     fn from_iter<I: IntoIterator<Item = (K, V)>>(intoiter: I) -> Self {
         let mut map = DashMap::new();
+
         map.extend(intoiter);
+
         map
     }
 }
 
 #[cfg(test)]
+
 mod tests {
+
     use crate::DashMap;
 
     cfg_if::cfg_if! {
@@ -912,60 +956,84 @@ mod tests {
     }
 
     #[test]
+
     fn test_basic() {
         let dm = DashMap::new();
+
         dm.insert(0, 0);
+
         assert_eq!(dm.get(&0).unwrap().value(), &0);
     }
 
     #[test]
+
     fn test_default() {
         let dm: DashMap<u32, u32> = DashMap::default();
+
         dm.insert(0, 0);
+
         assert_eq!(dm.get(&0).unwrap().value(), &0);
     }
 
     #[test]
+
     fn test_multiple_hashes() {
         let dm: DashMap<u32, u32> = DashMap::default();
+
         for i in 0..100 {
             dm.insert(0, i);
+
             dm.insert(i, i);
         }
+
         for i in 1..100 {
             let r = dm.get(&i).unwrap();
+
             assert_eq!(i, *r.value());
+
             assert_eq!(i, *r.key());
         }
+
         let r = dm.get(&0).unwrap();
+
         assert_eq!(99, *r.value());
     }
 
     #[test]
+
     fn test_more_complex_values() {
         #[derive(Hash, PartialEq, Debug, Clone)]
+
         struct T0 {
             s: String,
             u: u8,
         }
+
         let dm = DashMap::new();
+
         let range = 0..10;
+
         for i in range {
             let t = T0 {
                 s: i.to_string(),
                 u: i as u8,
             };
+
             dm.insert(i, t.clone());
+
             assert_eq!(&t, dm.get(&i).unwrap().value());
         }
     }
 
     #[test]
+
     fn test_different_hashers_randomstate() {
         let dm_hm_default: DashMap<u32, u32, RandomState> =
             DashMap::with_hasher(RandomState::new());
+
         for i in 0..10 {
             dm_hm_default.insert(i, i);
+
             assert_eq!(i, *dm_hm_default.get(&i).unwrap().value());
         }
     }

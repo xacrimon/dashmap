@@ -69,9 +69,11 @@ where
         S: Serializer,
     {
         let mut map = serializer.serialize_map(Some(self.len()))?;
+
         for ref_multi in self.iter() {
             map.serialize_entry(ref_multi.key(), ref_multi.value())?;
         }
+
         map.end()
     }
 }

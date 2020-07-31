@@ -1,6 +1,5 @@
 //! This module is full of hackery and dark magic.
 //! Either spend a day fixing it and quietly submit a PR or don't mention it to anybody.
-
 use core::cell::UnsafeCell;
 use core::{mem, ptr};
 
@@ -47,6 +46,7 @@ pub unsafe fn change_lifetime_mut<'a, 'b, T>(x: &'a mut T) -> &'b mut T {
 ///
 /// This type is meant to be an implementation detail, but must be exposed due to the `Dashmap::shards`
 #[repr(transparent)]
+
 pub struct SharedValue<T> {
     value: UnsafeCell<T>,
 }
@@ -54,6 +54,7 @@ pub struct SharedValue<T> {
 impl<T: Clone> Clone for SharedValue<T> {
     fn clone(&self) -> Self {
         let inner = self.get().clone();
+
         Self {
             value: UnsafeCell::new(inner),
         }
@@ -61,6 +62,7 @@ impl<T: Clone> Clone for SharedValue<T> {
 }
 
 unsafe impl<T: Send> Send for SharedValue<T> {}
+
 unsafe impl<T: Sync> Sync for SharedValue<T> {}
 
 impl<T> SharedValue<T> {

@@ -20,6 +20,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
         match self {
             Entry::Occupied(mut entry) => {
                 f(entry.get_mut());
+
                 Entry::Occupied(entry)
             }
 
@@ -95,6 +96,7 @@ pub struct VacantEntry<'a, K, V, S> {
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for VacantEntry<'a, K, V, S> {}
+
 unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
     for VacantEntry<'a, K, V, S>
 {
@@ -108,12 +110,19 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
     pub fn insert(mut self, value: V) -> RefMut<'a, K, V, S> {
         unsafe {
             let c: K = ptr::read(&self.key);
+
             self.shard.insert(self.key, SharedValue::new(value));
+
             let (k, v) = self.shard.get_key_value(&c).unwrap();
+
             let k = util::change_lifetime_const(k);
+
             let v = &mut *v.as_ptr();
+
             let r = RefMut::new(self.shard, k, v);
+
             mem::forget(c);
+
             r
         }
     }
@@ -134,6 +143,7 @@ pub struct OccupiedEntry<'a, K, V, S> {
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for OccupiedEntry<'a, K, V, S> {}
+
 unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
     for OccupiedEntry<'a, K, V, S>
 {
@@ -184,8 +194,11 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
 
     pub fn replace_entry(mut self, value: V) -> (K, V) {
         let nk = self.key;
+
         let (k, v) = self.shard.remove_entry(self.elem.0).unwrap();
+
         self.shard.insert(nk, SharedValue::new(value));
+
         (k, v.into_inner())
     }
 }
