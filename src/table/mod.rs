@@ -2,7 +2,9 @@ mod entry_manager;
 mod recl;
 mod spec;
 
+use crate::alloc::sarc_new;
 use crate::circular_range::CircularRange;
+use crate::element::Element;
 use entry_manager::{EntryManager, NewEntryState};
 use std::borrow::Borrow;
 use std::cmp;
@@ -106,7 +108,11 @@ impl<M: EntryManager, S: BuildHasher> BucketArray<M, S> {
                     match f(maybe_existing) {
                         CasOutput::Keep => NewEntryState::Keep,
                         CasOutput::Empty => NewEntryState::Empty,
-                        CasOutput::New(key, value) => todo!(),
+                        CasOutput::New(key, value) => {
+                            let hash = do_hash(&*self.hasher_builder, &key);
+                            let bucket = sarc_new(Element::new(key, hash, value));
+                            NewEntryState::New(bucket)
+                        }
                     }
                 });
             }
