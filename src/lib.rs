@@ -6,13 +6,12 @@
 #![warn(clippy::perf)]
 #![warn(clippy::cargo)]
 
-//! `dashmap` provides a relatively low level high performance concurrent hash map.
-//! See struct level docs for more details.
-//!
-//! Serde is supported if the `serde` feature is enabled.
-//! Then `DashMap` will implement `Serialize` and `Deserialize`.
+//! `dashmap` provides a ludicrously convenient lockfree concurrent hash table.
+//! There is no transaction support but a retryable compare-and-swap primitive is provided.
+//! It is the core building block needed to implement a transactional layer on top, should it be needed.
 
-mod alloc;
-mod circular_range;
-mod element;
-mod table;
+pub mod alloc;
+mod bucket;
+mod range;
+
+pub use bucket::Guard;

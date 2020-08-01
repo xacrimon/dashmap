@@ -1,85 +1,45 @@
+//! The `alloc` module contains types and traits for
+//! customizing the memory allocation behaviour of the map.
+
 use std::alloc::{alloc, dealloc, Layout};
 use std::ptr;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
-pub struct ABox<T> {
-    refs: AtomicUsize,
-    data: T,
+/// This trait defines the interface for the object allocator the map uses to allocate buckets.
+/// Bucket allocators should be swappable to the needs of the user.
+/// The `V` type parameter designates the object type.
+pub trait ObjectAllocator<V> {
+    /// The `Tag` associated type is a unique tag that can be used to identify an allocation.
+    type Tag: Default;
+
+    /// Allocates a new object and returns a identifying tag and a pointer.
+    /// The pointer must the valid for the lifetime of the allocator.
+    fn allocate(&self, item: V) -> (Self::Tag, *mut V);
+
+    /// Deallocates an object via its tag.
+    fn deallocate(&self, tag: &Self::Tag);
 }
 
-pub fn sarc_new<T>(v: T) -> *mut ABox<T> {
-    let layout = Layout::new::<ABox<T>>();
-    let p = local_alloc(layout);
+/// The default object allocator. This is merely a typed wrapper around the global allocator.
+/// This shouldn't have any unexpected properties and is a balanced choice,
+/// only crippled by the occasionally mediocre performance of the global allocator.
+pub struct GlobalObjectAllocator;
 
-    let a = ABox {
-        refs: AtomicUsize::new(1),
-        data: v,
-    };
+impl<V> ObjectAllocator<V> for GlobalObjectAllocator {
+    type Tag = usize;
 
-    // # Safety
-    // We have allocated some memory directly using the
-    // correct layout so this is perfectly fine to do.
-    unsafe {
-        ptr::write(p as *mut _, a);
+    fn allocate(&self, item: V) -> (Self::Tag, *mut V) {
+        let layout = Layout::new::<V>();
+        let ptr = unsafe { alloc(layout) } as *mut V;
+        unsafe { ptr::write(ptr, item) }
+        (ptr as usize, ptr)
     }
 
-    p as _
-}
-
-/// Dereference the opaque reference counted pointer.
-pub fn sarc_deref<'a, T>(p: *const ABox<T>) -> &'a T {
-    // # Safety
-    // This is safe to do as long as the caller has provided a valid
-    // pointer. Otherwise the behaviour is undefined.
-    unsafe { &(*p).data }
-}
-
-/// Increments the reference count.
-pub fn sarc_add_copy<T>(p: *mut ABox<T>) {
-    // # Safety
-    // This is safe to do as long as the caller has provided a valid pointer.
-    unsafe {
-        (*p).refs.fetch_add(1, Ordering::AcqRel);
-    }
-}
-
-/// Decrements the reference count.
-pub fn sarc_remove_copy<T>(p: *mut ABox<T>) {
-    debug_assert!(!p.is_null());
-
-    // # Safety
-    // This is safe to do as long as the caller has provided a valid pointer.
-    unsafe {
-        if (*p).refs.fetch_sub(1, Ordering::AcqRel) == 1 {
-            sarc_dealloc(p);
+    fn deallocate(&self, tag: &Self::Tag) {
+        let ptr = *tag as *mut V;
+        unsafe { ptr::drop_in_place(ptr) }
+        let layout = Layout::new::<V>();
+        unsafe {
+            dealloc(ptr as _, layout);
         }
     }
-}
-
-/// Deallocate a reference counted pointer and drop the value behind it.
-///
-/// # Safety
-/// This is fine as long as the caller has provided a valid pointer.
-unsafe fn sarc_dealloc<T>(p: *mut ABox<T>) {
-    ptr::drop_in_place::<T>(sarc_deref(p) as *const _ as *mut _);
-    let layout = Layout::new::<ABox<T>>();
-    local_dealloc(p as _, layout);
-}
-
-/// Allocates some memory based on a layout.
-fn local_alloc(layout: Layout) -> *mut u8 {
-    // # Safety
-    // This is safe but needs an unsafe block because the allocator functions are marked unsafe.
-    // Reading data from this pointer without initializing it first is undefined behaviour.
-    unsafe { alloc(layout) }
-}
-
-/// Deallocates a some memory based on a layout.
-///
-/// # Safety
-/// This is safe as long as the called has provided a valid pointer
-/// that was previously allocated by `local_alloc`.
-/// Otherwise the behaviour is undefined.
-unsafe fn local_dealloc(ptr: *mut u8, layout: Layout) {
-    dealloc(ptr, layout);
 }
