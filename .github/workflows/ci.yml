@@ -7,6 +7,8 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
+    - name: setup
+      run: rustup component add rustfmt --toolchain stable-2020-06-18-x86_64-unknown-linux-gnu
     - name: style
       run: cargo fmt -- --check
     - name: clippy
