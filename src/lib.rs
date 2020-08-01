@@ -13,5 +13,6 @@
 pub mod alloc;
 mod bucket;
 mod range;
+mod entry_manager;
 
 pub use bucket::Guard;
