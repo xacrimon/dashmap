@@ -104,7 +104,9 @@ impl<M: EntryManager, S: BuildHasher> BucketArray<M, S> {
             if M::eq(bucket_pointer, search_key, hash) {
                 return M::cas(atomic_entry, |_loaded_bucket_ptr, maybe_existing| {
                     match f(maybe_existing) {
-                        _ => todo!(),
+                        CasOutput::Keep => NewEntryState::Keep,
+                        CasOutput::Empty => NewEntryState::Empty,
+                        CasOutput::New(key, value) => todo!(),_ => todo!(),
                     }
                 });
             }
