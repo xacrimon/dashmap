@@ -1,5 +1,4 @@
 /target
 **/*.rs.bk
 /Cargo.lock
-/bencher/target
 /concurrent-test/target
