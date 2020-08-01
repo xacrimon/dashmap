@@ -106,7 +106,7 @@ impl<M: EntryManager, S: BuildHasher> BucketArray<M, S> {
                     match f(maybe_existing) {
                         CasOutput::Keep => NewEntryState::Keep,
                         CasOutput::Empty => NewEntryState::Empty,
-                        CasOutput::New(key, value) => todo!(),_ => todo!(),
+                        CasOutput::New(key, value) => todo!(),
                     }
                 });
             }
