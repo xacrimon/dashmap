@@ -10,6 +10,10 @@ fn strip(x: usize) -> usize {
     x & !0b11
 }
 
+fn is_on(field: usize, idx: usize) -> bool {
+    field & (1 << idx) != 0
+}
+
 pub struct GenericEntryManager<K, V> {
     _marker_a: PhantomData<K>,
     _marker_b: PhantomData<V>,
@@ -28,11 +32,11 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
     }
 
     fn is_tombstone(entry: usize) -> bool {
-        entry & (1 << 0) != 0
+        is_on(entry, 0)
     }
 
     fn is_resize(entry: usize) -> bool {
-        entry & (1 << 1) != 0
+        is_on(entry, 1)
     }
 
     fn eq<Q, A>(entry: usize, other: &Q) -> bool
