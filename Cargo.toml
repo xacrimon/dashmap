@@ -11,6 +11,3 @@ readme = "README.md"
 documentation = "https://docs.rs/dashmap"
 keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
-
-[package.metadata.docs.rs]
-features = ["serde"]
