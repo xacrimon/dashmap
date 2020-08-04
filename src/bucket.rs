@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 pub struct Bucket<K, V, A: ObjectAllocator<Self>> {
     refs: AtomicU32,
     tag: A::Tag,
-    key: K,
+    pub(crate) key: K,
     value: V,
 }
 
@@ -25,10 +25,6 @@ impl<K, V, A: ObjectAllocator<Self>> Bucket<K, V, A> {
 
     pub fn fetch_sub_ref(&self) -> u32 {
         self.refs.fetch_sub(1, Ordering::SeqCst)
-    }
-
-    pub fn key(&self) -> &K {
-        &self.key
     }
 }
 

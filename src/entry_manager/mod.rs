@@ -31,16 +31,18 @@ pub trait EntryManager {
     fn is_resize(entry: usize) -> bool;
 
     /// Check if the key of an entry matches a supplied key.
-    fn eq<Q>(entry: usize, other: &Q, other_hash: u64) -> bool
+    fn eq<Q, A>(entry: usize, other: &Q) -> bool
     where
         Self::K: Borrow<Q>,
-        Q: ?Sized + Eq;
+        Q: ?Sized + Eq,
+        A: ObjectAllocator<Bucket<Self::K, Self::V, A>>;
 
     /// Compare-and-swap primitive that acts on a bucket.
-    fn cas<F, A: ObjectAllocator<Bucket<Self::K, Self::V, A>>>(entry: &AtomicUsize, f: F) -> bool
+    fn cas<F, A>(entry: &AtomicUsize, f: F) -> bool
     where
         F: FnOnce(
             usize,
             Option<(*const Self::K, *const Self::V)>,
-        ) -> NewEntryState<Self::K, Self::V, A>;
+        ) -> NewEntryState<Self::K, Self::V, A>,
+        A: ObjectAllocator<Bucket<Self::K, Self::V, A>>;
 }
