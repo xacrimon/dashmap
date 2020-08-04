@@ -1,3 +1,5 @@
+mod generic;
+
 use crate::alloc::ObjectAllocator;
 use crate::bucket::Bucket;
 use std::borrow::Borrow;
