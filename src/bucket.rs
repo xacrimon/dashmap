@@ -1,6 +1,6 @@
+use crate::alloc::{GlobalObjectAllocator, ObjectAllocator};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU32, Ordering};
-use crate::alloc::{ObjectAllocator, GlobalObjectAllocator};
 
 pub struct Bucket<K, V, A: ObjectAllocator<Self>> {
     refs: AtomicU32,
@@ -11,7 +11,12 @@ pub struct Bucket<K, V, A: ObjectAllocator<Self>> {
 
 impl<K, V, A: ObjectAllocator<Self>> Bucket<K, V, A> {
     pub fn new(key: K, value: V) -> Self {
-        Self { refs: AtomicU32::new(1), tag: A::Tag::default(), key, value }
+        Self {
+            refs: AtomicU32::new(1),
+            tag: A::Tag::default(),
+            key,
+            value,
+        }
     }
 
     pub fn add_ref(&self) {
@@ -62,7 +67,10 @@ impl<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>>> Deref for Guard<'a, K, V, A>
 impl<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>>> Clone for Guard<'a, K, V, A> {
     fn clone(&self) -> Self {
         self.bucket.add_ref();
-        Self { bucket: self.bucket, allocator: self.allocator }
+        Self {
+            bucket: self.bucket,
+            allocator: self.allocator,
+        }
     }
 }
 

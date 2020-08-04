@@ -1,8 +1,8 @@
+use crate::alloc::ObjectAllocator;
+use crate::bucket::Bucket;
+use std::borrow::Borrow;
 use std::hash::Hash;
 use std::sync::atomic::AtomicUsize;
-use crate::bucket::Bucket;
-use crate::alloc::ObjectAllocator;
-use std::borrow::Borrow;
 
 pub enum NewEntryState<K: 'static + Eq + Hash, V: 'static, A: ObjectAllocator<Bucket<K, V, A>>> {
     Empty,
