@@ -49,8 +49,13 @@ cfg_if! {
     }
 }
 
-const SHARD_AMOUNT: usize = 8;
-const NCB: usize = SHARD_AMOUNT.trailing_zeros() as usize;
+fn shard_amount() -> usize {
+    (num_cpus::get() * 4).next_power_of_two()
+}
+
+fn ncb(shard_amount: usize) -> usize {
+    shard_amount.trailing_zeros() as usize
+}
 
 /// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
 ///
@@ -167,15 +172,16 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
 
     pub fn with_capacity_and_hasher(mut capacity: usize, hasher: S) -> Self {
-        let shift = util::ptr_size_bits() - NCB;
+        let shard_amount = shard_amount();
+        let shift = util::ptr_size_bits() - ncb(shard_amount);
 
         if capacity != 0 {
-            capacity = (capacity + (SHARD_AMOUNT - 1)) & !(SHARD_AMOUNT - 1);
+            capacity = (capacity + (shard_amount - 1)) & !(shard_amount - 1);
         }
 
-        let cps = capacity / SHARD_AMOUNT;
+        let cps = capacity / shard_amount;
 
-        let shards = (0..SHARD_AMOUNT)
+        let shards = (0..shard_amount)
             .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, hasher.clone())))
             .collect();
 
