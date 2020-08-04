@@ -6,6 +6,7 @@ use std::borrow::Borrow;
 use std::hash::Hash;
 use std::sync::atomic::AtomicUsize;
 
+/// The new state of a bucket after a compare-and-swap operation.
 pub enum NewEntryState<K: 'static + Eq + Hash, V: 'static, A: ObjectAllocator<Bucket<K, V, A>>> {
     Empty,
     Keep,
@@ -35,7 +36,7 @@ pub trait EntryManager {
         Self::K: Borrow<Q>,
         Q: ?Sized + Eq;
 
-    /// CAS primitive that acts on a bucket.
+    /// Compare-and-swap primitive that acts on a bucket.
     fn cas<F, A: ObjectAllocator<Bucket<Self::K, Self::V, A>>>(entry: &AtomicUsize, f: F) -> bool
     where
         F: FnOnce(
