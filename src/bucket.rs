@@ -19,14 +19,22 @@ impl<K, V, A: ObjectAllocator<Self>> Bucket<K, V, A> {
         }
     }
 
+    /// Increments the reference count by one.
     pub fn add_ref(&self) {
         self.refs.fetch_add(1, Ordering::SeqCst);
     }
 
-    pub unsafe fn sub_ref(&self, allocator: &A) {
-        if self.refs.fetch_sub(1, Ordering::SeqCst) == 1 {
+    /// Decrements the reference count by one and returns the new reference count.
+    /// Deallocates the bucket if it is 0.
+    pub unsafe fn sub_ref(&self, allocator: &A) -> u32 {
+        let ref_count = self.refs.fetch_sub(1, Ordering::SeqCst) - 1;
+
+        if ref_count == 0 {
+            todo!("defer this");
             allocator.deallocate(&self.tag);
         }
+
+        return ref_count;
     }
 }
 
@@ -74,6 +82,9 @@ impl<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>>> Clone for Guard<'a, K, V, A>
 
 impl<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>>> Drop for Guard<'a, K, V, A> {
     fn drop(&mut self) {
+        // # Safety
+        // This is safe to do since we are destroying the reference object.
+        // The reference object increments the reference count when created so we simply remove our slot.
         unsafe {
             self.bucket.sub_ref(self.allocator);
         }

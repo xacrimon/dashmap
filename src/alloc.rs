@@ -16,7 +16,15 @@ pub trait ObjectAllocator<V> {
     fn allocate(&self, item: V) -> (Self::Tag, *mut V);
 
     /// Deallocates an object via its tag.
-    fn deallocate(&self, tag: &Self::Tag);
+    ///
+    /// # Safety
+    /// An allocation may only be deallocated exactly once, hence this function is unsafe.
+    /// Calling this function multiple times for the same allocation is undefined behaviour.
+    ///
+    /// Note that you may call this function multiple times with the same tag
+    /// if you've received the same tag multiple times from `allocate`.
+    /// This may happen as tag reuse is allowed.
+    unsafe fn deallocate(&self, tag: &Self::Tag);
 }
 
 /// The default object allocator. This is merely a typed wrapper around the global allocator.
@@ -30,16 +38,28 @@ impl<V> ObjectAllocator<V> for GlobalObjectAllocator {
     fn allocate(&self, item: V) -> (Self::Tag, *mut V) {
         let layout = Layout::new::<V>();
         let ptr = unsafe { alloc(layout) } as *mut V;
+
+        // # Safety
+        // The block of memory we are writing to is freshly allocated with the correct layout.
+        // Since there is nothing there we can safely perform a raw write.
         unsafe { ptr::write(ptr, item) }
+
         (ptr as usize, ptr)
     }
 
-    fn deallocate(&self, tag: &Self::Tag) {
+    unsafe fn deallocate(&self, tag: &Self::Tag) {
         let ptr = *tag as *mut V;
-        unsafe { ptr::drop_in_place(ptr) }
         let layout = Layout::new::<V>();
-        unsafe {
-            dealloc(ptr as _, layout);
-        }
+
+        // # Safety
+        // We call `drop_in_place` here to drop the value at this memory location.
+        // This is safe to do since it is guaranteed to be initialized.
+        ptr::drop_in_place(ptr);
+
+        // # Safety
+        // Here we dellocate the memory which is fine to do as it is guaranteed
+        // to be allocated assuming the implementation of `allocate` is valid.
+        // `dealloc` does not perform any drop calls, that's why we did that manually earlier.
+        dealloc(ptr as _, layout);
     }
 }

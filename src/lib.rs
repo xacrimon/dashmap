@@ -1,4 +1,3 @@
-#![allow(unused_unsafe)]
 #![warn(missing_docs)]
 #![deny(clippy::correctness)]
 #![warn(clippy::style)]
