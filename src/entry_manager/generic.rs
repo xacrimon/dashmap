@@ -126,9 +126,10 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
 #[cfg(test)]
 mod tests {
     use super::GenericEntryManager;
-    use crate::alloc::GlobalObjectAllocator;
+    use crate::alloc::{GlobalObjectAllocator, ObjectAllocator};
     use crate::entry_manager::{EntryManager, NewEntryState};
     use std::sync::atomic::Ordering;
+    use crate::bucket::Bucket;
 
     #[test]
     fn set_resize() {
@@ -144,5 +145,39 @@ mod tests {
         assert!(cas_success);
         entry = atomic_entry.load(Ordering::SeqCst);
         assert_eq!(GenericEntryManager::<(), ()>::is_resize(entry), true);
+    }
+
+    #[test]
+    fn create_check_occupied() {
+        let key = 5;
+        let value = 7;
+
+        let allocator = GlobalObjectAllocator;
+        let atomic_entry = GenericEntryManager::<i32, i32>::empty();
+        let cas_success = GenericEntryManager::<i32, i32>::cas(
+            &atomic_entry,
+            |_, _| {
+                let bucket = Bucket::new(key, value);
+                let (_, bucket_ptr) = allocator.allocate(bucket);
+                NewEntryState::New(bucket_ptr)
+            },
+            &allocator,
+        );
+        assert!(cas_success);
+        let mut is_eq = false;
+        
+        let cas_success = GenericEntryManager::<i32, i32>::cas(
+            &atomic_entry,
+            |_, data| {
+                let (kptr, vptr) = data.unwrap();
+                unsafe {
+                    is_eq = *kptr == key && *vptr == value;
+                }
+                NewEntryState::Keep
+            },
+            &allocator,
+        );
+        assert!(cas_success);
+        assert!(is_eq);
     }
 }
