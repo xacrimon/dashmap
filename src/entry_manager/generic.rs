@@ -14,6 +14,10 @@ fn is_on(field: usize, idx: usize) -> bool {
     field & (1 << idx) != 0
 }
 
+fn set(field: usize, idx: usize) -> usize {
+    field | 1 << idx
+}
+
 pub struct GenericEntryManager<K, V> {
     _marker_a: PhantomData<K>,
     _marker_b: PhantomData<V>,
@@ -96,7 +100,7 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
                 }
             }
             NewEntryState::SetResize => {
-                let new = loaded_entry | 0b01;
+                let new = set(loaded_entry, 1);
                 entry.compare_and_swap(loaded_entry, new, Ordering::SeqCst) == loaded_entry
             }
             NewEntryState::New(element) => {
