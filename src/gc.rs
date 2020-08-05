@@ -1,5 +1,5 @@
 //! A fast concurrent memory reclaimer.
-//! This is based on the Hyaline-1 algorithm from https://arxiv.org/abs/1905.07903.
+//! This is based on the Hyaline algorithm from https://arxiv.org/abs/1905.07903.
 
 use crate::alloc::ObjectAllocator;
 use std::marker::PhantomData;
