@@ -12,5 +12,6 @@ documentation = "https://docs.rs/dashmap"
 keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
-[dev-dependencies]
-loom = "0.3.5"
+[features]
+default = []
+loom = []

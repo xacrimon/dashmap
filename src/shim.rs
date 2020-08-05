@@ -1,5 +1,5 @@
-#[cfg(not(test))]
+#[cfg(not(feature = "loom"))]
 pub use std::{sync, thread};
 
-#[cfg(test)]
+#[cfg(feature = "loom")]
 pub use loom::{sync, thread};
