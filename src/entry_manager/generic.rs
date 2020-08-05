@@ -123,9 +123,9 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
 #[cfg(test)]
 mod tests {
     use super::GenericEntryManager;
+    use crate::alloc::GlobalObjectAllocator;
     use crate::entry_manager::{EntryManager, NewEntryState};
     use std::sync::atomic::Ordering;
-    use crate::alloc::GlobalObjectAllocator;
 
     #[test]
     fn set_resize() {
@@ -133,7 +133,11 @@ mod tests {
         let atomic_entry = GenericEntryManager::<(), ()>::empty();
         let mut entry = atomic_entry.load(Ordering::SeqCst);
         assert_eq!(GenericEntryManager::<(), ()>::is_resize(entry), false);
-        let cas_success = GenericEntryManager::<(), ()>::cas(&atomic_entry, |_, _| NewEntryState::SetResize, &allocator);
+        let cas_success = GenericEntryManager::<(), ()>::cas(
+            &atomic_entry,
+            |_, _| NewEntryState::SetResize,
+            &allocator,
+        );
         assert!(cas_success);
         entry = atomic_entry.load(Ordering::SeqCst);
         assert_eq!(GenericEntryManager::<(), ()>::is_resize(entry), true);

@@ -42,7 +42,6 @@ mod tests {
     fn check_set() {
         let set: Vec<usize> = CircularRange::new(5, 10).collect();
         let expected = [5, 6, 7, 8, 9, 0, 1, 2, 3, 4];
-
         assert_eq!(&set, &expected);
     }
 }
