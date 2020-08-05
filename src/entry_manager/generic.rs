@@ -4,7 +4,7 @@ use crate::bucket::Bucket;
 use std::borrow::Borrow;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use crate::shim::sync::atomic::{AtomicUsize, Ordering};
 
 fn strip(x: usize) -> usize {
     x & !(1 << 0 | 1 << 1)
@@ -129,7 +129,7 @@ mod tests {
     use crate::alloc::{GlobalObjectAllocator, ObjectAllocator};
     use crate::bucket::Bucket;
     use crate::entry_manager::{EntryManager, NewEntryState};
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use crate::shim::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn set_resize() {

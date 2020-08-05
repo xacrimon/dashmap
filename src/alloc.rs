@@ -1,7 +1,7 @@
 //! The `alloc` module contains types and traits for
 //! customizing the memory allocation behaviour of the map.
 
-use std::alloc::{alloc, dealloc, Layout};
+use crate::shim::alloc::{alloc, dealloc, Layout};
 use std::ptr;
 
 /// This trait defines the interface for the object allocator the map uses to allocate buckets.

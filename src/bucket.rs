@@ -1,6 +1,6 @@
 use crate::alloc::{GlobalObjectAllocator, ObjectAllocator};
+use crate::shim::sync::atomic::{AtomicU32, Ordering};
 use std::ops::Deref;
-use std::sync::atomic::{AtomicU32, Ordering};
 
 pub struct Bucket<K, V, A: ObjectAllocator<Self>> {
     refs: AtomicU32,
