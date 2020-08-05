@@ -1,5 +1,5 @@
 #[cfg(not(test))]
-pub use std::{alloc, sync, thread};
+pub use std::{sync, thread};
 
 #[cfg(test)]
-pub use loom::{alloc, sync, thread};
+pub use loom::{sync, thread};

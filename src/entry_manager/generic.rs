@@ -1,10 +1,10 @@
 use super::{EntryManager, NewEntryState};
 use crate::alloc::ObjectAllocator;
 use crate::bucket::Bucket;
+use crate::shim::sync::atomic::{AtomicUsize, Ordering};
 use std::borrow::Borrow;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use crate::shim::sync::atomic::{AtomicUsize, Ordering};
 
 fn strip(x: usize) -> usize {
     x & !(1 << 0 | 1 << 1)
@@ -133,20 +133,22 @@ mod tests {
 
     #[test]
     fn set_resize() {
-        let allocator = GlobalObjectAllocator;
-        let atomic_entry = GenericEntryManager::<(), ()>::empty();
-        let mut entry = atomic_entry.load(Ordering::SeqCst);
-        assert!(!GenericEntryManager::<(), ()>::is_resize(entry));
+        loom::model(|| {
+            let allocator = GlobalObjectAllocator;
+            let atomic_entry = GenericEntryManager::<(), ()>::empty();
+            let mut entry = atomic_entry.load(Ordering::SeqCst);
+            assert!(!GenericEntryManager::<(), ()>::is_resize(entry));
 
-        let cas_success = GenericEntryManager::<(), ()>::cas(
-            &atomic_entry,
-            |_, _| NewEntryState::SetResize,
-            &allocator,
-        );
+            let cas_success = GenericEntryManager::<(), ()>::cas(
+                &atomic_entry,
+                |_, _| NewEntryState::SetResize,
+                &allocator,
+            );
 
-        assert!(cas_success);
-        entry = atomic_entry.load(Ordering::SeqCst);
-        assert!(GenericEntryManager::<(), ()>::is_resize(entry));
+            assert!(cas_success);
+            entry = atomic_entry.load(Ordering::SeqCst);
+            assert!(GenericEntryManager::<(), ()>::is_resize(entry));
+        });
     }
 
     fn create_occupied(key: i32, value: i32) -> AtomicUsize {
@@ -169,45 +171,49 @@ mod tests {
 
     #[test]
     fn create_check_occupied() {
-        let key = 5;
-        let value = 7;
+        loom::model(|| {
+            let key = 5;
+            let value = 7;
 
-        let allocator = GlobalObjectAllocator;
-        let atomic_entry = create_occupied(key, value);
-        let mut is_eq = false;
+            let allocator = GlobalObjectAllocator;
+            let atomic_entry = create_occupied(key, value);
+            let mut is_eq = false;
 
-        let cas_success = GenericEntryManager::<i32, i32>::cas(
-            &atomic_entry,
-            |_, data| {
-                let (kptr, vptr) = data.unwrap();
-                unsafe {
-                    is_eq = *kptr == key && *vptr == value;
-                }
-                NewEntryState::Keep
-            },
-            &allocator,
-        );
+            let cas_success = GenericEntryManager::<i32, i32>::cas(
+                &atomic_entry,
+                |_, data| {
+                    let (kptr, vptr) = data.unwrap();
+                    unsafe {
+                        is_eq = *kptr == key && *vptr == value;
+                    }
+                    NewEntryState::Keep
+                },
+                &allocator,
+            );
 
-        assert!(cas_success);
-        assert!(is_eq);
+            assert!(cas_success);
+            assert!(is_eq);
+        });
     }
 
     #[test]
     fn tombstone_check() {
-        let key = -52;
-        let value = 1298;
+        loom::model(|| {
+            let key = -52;
+            let value = 1298;
 
-        let allocator = GlobalObjectAllocator;
-        let atomic_entry = create_occupied(key, value);
+            let allocator = GlobalObjectAllocator;
+            let atomic_entry = create_occupied(key, value);
 
-        let cas_success = GenericEntryManager::<i32, i32>::cas(
-            &atomic_entry,
-            |_, _| NewEntryState::Empty,
-            &allocator,
-        );
+            let cas_success = GenericEntryManager::<i32, i32>::cas(
+                &atomic_entry,
+                |_, _| NewEntryState::Empty,
+                &allocator,
+            );
 
-        assert!(cas_success);
-        let entry = atomic_entry.load(Ordering::SeqCst);
-        assert!(GenericEntryManager::<i32, i32>::is_tombstone(entry));
+            assert!(cas_success);
+            let entry = atomic_entry.load(Ordering::SeqCst);
+            assert!(GenericEntryManager::<i32, i32>::is_tombstone(entry));
+        });
     }
 }
