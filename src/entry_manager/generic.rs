@@ -85,8 +85,9 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
                 if ptr.is_null() {
                     true
                 } else {
-                    let swapped =
-                        entry.compare_and_swap(loaded_entry, 0, Ordering::SeqCst) == loaded_entry;
+                    let tombstone = set(0, 0);
+                    let swapped = entry.compare_and_swap(loaded_entry, tombstone, Ordering::SeqCst)
+                        == loaded_entry;
 
                     if swapped {
                         unsafe {
@@ -99,10 +100,12 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
                     }
                 }
             }
+
             NewEntryState::SetResize => {
                 let new = set(loaded_entry, 1);
                 entry.compare_and_swap(loaded_entry, new, Ordering::SeqCst) == loaded_entry
             }
+
             NewEntryState::New(element) => {
                 let packed = element as usize;
                 let swapped =
