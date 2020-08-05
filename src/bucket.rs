@@ -6,7 +6,7 @@ pub struct Bucket<K, V, A: ObjectAllocator<Self>> {
     refs: AtomicU32,
     tag: A::Tag,
     pub(crate) key: K,
-    value: V,
+    pub(crate) value: V,
 }
 
 impl<K, V, A: ObjectAllocator<Self>> Bucket<K, V, A> {
@@ -23,8 +23,10 @@ impl<K, V, A: ObjectAllocator<Self>> Bucket<K, V, A> {
         self.refs.fetch_add(1, Ordering::SeqCst);
     }
 
-    pub fn fetch_sub_ref(&self) -> u32 {
-        self.refs.fetch_sub(1, Ordering::SeqCst)
+    pub unsafe fn sub_ref(&self, allocator: &A) {
+        if self.refs.fetch_sub(1, Ordering::SeqCst) == 1 {
+            allocator.deallocate(&self.tag);
+        }
     }
 }
 
@@ -72,11 +74,8 @@ impl<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>>> Clone for Guard<'a, K, V, A>
 
 impl<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>>> Drop for Guard<'a, K, V, A> {
     fn drop(&mut self) {
-        let previous_refs = self.bucket.fetch_sub_ref();
-
-        if previous_refs == 1 {
-            todo!("defer this");
-            self.allocator.deallocate(&self.bucket.tag);
+        unsafe {
+            self.bucket.sub_ref(self.allocator);
         }
     }
 }

@@ -54,7 +54,7 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
         }
     }
 
-    fn cas<F, A>(entry: &AtomicUsize, f: F) -> bool
+    fn cas<F, A>(entry: &AtomicUsize, f: F, allocator: &A) -> bool
     where
         F: FnOnce(
             usize,
@@ -62,6 +62,56 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
         ) -> NewEntryState<Self::K, Self::V, A>,
         A: ObjectAllocator<Bucket<Self::K, Self::V, A>>,
     {
-        todo!()
+        let loaded_entry = entry.load(Ordering::SeqCst);
+        let ptr = strip(loaded_entry) as *const Bucket<K, V, A>;
+        let data;
+
+        if !ptr.is_null() {
+            unsafe {
+                let bucket = &*ptr;
+                data = Some((&bucket.key as _, &bucket.value as _));
+            }
+        } else {
+            data = None;
+        }
+
+        match f(loaded_entry, data) {
+            NewEntryState::Keep => true,
+            NewEntryState::Empty => {
+                if ptr.is_null() {
+                    true
+                } else {
+                    let swapped =
+                        entry.compare_and_swap(loaded_entry, 0, Ordering::SeqCst) == loaded_entry;
+
+                    if swapped {
+                        unsafe {
+                            (&*ptr).sub_ref(allocator);
+                        }
+
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+            NewEntryState::SetResize => {
+                let new = loaded_entry | 0b01;
+                entry.compare_and_swap(loaded_entry, new, Ordering::SeqCst) == loaded_entry
+            }
+            NewEntryState::New(element) => {
+                let packed = element as usize;
+                let swapped =
+                    entry.compare_and_swap(loaded_entry, packed, Ordering::SeqCst) == loaded_entry;
+
+                if swapped && !ptr.is_null() {
+                    unsafe {
+                        (&*ptr).sub_ref(allocator);
+                    }
+                }
+
+                return swapped;
+            }
+        }
     }
 }

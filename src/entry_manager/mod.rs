@@ -38,7 +38,7 @@ pub trait EntryManager {
         A: ObjectAllocator<Bucket<Self::K, Self::V, A>>;
 
     /// Compare-and-swap primitive that acts on a bucket.
-    fn cas<F, A>(entry: &AtomicUsize, f: F) -> bool
+    fn cas<F, A>(entry: &AtomicUsize, f: F, allocator: &A) -> bool
     where
         F: FnOnce(
             usize,
