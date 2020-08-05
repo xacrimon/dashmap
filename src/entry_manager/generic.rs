@@ -128,7 +128,7 @@ mod tests {
     use super::GenericEntryManager;
     use crate::alloc::{GlobalObjectAllocator, ObjectAllocator};
     use crate::entry_manager::{EntryManager, NewEntryState};
-    use std::sync::atomic::Ordering;
+    use std::sync::atomic::{Ordering, AtomicUsize};
     use crate::bucket::Bucket;
 
     #[test]
@@ -136,7 +136,7 @@ mod tests {
         let allocator = GlobalObjectAllocator;
         let atomic_entry = GenericEntryManager::<(), ()>::empty();
         let mut entry = atomic_entry.load(Ordering::SeqCst);
-        assert_eq!(GenericEntryManager::<(), ()>::is_resize(entry), false);
+        assert!(!GenericEntryManager::<(), ()>::is_resize(entry));
         let cas_success = GenericEntryManager::<(), ()>::cas(
             &atomic_entry,
             |_, _| NewEntryState::SetResize,
@@ -144,14 +144,10 @@ mod tests {
         );
         assert!(cas_success);
         entry = atomic_entry.load(Ordering::SeqCst);
-        assert_eq!(GenericEntryManager::<(), ()>::is_resize(entry), true);
+        assert!(GenericEntryManager::<(), ()>::is_resize(entry));
     }
 
-    #[test]
-    fn create_check_occupied() {
-        let key = 5;
-        let value = 7;
-
+    fn create_occupied(key: i32, value: i32) -> AtomicUsize {
         let allocator = GlobalObjectAllocator;
         let atomic_entry = GenericEntryManager::<i32, i32>::empty();
         let cas_success = GenericEntryManager::<i32, i32>::cas(
@@ -164,6 +160,16 @@ mod tests {
             &allocator,
         );
         assert!(cas_success);
+        return atomic_entry;
+    }
+
+    #[test]
+    fn create_check_occupied() {
+        let key = 5;
+        let value = 7;
+
+        let allocator = GlobalObjectAllocator;
+        let atomic_entry = create_occupied(key, value);
         let mut is_eq = false;
         
         let cas_success = GenericEntryManager::<i32, i32>::cas(
@@ -179,5 +185,19 @@ mod tests {
         );
         assert!(cas_success);
         assert!(is_eq);
+    }
+
+    #[test]
+    fn tombstone_check() {
+        let key = -52;
+        let value = 1298;
+
+        let allocator = GlobalObjectAllocator;
+        let atomic_entry = create_occupied(key, value);
+
+        let cas_success = GenericEntryManager::<i32, i32>::cas(&atomic_entry, |_, _| NewEntryState::Empty, &allocator);
+        assert!(cas_success);
+        let entry = atomic_entry.load(Ordering::SeqCst);
+        assert!(GenericEntryManager::<i32, i32>::is_tombstone(entry));
     }
 }
