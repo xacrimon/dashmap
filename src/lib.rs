@@ -14,5 +14,6 @@ mod bucket;
 mod entry_manager;
 mod range;
 mod shim;
+mod gc;
 
 pub use bucket::Guard;
