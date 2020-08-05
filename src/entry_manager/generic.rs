@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn strip(x: usize) -> usize {
-    x & !0b11
+    x & !(1 << 0 | 1 << 1)
 }
 
 fn is_on(field: usize, idx: usize) -> bool {
