@@ -15,7 +15,7 @@ pub trait ObjectAllocator<V> {
     /// The pointer must the valid for the lifetime of the allocator.
     fn allocate(&self, item: V) -> (Self::Tag, *mut V);
 
-    /// Deallocates an object via its tag.
+    /// Deallocates an object with a specific tag.
     ///
     /// # Safety
     /// An allocation may only be deallocated exactly once, hence this function is unsafe.
