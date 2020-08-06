@@ -19,7 +19,7 @@ fn incmod4(a: &AtomicUsize) -> usize {
 
 struct Queue<T> {
     head: AtomicUsize,
-    nodes: [MaybeUninit<T>; 255],
+    nodes: Box<[MaybeUninit<T>; 255]>,
 }
 
 impl<T> Queue<T> {
@@ -28,7 +28,7 @@ impl<T> Queue<T> {
 
         Self {
             head: AtomicUsize::new(0),
-            nodes,
+            nodes: Box::new(nodes),
         }
     }
 
@@ -98,6 +98,7 @@ pub struct Gc<T, A: ObjectAllocator<T>> {
     pub(crate) allocator: A,
     epoch: AtomicUsize,
     threads: ThreadLocal<ThreadState>,
+    garbage: [Queue<A::Tag>; 4],
     _m0: PhantomData<T>,
 }
 
@@ -107,6 +108,12 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
             allocator,
             epoch: AtomicUsize::new(0),
             threads: ThreadLocal::new(),
+            garbage: [
+                Queue::new(),
+                Queue::new(),
+                Queue::new(),
+                Queue::new(),
+            ],
             _m0: PhantomData,
         }
     }
