@@ -9,7 +9,7 @@ use std::ptr;
 /// The `V` type parameter designates the object type.
 pub trait ObjectAllocator<V> {
     /// The `Tag` associated type is a unique tag that can be used to identify an allocation.
-    type Tag: Default;
+    type Tag: Copy + Default;
 
     /// Allocates a new object and returns a identifying tag and a pointer.
     /// The pointer must the valid for the lifetime of the allocator.

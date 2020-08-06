@@ -5,6 +5,7 @@ use crate::shim::sync::atomic::{AtomicUsize, Ordering};
 use std::borrow::Borrow;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use crate::gc::Gc;
 
 fn strip(x: usize) -> usize {
     x & !(1 << 0 | 1 << 1)
@@ -58,7 +59,7 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
         }
     }
 
-    fn cas<F, A>(entry: &AtomicUsize, f: F, allocator: &A) -> bool
+    fn cas<F, A>(entry: &AtomicUsize, f: F, gc: &Gc<Bucket<Self::K, Self::V, A>, A>) -> bool
     where
         F: FnOnce(
             usize,
@@ -90,9 +91,8 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
                         == loaded_entry;
 
                     if swapped {
-                        unsafe {
-                            (&*ptr).sub_ref(allocator);
-                        }
+                        let tag = unsafe { (&*ptr).tag };
+                        gc.retire(tag);
 
                         true
                     } else {
@@ -112,9 +112,8 @@ impl<K: 'static + Eq + Hash, V: 'static> EntryManager for GenericEntryManager<K,
                     entry.compare_and_swap(loaded_entry, packed, Ordering::SeqCst) == loaded_entry;
 
                 if swapped && !ptr.is_null() {
-                    unsafe {
-                        (&*ptr).sub_ref(allocator);
-                    }
+                    let tag = unsafe { (&*ptr).tag };
+                    gc.retire(tag);
                 }
 
                 return swapped;
@@ -130,10 +129,11 @@ mod tests {
     use crate::bucket::Bucket;
     use crate::entry_manager::{EntryManager, NewEntryState};
     use crate::shim::sync::atomic::{AtomicUsize, Ordering};
+    use crate::gc::Gc;
 
     #[test]
     fn set_resize() {
-        let allocator = GlobalObjectAllocator;
+        let gc = Gc::new(GlobalObjectAllocator);
         let atomic_entry = GenericEntryManager::<(), ()>::empty();
         let mut entry = atomic_entry.load(Ordering::SeqCst);
         assert!(!GenericEntryManager::<(), ()>::is_resize(entry));
@@ -141,7 +141,7 @@ mod tests {
         let cas_success = GenericEntryManager::<(), ()>::cas(
             &atomic_entry,
             |_, _| NewEntryState::SetResize,
-            &allocator,
+            &gc,
         );
 
         assert!(cas_success);
@@ -150,17 +150,17 @@ mod tests {
     }
 
     fn create_occupied(key: i32, value: i32) -> AtomicUsize {
-        let allocator = GlobalObjectAllocator;
+        let gc = Gc::new(GlobalObjectAllocator);
         let atomic_entry = GenericEntryManager::<i32, i32>::empty();
 
         let cas_success = GenericEntryManager::<i32, i32>::cas(
             &atomic_entry,
             |_, _| {
                 let bucket = Bucket::new(key, value);
-                let (_, bucket_ptr) = allocator.allocate(bucket);
+                let (_, bucket_ptr) = gc.allocator.allocate(bucket);
                 NewEntryState::New(bucket_ptr)
             },
-            &allocator,
+            &gc,
         );
 
         assert!(cas_success);
@@ -172,7 +172,7 @@ mod tests {
         let key = 5;
         let value = 7;
 
-        let allocator = GlobalObjectAllocator;
+        let gc = Gc::new(GlobalObjectAllocator);
         let atomic_entry = create_occupied(key, value);
         let mut is_eq = false;
 
@@ -185,7 +185,7 @@ mod tests {
                 }
                 NewEntryState::Keep
             },
-            &allocator,
+            &gc,
         );
 
         assert!(cas_success);
@@ -197,13 +197,13 @@ mod tests {
         let key = -52;
         let value = 1298;
 
-        let allocator = GlobalObjectAllocator;
+        let gc = Gc::new(GlobalObjectAllocator);
         let atomic_entry = create_occupied(key, value);
 
         let cas_success = GenericEntryManager::<i32, i32>::cas(
             &atomic_entry,
             |_, _| NewEntryState::Empty,
-            &allocator,
+            &gc,
         );
 
         assert!(cas_success);

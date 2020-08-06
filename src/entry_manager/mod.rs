@@ -5,6 +5,7 @@ use crate::bucket::Bucket;
 use crate::shim::sync::atomic::AtomicUsize;
 use std::borrow::Borrow;
 use std::hash::Hash;
+use crate::gc::Gc;
 
 /// The new state of a bucket after a compare-and-swap operation.
 pub enum NewEntryState<K: 'static + Eq + Hash, V: 'static, A: ObjectAllocator<Bucket<K, V, A>>> {
@@ -38,7 +39,7 @@ pub trait EntryManager {
         A: ObjectAllocator<Bucket<Self::K, Self::V, A>>;
 
     /// Compare-and-swap primitive that acts on a bucket.
-    fn cas<F, A>(entry: &AtomicUsize, f: F, allocator: &A) -> bool
+    fn cas<F, A>(entry: &AtomicUsize, f: F, gc: &Gc<Bucket<Self::K, Self::V, A>, A>) -> bool
     where
         F: FnOnce(
             usize,
