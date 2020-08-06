@@ -136,3 +136,15 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
         queue.push(tag);
     }
 }
+
+impl<T, A: ObjectAllocator<T>> Drop for Gc<T, A> {
+    fn drop(&mut self) {
+        for queue in &self.garbage {
+            while let Some(tag) = queue.pop() {
+                unsafe {
+                    self.allocator.deallocate(tag);
+                }
+            }
+        }
+    }
+}
