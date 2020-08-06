@@ -129,4 +129,10 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
     pub fn exit(&self) {
         self.thread_state().exit(&self);
     }
+
+    pub fn retire(&self, tag: A::Tag) {
+        let epoch = self.epoch.load(Ordering::SeqCst);
+        let queue = unsafe { self.garbage.get_unchecked(epoch) };
+        queue.push(tag);
+    }
 }
