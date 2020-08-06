@@ -12,8 +12,8 @@
 pub mod alloc;
 mod bucket;
 mod entry_manager;
+mod gc;
 mod range;
 mod shim;
-mod gc;
 
 pub use bucket::Guard;
