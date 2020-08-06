@@ -15,3 +15,6 @@ categories = ["concurrency", "algorithms", "data-structures"]
 [features]
 default = []
 loom = []
+
+[dependencies]
+thread_local = "1.0.1"

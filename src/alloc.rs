@@ -24,7 +24,7 @@ pub trait ObjectAllocator<V> {
     /// Note that you may call this function multiple times with the same tag
     /// if you've received the same tag multiple times from `allocate`.
     /// This may happen as tag reuse is allowed.
-    unsafe fn deallocate(&self, tag: &Self::Tag);
+    unsafe fn deallocate(&self, tag: Self::Tag);
 }
 
 /// The default object allocator. This is merely a typed wrapper around the global allocator.
@@ -47,8 +47,8 @@ impl<V> ObjectAllocator<V> for GlobalObjectAllocator {
         (ptr as usize, ptr)
     }
 
-    unsafe fn deallocate(&self, tag: &Self::Tag) {
-        let ptr = *tag as *mut V;
+    unsafe fn deallocate(&self, tag: Self::Tag) {
+        let ptr = tag as *mut V;
         let layout = Layout::new::<V>();
 
         // # Safety

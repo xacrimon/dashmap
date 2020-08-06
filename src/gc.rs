@@ -1,34 +1,47 @@
-//! A fast concurrent memory reclaimer.
-//! This is based on the Hyaline algorithm from https://arxiv.org/abs/1905.07903.
-
 use crate::alloc::ObjectAllocator;
 use crate::shim::sync::atomic::{AtomicUsize, Ordering};
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
+use std::ptr;
+use thread_local::ThreadLocal;
 
-struct Queue {
-    head: AtomicUsize,
-    nodes: [MaybeUninit<usize>; 255],
+fn incmod4(a: &AtomicUsize) -> usize {
+    loop {
+        let current = a.load(Ordering::SeqCst);
+        let next = (current + 1) & 3;
+        let swapped = a.compare_exchange_weak(current, next, Ordering::SeqCst, Ordering::SeqCst);
+
+        if swapped.is_ok() {
+            break next;
+        }
+    }
 }
 
-impl Queue {
-    fn new() -> Queue {
+struct Queue<T> {
+    head: AtomicUsize,
+    nodes: [MaybeUninit<T>; 255],
+}
+
+impl<T> Queue<T> {
+    fn new() -> Self {
+        let nodes = unsafe { MaybeUninit::<[MaybeUninit<T>; 255]>::uninit().assume_init() };
+
         Self {
             head: AtomicUsize::new(0),
-            nodes: [MaybeUninit::uninit(); 255],
+            nodes,
         }
     }
 
-    fn push(&self, node: usize) {
-        let slot = self.head.fetch_add(1, Ordering::SeqCst) - 1;
+    fn push(&self, node: T) {
+        let slot = self.head.fetch_add(1, Ordering::SeqCst);
 
         unsafe {
-            let ptr = self.nodes.get_unchecked(slot).as_ptr() as *mut usize;
-            *ptr = node;
+            let ptr = self.nodes.get_unchecked(slot).as_ptr() as *mut T;
+            ptr::write(ptr, node);
         }
     }
 
-    fn pop(&self) -> Option<usize> {
+    fn pop(&self) -> Option<T> {
         loop {
             let head = self.head.load(Ordering::SeqCst);
 
@@ -40,7 +53,11 @@ impl Queue {
                         .compare_exchange_weak(head, slot, Ordering::SeqCst, Ordering::SeqCst);
 
                 if swapped.is_ok() {
-                    let node = unsafe { *self.nodes.get_unchecked(slot).as_ptr() };
+                    let node = unsafe {
+                        let ptr = self.nodes.get_unchecked(slot).as_ptr();
+                        ptr::read(ptr)
+                    };
+
                     break Some(node);
                 }
             } else {
@@ -50,10 +67,37 @@ impl Queue {
     }
 }
 
-pub struct Gc<T, A> {
+struct ThreadState {
+    active: AtomicUsize,
+    epoch: AtomicUsize,
+}
+
+impl ThreadState {
+    fn new<T, A: ObjectAllocator<T>>(gc: &Gc<T, A>) -> Self {
+        let global_epoch = gc.epoch.load(Ordering::SeqCst);
+
+        Self {
+            active: AtomicUsize::new(0),
+            epoch: AtomicUsize::new(global_epoch),
+        }
+    }
+
+    fn enter<T, A: ObjectAllocator<T>>(&self, gc: &Gc<T, A>) {
+        if self.active.fetch_add(1, Ordering::SeqCst) == 0 {
+            let global_epoch = gc.epoch.load(Ordering::SeqCst);
+            self.epoch.store(global_epoch, Ordering::SeqCst);
+        }
+    }
+
+    fn exit<T, A: ObjectAllocator<T>>(&self, gc: &Gc<T, A>) {
+        self.active.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+pub struct Gc<T, A: ObjectAllocator<T>> {
     pub(crate) allocator: A,
-    href: AtomicUsize,
-    garbage: Queue,
+    epoch: AtomicUsize,
+    threads: ThreadLocal<ThreadState>,
     _m0: PhantomData<T>,
 }
 
@@ -61,9 +105,21 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
     pub fn new(allocator: A) -> Self {
         Self {
             allocator,
-            href: AtomicUsize::new(0),
-            garbage: Queue::new(),
+            epoch: AtomicUsize::new(0),
+            threads: ThreadLocal::new(),
             _m0: PhantomData,
         }
+    }
+
+    fn thread_state(&self) -> &ThreadState {
+        self.threads.get_or(|| ThreadState::new(&self))
+    }
+
+    pub fn enter(&self) {
+        self.thread_state().enter(&self);
+    }
+
+    pub fn exit(&self) {
+        self.thread_state().exit(&self);
     }
 }

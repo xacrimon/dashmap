@@ -31,7 +31,7 @@ impl<K, V, A: ObjectAllocator<Self>> Bucket<K, V, A> {
 
         if ref_count == 0 {
             todo!("defer this");
-            allocator.deallocate(&self.tag);
+            allocator.deallocate(self.tag);
         }
 
         return ref_count;
