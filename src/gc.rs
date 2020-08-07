@@ -61,10 +61,6 @@ impl<T> Queue<T> {
             }
         })
     }
-
-    fn is_empty(&self) -> bool {
-        self.head.load(Ordering::SeqCst) == 0
-    }
 }
 
 fn new_queue<T>() -> *mut Queue<T> {
