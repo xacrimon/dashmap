@@ -1,9 +1,10 @@
 use crate::alloc::ObjectAllocator;
-use crate::shim::sync::atomic::{AtomicUsize, Ordering};
+use crate::shim::sync::atomic::{AtomicUsize, Ordering, AtomicPtr};
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
 use std::ptr;
 use thread_local::ThreadLocal;
+use std::mem::MaybeUninit;
+use std::iter;
 
 fn incmod4(a: &AtomicUsize) -> usize {
     loop {
@@ -17,54 +18,51 @@ fn incmod4(a: &AtomicUsize) -> usize {
     }
 }
 
+const QUEUE_CAPACITY: usize = 255;
+
 struct Queue<T> {
     head: AtomicUsize,
-    nodes: Box<[MaybeUninit<T>; 255]>,
+    nodes: [MaybeUninit<T>; QUEUE_CAPACITY],
 }
 
 impl<T> Queue<T> {
     fn new() -> Self {
-        let nodes = unsafe { MaybeUninit::<[MaybeUninit<T>; 255]>::uninit().assume_init() };
+        let nodes = unsafe { MaybeUninit::uninit().assume_init() };
 
         Self {
             head: AtomicUsize::new(0),
-            nodes: Box::new(nodes),
+            nodes,
         }
     }
 
-    fn push(&self, node: T) {
+    fn push(&self, data: T) {
         let slot = self.head.fetch_add(1, Ordering::SeqCst);
-
-        unsafe {
-            let ptr = self.nodes.get_unchecked(slot).as_ptr() as *mut T;
-            ptr::write(ptr, node);
-        }
+        let node_ptr = self.nodes[slot].as_ptr() as *mut T;
+        unsafe { ptr::write(node_ptr, data); }
     }
 
-    fn pop(&self) -> Option<T> {
-        loop {
-            let head = self.head.load(Ordering::SeqCst);
+    fn iter(&self) -> impl Iterator<Item = &T> {
+        let top = self.head.load(Ordering::SeqCst);
+        let mut slot = 0;
 
-            if head != 0 {
-                let slot = head - 1;
-
-                let swapped =
-                    self.head
-                        .compare_exchange_weak(head, slot, Ordering::SeqCst, Ordering::SeqCst);
-
-                if swapped.is_ok() {
-                    let node = unsafe {
-                        let ptr = self.nodes.get_unchecked(slot).as_ptr();
-                        ptr::read(ptr)
-                    };
-
-                    break Some(node);
-                }
+        iter::from_fn(move || {
+            if slot == top {
+                None
             } else {
-                break None;
+                let node_ptr = self.nodes[slot].as_ptr();
+                slot += 1;
+                Some(unsafe { &*node_ptr })
             }
-        }
+        })
     }
+
+    fn is_empty(&self) -> bool {
+        self.head.load(Ordering::SeqCst) == 0
+    }
+}
+
+fn new_queue<T>() -> *mut Queue<T> {
+    Box::into_raw(Box::new(Queue::new()))
 }
 
 struct ThreadState {
@@ -98,7 +96,7 @@ pub struct Gc<T, A: ObjectAllocator<T>> {
     pub(crate) allocator: A,
     epoch: AtomicUsize,
     threads: ThreadLocal<ThreadState>,
-    garbage: [Queue<A::Tag>; 4],
+    garbage: [AtomicPtr<Queue<A::Tag>>; 4],
     _m0: PhantomData<T>,
 }
 
@@ -108,12 +106,7 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
             allocator,
             epoch: AtomicUsize::new(0),
             threads: ThreadLocal::new(),
-            garbage: [
-                Queue::new(),
-                Queue::new(),
-                Queue::new(),
-                Queue::new(),
-            ],
+            garbage: [AtomicPtr::new(new_queue()), AtomicPtr::new(new_queue()), AtomicPtr::new(new_queue()), AtomicPtr::new(new_queue())],
             _m0: PhantomData,
         }
     }
@@ -132,17 +125,19 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
 
     pub fn retire(&self, tag: A::Tag) {
         let epoch = self.epoch.load(Ordering::SeqCst);
-        let queue = unsafe { self.garbage.get_unchecked(epoch) };
-        queue.push(tag);
+        let queue_ptr = unsafe { self.garbage.get_unchecked(epoch).load(Ordering::SeqCst) };
+        unsafe { (&*queue_ptr).push(tag); }
     }
 }
 
 impl<T, A: ObjectAllocator<T>> Drop for Gc<T, A> {
     fn drop(&mut self) {
         for queue in &self.garbage {
-            while let Some(tag) = queue.pop() {
+            let queue = unsafe { Box::from_raw(queue.load(Ordering::SeqCst)) };
+
+            for tag in queue.iter()  {
                 unsafe {
-                    self.allocator.deallocate(tag);
+                    self.allocator.deallocate(*tag);
                 }
             }
         }

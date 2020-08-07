@@ -1,6 +1,6 @@
 use crate::alloc::{GlobalObjectAllocator, ObjectAllocator};
-use std::ops::Deref;
 use crate::gc::Gc;
+use std::ops::Deref;
 
 pub struct Bucket<K, V, A: ObjectAllocator<Self>> {
     pub(crate) tag: A::Tag,
@@ -56,7 +56,7 @@ impl<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>>> Clone for Guard<'a, K, V, A>
 
         Self {
             bucket: self.bucket,
-            gc: self.gc
+            gc: self.gc,
         }
     }
 }

@@ -1,11 +1,11 @@
 use super::{EntryManager, NewEntryState};
 use crate::alloc::ObjectAllocator;
 use crate::bucket::Bucket;
+use crate::gc::Gc;
 use crate::shim::sync::atomic::{AtomicUsize, Ordering};
 use std::borrow::Borrow;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use crate::gc::Gc;
 
 fn strip(x: usize) -> usize {
     x & !(1 << 0 | 1 << 1)
@@ -128,8 +128,8 @@ mod tests {
     use crate::alloc::{GlobalObjectAllocator, ObjectAllocator};
     use crate::bucket::Bucket;
     use crate::entry_manager::{EntryManager, NewEntryState};
-    use crate::shim::sync::atomic::{AtomicUsize, Ordering};
     use crate::gc::Gc;
+    use crate::shim::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn set_resize() {
@@ -138,11 +138,8 @@ mod tests {
         let mut entry = atomic_entry.load(Ordering::SeqCst);
         assert!(!GenericEntryManager::<(), ()>::is_resize(entry));
 
-        let cas_success = GenericEntryManager::<(), ()>::cas(
-            &atomic_entry,
-            |_, _| NewEntryState::SetResize,
-            &gc,
-        );
+        let cas_success =
+            GenericEntryManager::<(), ()>::cas(&atomic_entry, |_, _| NewEntryState::SetResize, &gc);
 
         assert!(cas_success);
         entry = atomic_entry.load(Ordering::SeqCst);
@@ -200,11 +197,8 @@ mod tests {
         let gc = Gc::new(GlobalObjectAllocator);
         let atomic_entry = create_occupied(key, value);
 
-        let cas_success = GenericEntryManager::<i32, i32>::cas(
-            &atomic_entry,
-            |_, _| NewEntryState::Empty,
-            &gc,
-        );
+        let cas_success =
+            GenericEntryManager::<i32, i32>::cas(&atomic_entry, |_, _| NewEntryState::Empty, &gc);
 
         assert!(cas_success);
         let entry = atomic_entry.load(Ordering::SeqCst);

@@ -2,10 +2,10 @@ mod generic;
 
 use crate::alloc::ObjectAllocator;
 use crate::bucket::Bucket;
+use crate::gc::Gc;
 use crate::shim::sync::atomic::AtomicUsize;
 use std::borrow::Borrow;
 use std::hash::Hash;
-use crate::gc::Gc;
 
 /// The new state of a bucket after a compare-and-swap operation.
 pub enum NewEntryState<K: 'static + Eq + Hash, V: 'static, A: ObjectAllocator<Bucket<K, V, A>>> {
