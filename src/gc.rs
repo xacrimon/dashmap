@@ -35,10 +35,16 @@ impl<T> Queue<T> {
         }
     }
 
-    fn push(&self, data: T) {
+    fn push(&self, data: T) -> bool {
         let slot = self.head.fetch_add(1, Ordering::SeqCst);
-        let node_ptr = self.nodes[slot].as_ptr() as *mut T;
-        unsafe { ptr::write(node_ptr, data); }
+
+        if slot >= QUEUE_CAPACITY {
+            false
+        } else {
+            let node_ptr = self.nodes[slot].as_ptr() as *mut T;
+            unsafe { ptr::write(node_ptr, data); }
+            true
+        }
     }
 
     fn iter(&self) -> impl Iterator<Item = &T> {
