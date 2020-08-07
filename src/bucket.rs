@@ -16,6 +16,10 @@ impl<K, V, A: ObjectAllocator<Self>> Bucket<K, V, A> {
             value,
         }
     }
+
+    pub fn read<'a>(&'a self, gc: &'a Gc<Bucket<K, V, A>, A>) -> Guard<'a, K, V, A> {
+        Guard::new(self, gc)
+    }
 }
 
 /// A guard is a view of a map entry.
@@ -26,6 +30,11 @@ pub struct Guard<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>> = GlobalObjectAll
 }
 
 impl<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>>> Guard<'a, K, V, A> {
+    fn new(bucket: &'a Bucket<K, V, A>, gc: &'a Gc<Bucket<K, V, A>, A>) -> Self {
+        gc.enter();
+        Self { bucket, gc }
+    }
+
     /// Returns the key associated with this entry.
     pub fn key(&self) -> &K {
         &self.bucket.key
