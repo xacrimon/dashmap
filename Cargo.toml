@@ -17,4 +17,4 @@ default = []
 loom = []
 
 [dependencies]
-thread_local = "1.0.1"
+once_cell = "1.4.0"

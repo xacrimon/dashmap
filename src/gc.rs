@@ -1,21 +1,17 @@
 use crate::alloc::ObjectAllocator;
-use crate::shim::sync::atomic::{AtomicUsize, Ordering, AtomicPtr};
-use std::marker::PhantomData;
-use std::ptr;
-use thread_local::ThreadLocal;
-use std::mem::MaybeUninit;
+use crate::shim::sync::atomic::{fence, AtomicPtr, AtomicUsize, Ordering};
+use crate::thread_local::ThreadLocal;
 use std::iter;
+use std::marker::PhantomData;
+use std::mem::MaybeUninit;
+use std::ptr;
 
-fn incmod4(a: &AtomicUsize) -> usize {
-    loop {
-        let current = a.load(Ordering::SeqCst);
-        let next = (current + 1) & 3;
-        let swapped = a.compare_exchange_weak(current, next, Ordering::SeqCst, Ordering::SeqCst);
+fn incmod4(a: &AtomicUsize) -> Option<usize> {
+    let current = a.load(Ordering::SeqCst);
+    let next = (current + 1) & 3;
+    let swapped = a.compare_exchange_weak(current, next, Ordering::SeqCst, Ordering::SeqCst);
 
-        if swapped.is_ok() {
-            break next;
-        }
-    }
+    swapped.ok()
 }
 
 const QUEUE_CAPACITY: usize = 255;
@@ -42,7 +38,9 @@ impl<T> Queue<T> {
             false
         } else {
             let node_ptr = self.nodes[slot].as_ptr() as *mut T;
-            unsafe { ptr::write(node_ptr, data); }
+            unsafe {
+                ptr::write(node_ptr, data);
+            }
             true
         }
     }
@@ -108,13 +106,38 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
             allocator,
             epoch: AtomicUsize::new(0),
             threads: ThreadLocal::new(),
-            garbage: [AtomicPtr::new(new_queue()), AtomicPtr::new(new_queue()), AtomicPtr::new(new_queue()), AtomicPtr::new(new_queue())],
+            garbage: [
+                AtomicPtr::new(new_queue()),
+                AtomicPtr::new(new_queue()),
+                AtomicPtr::new(new_queue()),
+                AtomicPtr::new(new_queue()),
+            ],
             _m0: PhantomData,
         }
     }
 
     fn thread_state(&self) -> &ThreadState {
         self.threads.get_or(|| ThreadState::new(&self))
+    }
+
+    fn try_advance(&self) -> Option<usize> {
+        fence(Ordering::SeqCst);
+        let global_epoch = self.epoch.load(Ordering::SeqCst);
+
+        let can_collect = self
+            .threads
+            .iter()
+            .filter(|state| state.active.load(Ordering::SeqCst) != 0)
+            .all(|state| state.epoch.load(Ordering::SeqCst) == global_epoch);
+
+        let ret = if can_collect {
+            incmod4(&self.epoch).map(|epoch| epoch - 3)
+        } else {
+            None
+        };
+
+        fence(Ordering::SeqCst);
+        ret
     }
 
     pub fn enter(&self) {
@@ -128,7 +151,9 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
     pub fn retire(&self, tag: A::Tag) {
         let epoch = self.epoch.load(Ordering::SeqCst);
         let queue_ptr = unsafe { self.garbage.get_unchecked(epoch).load(Ordering::SeqCst) };
-        unsafe { (&*queue_ptr).push(tag); }
+        unsafe {
+            (&*queue_ptr).push(tag);
+        }
     }
 }
 
@@ -137,7 +162,7 @@ impl<T, A: ObjectAllocator<T>> Drop for Gc<T, A> {
         for queue in &self.garbage {
             let queue = unsafe { Box::from_raw(queue.load(Ordering::SeqCst)) };
 
-            for tag in queue.iter()  {
+            for tag in queue.iter() {
                 unsafe {
                     self.allocator.deallocate(*tag);
                 }
