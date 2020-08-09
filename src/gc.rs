@@ -8,10 +8,14 @@ use std::ptr;
 
 fn incmod4(a: &AtomicUsize) -> Option<usize> {
     let current = a.load(Ordering::SeqCst);
-    let next = (current + 1) & 3;
+    let next = (current + 1) % 4;
     let swapped = a.compare_exchange_weak(current, next, Ordering::SeqCst, Ordering::SeqCst);
 
-    swapped.ok()
+    swapped.ok().map(|_| next)
+}
+
+fn prev_3(a: usize) -> usize {
+    (a + 1) % 4
 }
 
 const QUEUE_CAPACITY: usize = 255;
@@ -59,6 +63,10 @@ impl<T> Queue<T> {
             }
         })
     }
+
+    fn len(&self) -> usize {
+        self.head.load(Ordering::SeqCst)
+    }
 }
 
 fn new_queue<T>() -> *mut Queue<T> {
@@ -89,6 +97,12 @@ impl ThreadState {
 
     fn exit<T, A: ObjectAllocator<T>>(&self, gc: &Gc<T, A>) {
         self.active.fetch_sub(1, Ordering::SeqCst);
+
+        if gc.should_advance() {
+            if let Some(can_free) = gc.try_advance() {
+                gc.collect(can_free);
+            }
+        }
     }
 }
 
@@ -120,6 +134,23 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
         self.threads.get_or(|| ThreadState::new(&self))
     }
 
+    fn collect(&self, epoch: usize) {
+        let new_queue = new_queue();
+        let old_queue_ptr = self.garbage[epoch].swap(new_queue, Ordering::SeqCst);
+        let old_queue = unsafe { &*old_queue_ptr };
+
+        for tag in old_queue.iter() {
+            unsafe { self.allocator.deallocate(*tag); }
+        }
+    }
+
+    fn should_advance(&self) -> bool {
+        let epoch = self.epoch.load(Ordering::SeqCst);
+        let queue_atomic = unsafe { self.garbage.get_unchecked(epoch) };
+        let queue = unsafe { &*queue_atomic.load(Ordering::SeqCst) };
+        queue.len() > (QUEUE_CAPACITY / 2)
+    }
+
     fn try_advance(&self) -> Option<usize> {
         fence(Ordering::SeqCst);
         let global_epoch = self.epoch.load(Ordering::SeqCst);
@@ -131,7 +162,7 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
             .all(|state| state.epoch.load(Ordering::SeqCst) == global_epoch);
 
         let ret = if can_collect {
-            incmod4(&self.epoch).map(|epoch| epoch - 3)
+            incmod4(&self.epoch).map(|epoch| prev_3(epoch))
         } else {
             None
         };
