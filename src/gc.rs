@@ -1,6 +1,6 @@
 use crate::alloc::ObjectAllocator;
-use crate::shim::sync::atomic::{fence, AtomicPtr, AtomicUsize, Ordering};
 use crate::thread_local::ThreadLocal;
+use crate::utils::shim::sync::atomic::{fence, AtomicPtr, AtomicUsize, Ordering};
 use std::iter;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
@@ -96,11 +96,11 @@ impl ThreadState {
     }
 
     fn exit<T, A: ObjectAllocator<T>>(&self, gc: &Gc<T, A>) {
-        self.active.fetch_sub(1, Ordering::SeqCst);
-
-        if gc.should_advance() {
-            if let Some(can_free) = gc.try_advance() {
-                gc.collect(can_free);
+        if self.active.fetch_sub(1, Ordering::SeqCst) == 1 {
+            if gc.should_advance() {
+                if let Some(can_free) = gc.try_advance() {
+                    gc.collect(can_free);
+                }
             }
         }
     }
@@ -131,7 +131,7 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
     }
 
     fn thread_state(&self) -> &ThreadState {
-        self.threads.get_or(|| ThreadState::new(&self))
+        self.threads.get(|| ThreadState::new(&self))
     }
 
     fn collect(&self, epoch: usize) {

@@ -3,7 +3,7 @@ mod generic;
 use crate::alloc::ObjectAllocator;
 use crate::bucket::Bucket;
 use crate::gc::Gc;
-use crate::shim::sync::atomic::AtomicUsize;
+use crate::utils::shim::sync::atomic::AtomicUsize;
 use std::borrow::Borrow;
 use std::hash::Hash;
 

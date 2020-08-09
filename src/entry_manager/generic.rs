@@ -2,7 +2,7 @@ use super::{EntryManager, NewEntryState};
 use crate::alloc::ObjectAllocator;
 use crate::bucket::Bucket;
 use crate::gc::Gc;
-use crate::shim::sync::atomic::{AtomicUsize, Ordering};
+use crate::utils::shim::sync::atomic::{AtomicUsize, Ordering};
 use std::borrow::Borrow;
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -129,7 +129,7 @@ mod tests {
     use crate::bucket::Bucket;
     use crate::entry_manager::{EntryManager, NewEntryState};
     use crate::gc::Gc;
-    use crate::shim::sync::atomic::{AtomicUsize, Ordering};
+    use crate::utils::shim::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn set_resize() {
