@@ -16,4 +16,4 @@ mod gc;
 mod thread_local;
 mod utils;
 
-//pub use bucket::Guard;
+pub use bucket::Guard;
