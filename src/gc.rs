@@ -140,7 +140,9 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
         let old_queue = unsafe { &*old_queue_ptr };
 
         for tag in old_queue.iter() {
-            unsafe { self.allocator.deallocate(*tag); }
+            unsafe {
+                self.allocator.deallocate(*tag);
+            }
         }
     }
 
