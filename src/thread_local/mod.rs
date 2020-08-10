@@ -8,6 +8,11 @@ use crate::utils::shim::sync::{
 };
 use table::Table;
 
+/// A wrapper that keeps different instances of something per thread.
+///
+/// Think of this as a non global thread-local variable.
+/// Threads may occasionally get an old value that another thread previously had.
+/// There isn't a nice way to avoid this without compromising on performance.
 pub struct ThreadLocal<T: Send + Sync> {
     table: AtomicPtr<Table<T>>,
     lock: Mutex<usize>,
@@ -24,6 +29,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
         }
     }
 
+    /// Get the value for this thread or initialize it with the given function if it doesn't exist.
     pub fn get<F>(&self, create: F) -> &T
     where
         F: FnOnce() -> T,
@@ -36,6 +42,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
         })
     }
 
+    /// Iterate over values.
     pub fn iter(&self) -> impl Iterator<Item = &T> + '_ {
         self.table().iter()
     }
@@ -44,6 +51,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
         unsafe { &*self.table.load(Ordering::SeqCst) }
     }
 
+    // Fast path, checks the top level table.
     fn get_fast(&self, key: usize) -> Option<&T> {
         let table = self.table();
 
@@ -57,6 +65,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
         }
     }
 
+    /// Slow path, searches tables recursively.
     fn get_slow(&self, key: usize, table_top: &Table<T>) -> Option<&T> {
         let mut current = table_top.previous();
 
@@ -70,6 +79,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
         None
     }
 
+    /// Insert into the top level table.
     fn insert(&self, key: usize, data: *mut T, new: bool) -> &T {
         let mut count = self.lock.lock().unwrap();
 
@@ -99,6 +109,7 @@ impl<T: Send + Sync> Drop for ThreadLocal<T> {
     fn drop(&mut self) {
         let table_ptr = self.table.load(Ordering::SeqCst);
 
+        // the table must always be valid, this drops it and its child tables.
         unsafe {
             Box::from_raw(table_ptr);
         }

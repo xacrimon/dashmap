@@ -135,6 +135,7 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
     }
 
     fn collect(&self, epoch: usize) {
+        fence(Ordering::SeqCst);
         let new_queue = new_queue();
         let old_queue_ptr = self.garbage[epoch].swap(new_queue, Ordering::SeqCst);
         let old_queue = unsafe { &*old_queue_ptr };
@@ -144,6 +145,8 @@ impl<T, A: ObjectAllocator<T>> Gc<T, A> {
                 self.allocator.deallocate(*tag);
             }
         }
+
+        fence(Ordering::SeqCst);
     }
 
     fn should_advance(&self) -> bool {

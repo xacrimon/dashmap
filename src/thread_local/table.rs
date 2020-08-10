@@ -2,6 +2,10 @@ use crate::utils::shim::sync::atomic::{AtomicPtr, Ordering};
 use std::mem;
 use std::ptr;
 
+/// A lockfree table mapping thread ids to pointers.
+/// Because we try to keep thread ids low and reuse them
+/// this is implemented as a lookup table instead of a hash table.
+/// To allow incremental resizing we also store the previous table if any.
 pub struct Table<T> {
     buckets: Box<[AtomicPtr<T>]>,
     previous: Option<Box<Self>>,
@@ -15,6 +19,7 @@ impl<T> Table<T> {
         Self { buckets, previous }
     }
 
+    /// Get the numerically largest thread id this table can store.
     pub fn max_id(&self) -> usize {
         self.buckets.len() - 1
     }
@@ -22,6 +27,7 @@ impl<T> Table<T> {
     pub fn get(&self, key: usize) -> Option<*mut T> {
         let ptr = self.buckets[key].load(Ordering::SeqCst);
 
+        // empty buckets are represented as null
         if !ptr.is_null() {
             Some(ptr)
         } else {
@@ -37,6 +43,7 @@ impl<T> Table<T> {
         self.previous.as_deref()
     }
 
+    /// Iterate over all entries in this and its child tables.
     pub fn iter(&self) -> Iter<'_, T> {
         Iter::Local(LocalTableIter {
             table: self,
@@ -51,6 +58,7 @@ impl<T> Drop for Table<T> {
         for atomic_ptr in &*self.buckets {
             let ptr = atomic_ptr.load(Ordering::SeqCst);
 
+            // create a box from the pointer and drop it if it isn't null
             if !ptr.is_null() {
                 unsafe {
                     Box::from_raw(ptr);
@@ -60,6 +68,12 @@ impl<T> Drop for Table<T> {
     }
 }
 
+/// An iterator over a table and its child tables.
+/// The iterator has 3 different possible states.
+/// - `Iter::Local` means it is iterator over the entries in the current table.
+/// - `Iter::Chain` means it is iterating over its child tables.
+/// - `Iter::Finished` means it has finished iterating over entries
+/// in the current table and there was no child table.
 pub enum Iter<'a, T> {
     Local(LocalTableIter<'a, T>),
     Chain(Box<Self>),
