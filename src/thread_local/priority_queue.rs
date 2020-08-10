@@ -8,7 +8,7 @@ pub struct PriorityQueue<T> {
 impl<T: Ord> PriorityQueue<T> {
     pub fn new() -> Self {
         Self {
-            items: Vec::with_capacity(4),
+            items: Vec::with_capacity(8),
         }
     }
 
