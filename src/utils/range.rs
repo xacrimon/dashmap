@@ -1,4 +1,4 @@
-//! A range that wraps around at a certain integer.
+/// A range that wraps around at a certain integer.
 pub struct CircularRange {
     wrap: usize,
     stop: usize,

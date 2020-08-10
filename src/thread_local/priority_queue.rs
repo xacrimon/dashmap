@@ -1,3 +1,6 @@
+/// A very simple priority queue.
+/// This is only ever accessed on thread setup and exit
+/// and thus performance is mostly irrelevant.
 pub struct PriorityQueue<T> {
     items: Vec<T>,
 }
@@ -13,6 +16,7 @@ impl<T: Ord> PriorityQueue<T> {
         self.items.push(item);
     }
 
+    /// Find the index of the least item and remove it from the list.
     pub fn pop(&mut self) -> Option<T> {
         (0..self.items.len())
             .min_by_key(|index| &self.items[*index])

@@ -1,7 +1,16 @@
+//! This module deals with allocating thread ids.
+//! We aggressively reuse ids and try to keep them as low as possible.
+//! This important because low reusable thread ids allows us to use lookup tables
+//! instead of hash tables for storing thread local data.
+
 use super::priority_queue::PriorityQueue;
 use crate::utils::shim::sync::Mutex;
 use once_cell::sync::Lazy;
 
+/// This structure allocates ids.
+/// It is compose of a `limit` integer and a list of free ids lesser than `limit`.
+/// If an allocation is attempted and the list is empty,
+/// we increment limit and return the previous value.
 struct IdAllocator {
     limit: u32,
     free: PriorityQueue<u32>,
@@ -38,6 +47,7 @@ impl ThreadId {
     }
 }
 
+/// Drop is implemented here because it's the only clean way to run code when a thread exits.
 impl Drop for ThreadId {
     fn drop(&mut self) {
         ID_ALLOCATOR.lock().unwrap().deallocate(self.0);
