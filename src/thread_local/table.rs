@@ -2,7 +2,7 @@ use crate::utils::shim::sync::atomic::{AtomicPtr, Ordering};
 use std::mem;
 use std::ptr;
 
-/// A lockfree table mapping thread ids to pointers.
+/// A wait-free table mapping thread ids to pointers.
 /// Because we try to keep thread ids low and reuse them
 /// this is implemented as a lookup table instead of a hash table.
 /// To allow incremental resizing we also store the previous table if any.
