@@ -42,7 +42,7 @@ I can:
 - fix priority bugs quickly.
 - do consulting.
 
-Please head over to the [xs:code page](https://xscode.com/xacrimon/dashmap) for more information.
+Please head over to the [xs:code page](https://xscode.com/xacrimon/dashmap) or contact me directly for more information.
 
 ## Support me
 
