@@ -2,7 +2,7 @@ use super::epoch::{AtomicEpoch, Epoch};
 use crate::alloc::ObjectAllocator;
 use crate::utils::{
     pcg32::Pcg32,
-    shim::sync::atomic::{AtomicUsize, Ordering},
+    shim::sync::atomic::{AtomicUsize, Ordering, fence},
 };
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
@@ -54,6 +54,7 @@ impl<G: EbrState> ThreadState<G> {
         if self.active.fetch_add(1, Ordering::SeqCst) == 0 {
             let global_epoch = state.load_epoch();
             self.epoch.store(global_epoch);
+            fence(Ordering::SeqCst);
         }
     }
 
