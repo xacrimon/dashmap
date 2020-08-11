@@ -40,6 +40,7 @@ I can:
 - develop custom components or projects for your unique needs.
 - assist in deploying `dashmap` effectively in your codebase.
 - fix priority bugs quickly.
+- do consulting.
 
 Please head over to the [xs:code page](https://xscode.com/xacrimon/dashmap) for more information.
 
