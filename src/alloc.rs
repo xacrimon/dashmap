@@ -65,7 +65,7 @@ impl<V> ObjectAllocator<V> for GlobalObjectAllocator {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::{GlobalObjectAllocator, ObjectAllocator};
 
     #[test]
