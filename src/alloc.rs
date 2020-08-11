@@ -63,3 +63,22 @@ impl<V> ObjectAllocator<V> for GlobalObjectAllocator {
         dealloc(ptr as _, layout);
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::{GlobalObjectAllocator, ObjectAllocator};
+
+    #[test]
+    fn alloc_dealloc() {
+        let allocator = GlobalObjectAllocator;
+        let (tag, ptr) =
+            <GlobalObjectAllocator as ObjectAllocator<usize>>::allocate(&allocator, 55);
+
+        // the allocator should never return null
+        assert!(!ptr.is_null());
+
+        unsafe {
+            <GlobalObjectAllocator as ObjectAllocator<usize>>::deallocate(&allocator, tag);
+        }
+    }
+}
