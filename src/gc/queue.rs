@@ -9,6 +9,8 @@ use std::ptr;
 const QUEUE_CAPACITY: usize = 14;
 
 /// A wait-free append-only queue used for storing garbage.
+///
+/// Does not call destructors on drop.
 pub struct Queue<T> {
     /// The next free slot in the queue.
     head: AtomicUsize,
@@ -121,5 +123,19 @@ impl<T> Drop for Queue<T> {
                 Box::from_raw(next_ptr);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Queue;
+
+    #[test]
+    fn push_pop_eq() {
+        let queue_ptr = Queue::new();
+        let queue = unsafe { &*queue_ptr };
+        queue.push(495);
+        assert_eq!(queue.iter().count(), 1);
+        assert_eq!(queue.iter().next().copied(), Some(495));
     }
 }
