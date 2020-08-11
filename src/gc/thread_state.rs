@@ -9,6 +9,7 @@ use std::marker::PhantomData;
 
 const COLLECT_CHANCE: u32 = 4;
 
+/// The interface we need in order to work with the main GC state.
 pub trait EbrState {
     type T;
     type A: ObjectAllocator<Self::T>;
@@ -18,6 +19,9 @@ pub trait EbrState {
     fn try_cycle(&self);
 }
 
+/// Per thread state needed for the GC.
+/// We store a local epoch, an active flag and a number generator used
+/// for reducing the frequency of some operations.
 pub struct ThreadState<G> {
     active: AtomicUsize,
     epoch: AtomicEpoch,
@@ -37,20 +41,29 @@ impl<G: EbrState> ThreadState<G> {
         }
     }
 
+    /// Check if we should try to advance the global epoch.
+    ///
+    /// We use random numbers here to reduce the frequency of this returning true.
+    /// We do this because advancing the epoch is a rather expensive operation.
     fn should_advance(&self, state: &G) -> bool {
         let rng = unsafe { &mut *self.rng.get() };
         (rng.generate() % COLLECT_CHANCE == 0) && state.should_advance()
     }
 
+    /// Check if the given thread is in a critical section.
     pub fn is_active(&self) -> bool {
         self.active.load(Ordering::SeqCst) == 0
     }
 
+    /// Get the local epoch of the given thread.
     pub fn load_epoch(&self) -> Epoch {
         self.epoch.load()
     }
 
+    /// Enter a critical section with the given thread.
     pub fn enter(&self, state: &G) {
+        // since `active` is a counter we only need to
+        // update the local epoch when we go from 0 to something else
         if self.active.fetch_add(1, Ordering::SeqCst) == 0 {
             let global_epoch = state.load_epoch();
             self.epoch.store(global_epoch);
@@ -58,7 +71,9 @@ impl<G: EbrState> ThreadState<G> {
         }
     }
 
+    /// Exit a critical section with the given thread.
     pub fn exit(&self, state: &G) {
+        // decrement the `active` counter and check if we should advance if it reaches 0
         if self.active.fetch_sub(1, Ordering::SeqCst) == 1 {
             if self.should_advance(state) {
                 state.try_cycle();
