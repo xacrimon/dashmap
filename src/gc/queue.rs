@@ -1,4 +1,5 @@
 use crate::utils::shim::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+use std::cell::UnsafeCell;
 use std::cmp;
 use std::iter;
 use std::mem::MaybeUninit;
@@ -16,7 +17,7 @@ pub struct Queue<T> {
     next: AtomicPtr<Self>,
 
     /// An array of nodes that may be occupied.
-    nodes: [MaybeUninit<T>; QUEUE_CAPACITY],
+    nodes: [UnsafeCell<MaybeUninit<T>>; QUEUE_CAPACITY],
 }
 
 impl<T> Queue<T> {
@@ -38,9 +39,10 @@ impl<T> Queue<T> {
         if slot >= QUEUE_CAPACITY {
             self.get_next_or_create().push(data);
         } else {
-            let node_ptr = self.nodes[slot].as_ptr() as *mut T;
+            let node_ptr = self.nodes[slot].get();
+
             unsafe {
-                ptr::write(node_ptr, data);
+                ptr::write(node_ptr, MaybeUninit::new(data));
             }
         }
     }
@@ -54,7 +56,7 @@ impl<T> Queue<T> {
             if slot == top {
                 None
             } else {
-                let node_ptr = self.nodes[slot].as_ptr();
+                let node_ptr = self.nodes[slot].get() as *mut T;
                 slot += 1;
                 Some(unsafe { &*node_ptr })
             }

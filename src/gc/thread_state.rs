@@ -2,7 +2,7 @@ use super::epoch::{AtomicEpoch, Epoch};
 use crate::alloc::ObjectAllocator;
 use crate::utils::{
     pcg32::Pcg32,
-    shim::sync::atomic::{AtomicUsize, Ordering, fence},
+    shim::sync::atomic::{fence, AtomicUsize, Ordering},
 };
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
