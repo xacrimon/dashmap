@@ -20,6 +20,8 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 [![downloads](https://img.shields.io/crates/d/dashmap)](https://crates.io/crates/dashmap)
 
+[![xscode](https://img.shields.io/badge/Available%20on-xs%3Acode-blue?style=?style=plastic&logo=appveyor&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAAZQTFRF////////VXz1bAAAAAJ0Uk5T/wDltzBKAAAAlUlEQVR42uzXSwqAMAwE0Mn9L+3Ggtgkk35QwcnSJo9S+yGwM9DCooCbgn4YrJ4CIPUcQF7/XSBbx2TEz4sAZ2q1RAECBAiYBlCtvwN+KiYAlG7UDGj59MViT9hOwEqAhYCtAsUZvL6I6W8c2wcbd+LIWSCHSTeSAAECngN4xxIDSK9f4B9t377Wd7H5Nt7/Xz8eAgwAvesLRjYYPuUAAAAASUVORK5CYII=)](https://xscode.com/xacrimon/dashmap)
+
 ## Cargo features
 
 - `no_std` - Enable no_std + alloc support.
@@ -28,7 +30,20 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - `raw-api` - Enables the unstable raw-shard api.
 
-## Support
+## Paid support, services and custom features
+
+[![xs:code](https://xscode.com/assets/promo-banner.svg)](https://xscode.com/xacrimon/dashmap)
+
+I offer paid priority support, services and custom features for this project.
+
+I can:
+- develop custom components or projects for your unique needs.
+- assist in deploying `dashmap` effectively in your codebase.
+- fix priority bugs quickly.
+
+Please head over to the [xs:code page](https://xscode.com/xacrimon/dashmap) for more information.
+
+## Support me
 
 [![Foo](https://c5.patreon.com/external/logo/become_a_patron_button@2x.png)](https://patreon.com/acrimon)
 
