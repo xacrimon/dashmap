@@ -1,6 +1,7 @@
 const NUMS_0: u64 = 2654435840;
 const NUMS_1: u64 = 6364136223846793005;
 
+/// A fast and compact PRNG.
 pub struct Pcg32 {
     state: u64,
     inc: u64,
