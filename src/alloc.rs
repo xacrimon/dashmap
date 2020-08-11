@@ -7,7 +7,7 @@ use std::ptr;
 /// This trait defines the interface for the object allocator the map uses to allocate buckets.
 /// Bucket allocators should be swappable to the needs of the user.
 /// The `V` type parameter designates the object type.
-pub trait ObjectAllocator<V> {
+pub trait ObjectAllocator<V>: Send + Sync {
     /// The `Tag` associated type is a unique tag that can be used to identify an allocation.
     type Tag: Copy + Default;
 

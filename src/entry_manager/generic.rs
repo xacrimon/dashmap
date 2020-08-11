@@ -129,11 +129,14 @@ mod tests {
     use crate::bucket::Bucket;
     use crate::entry_manager::{EntryManager, NewEntryState};
     use crate::gc::Gc;
-    use crate::utils::shim::sync::atomic::{AtomicUsize, Ordering};
+    use crate::utils::shim::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
 
     #[test]
     fn set_resize() {
-        let gc = Gc::new(GlobalObjectAllocator);
+        let gc = Gc::new(Arc::new(GlobalObjectAllocator));
         let atomic_entry = GenericEntryManager::<(), ()>::empty();
         let mut entry = atomic_entry.load(Ordering::SeqCst);
         assert!(!GenericEntryManager::<(), ()>::is_resize(entry));
@@ -147,14 +150,14 @@ mod tests {
     }
 
     fn create_occupied(key: i32, value: i32) -> AtomicUsize {
-        let gc = Gc::new(GlobalObjectAllocator);
+        let gc = Gc::new(Arc::new(GlobalObjectAllocator));
         let atomic_entry = GenericEntryManager::<i32, i32>::empty();
 
         let cas_success = GenericEntryManager::<i32, i32>::cas(
             &atomic_entry,
             |_, _| {
                 let bucket = Bucket::new(key, value);
-                let (_, bucket_ptr) = gc.allocator.allocate(bucket);
+                let (_, bucket_ptr) = gc.allocator().allocate(bucket);
                 NewEntryState::New(bucket_ptr)
             },
             &gc,
@@ -169,7 +172,7 @@ mod tests {
         let key = 5;
         let value = 7;
 
-        let gc = Gc::new(GlobalObjectAllocator);
+        let gc = Gc::new(Arc::new(GlobalObjectAllocator));
         let atomic_entry = create_occupied(key, value);
         let mut is_eq = false;
 
@@ -194,7 +197,7 @@ mod tests {
         let key = -52;
         let value = 1298;
 
-        let gc = Gc::new(GlobalObjectAllocator);
+        let gc = Gc::new(Arc::new(GlobalObjectAllocator));
         let atomic_entry = create_occupied(key, value);
 
         let cas_success =

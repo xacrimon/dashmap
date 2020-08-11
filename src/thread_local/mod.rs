@@ -32,13 +32,14 @@ impl<T: Send + Sync> ThreadLocal<T> {
     /// Get the value for this thread or initialize it with the given function if it doesn't exist.
     pub fn get<F>(&self, create: F) -> &T
     where
-        F: FnOnce() -> T,
+        F: FnOnce(u32) -> T,
     {
-        let id = thread_id::get() as usize;
+        let id = thread_id::get();
+        let id_usize = id as usize;
 
-        self.get_fast(id).unwrap_or_else(|| {
-            let data = Box::into_raw(Box::new(create()));
-            self.insert(id, data, true)
+        self.get_fast(id_usize).unwrap_or_else(|| {
+            let data = Box::into_raw(Box::new(create(id)));
+            self.insert(id_usize, data, true)
         })
     }
 
