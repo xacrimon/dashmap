@@ -7,6 +7,11 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
+    - name: setup
+      run: |
+        rustup install stable-2020-06-18-x86_64-unknown-linux-gnu
+        rustup component add rustfmt --toolchain stable-2020-06-18-x86_64-unknown-linux-gnu
+        rustup component add clippy --toolchain stable-2020-06-18-x86_64-unknown-linux-gnu
     - name: style
       run: cargo fmt -- --check
     - name: clippy
@@ -29,51 +34,28 @@ jobs:
       - name: setup
         run: |
           # install misc packages
-
           echo "installing misc packages"
           sudo apt-get update
           sudo apt-get install apt-transport-https ca-certificates curl software-properties-common
-
           # --
-
-          # add podman ppa
-
-          echo "adding podman ppa"
-          . /etc/os-release
-          echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
-          curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key | sudo apt-key add -
-
-          # --
-
           # add docker ppa
-
           echo "adding docker ppa"
           curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
           sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable"
-
           # --
-
-          # install docker and podman
-
-          echo "installing docker and podman"
+          # install docker
+          echo "installing docker"
           sudo apt-get update
-          sudo apt-get install docker-ce podman
-
+          sudo apt-get install docker-ce
           # --
-
           # configure docker permissions
-
           echo "configuring docker permissions"
           sudo usermod -aG docker ${USER}
           sudo -u ${USER} /bin/bash
-
           # --
-
           # install cross
-
           echo "installing cross"
           cargo install cross
-
           # --
       - name: test
         run: cross test --target ${{ matrix.target }}
