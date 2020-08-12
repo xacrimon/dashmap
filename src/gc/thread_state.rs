@@ -1,8 +1,8 @@
 use super::epoch::{AtomicEpoch, Epoch};
 use crate::alloc::ObjectAllocator;
 use crate::utils::{
-    pcg32::Pcg32,
     shim::sync::atomic::{fence, AtomicUsize, Ordering},
+    wyrng::WyRng,
 };
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
@@ -25,7 +25,7 @@ pub trait EbrState {
 pub struct ThreadState<G> {
     active: AtomicUsize,
     epoch: AtomicEpoch,
-    rng: UnsafeCell<Pcg32>,
+    rng: UnsafeCell<WyRng>,
     _m0: PhantomData<G>,
 }
 
@@ -36,7 +36,7 @@ impl<G: EbrState> ThreadState<G> {
         Self {
             active: AtomicUsize::new(0),
             epoch: AtomicEpoch::new(global_epoch),
-            rng: UnsafeCell::new(Pcg32::new(thread_id)),
+            rng: UnsafeCell::new(WyRng::new(thread_id)),
             _m0: PhantomData,
         }
     }
@@ -73,7 +73,7 @@ impl<G: EbrState> ThreadState<G> {
 
     /// Exit a critical section with the given thread.
     pub fn exit(&self, state: &G) {
-         // decrement the `active` counter and fetch the previous value
+        // decrement the `active` counter and fetch the previous value
         let prev_active = self.active.fetch_sub(1, Ordering::SeqCst);
 
         // if the counter wraps we've called exit more than enter which is not allowed
