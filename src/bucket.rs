@@ -2,6 +2,9 @@ use crate::alloc::{GlobalObjectAllocator, ObjectAllocator};
 use crate::gc::Gc;
 use std::ops::Deref;
 
+/// Represents an occupied slot in a map.
+/// Besides the key and value it contains the allocator tag
+/// so it can deallocate itself when it's lifetime ends.
 pub struct Bucket<K, V, A: ObjectAllocator<Self>> {
     pub(crate) tag: A::Tag,
     pub(crate) key: K,
@@ -9,6 +12,8 @@ pub struct Bucket<K, V, A: ObjectAllocator<Self>> {
 }
 
 impl<K, V, A: ObjectAllocator<Self>> Bucket<K, V, A> {
+    /// Create a new bucket with a default tag.
+    /// The tag will need to be set to the correct value before being published to the map.
     pub fn new(key: K, value: V) -> Self {
         Self {
             tag: A::Tag::default(),
