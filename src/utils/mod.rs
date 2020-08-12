@@ -1,3 +1,3 @@
 pub mod shim;
-pub mod unreachable;
+pub mod hint;
 pub mod wyrng;

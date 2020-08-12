@@ -1,6 +1,6 @@
 use crate::utils::{
     shim::sync::atomic::{AtomicUsize, Ordering},
-    unreachable::unreachable,
+    hint::unreachable,
 };
 
 /// Represents a valid state epoch.
