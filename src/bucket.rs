@@ -21,6 +21,10 @@ impl<K, V, A: ObjectAllocator<Self>> Bucket<K, V, A> {
     /// Since guards exit a critical section on drop it is UB to not be
     /// in a critical section when this is calling.
     pub fn read<'a>(&'a self, gc: &'a Gc<Bucket<K, V, A>, A>) -> Guard<'a, K, V, A> {
+        // check that we are at least in a critical section
+        // the nesting could still be off but this should catch some bugs
+        debug_assert!(gc.is_active());
+
         Guard::new(self, gc)
     }
 }
@@ -39,16 +43,19 @@ impl<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>>> Guard<'a, K, V, A> {
 
     /// Returns the key associated with this entry.
     pub fn key(&self) -> &K {
+        debug_assert!(self.gc.is_active());
         &self.bucket.key
     }
 
     /// Returns the value associated with this entry.
     pub fn value(&self) -> &V {
+        debug_assert!(self.gc.is_active());
         &self.bucket.value
     }
 
     /// Returns both the key and the value associated with this entry.
     pub fn pair(&self) -> (&K, &V) {
+        debug_assert!(self.gc.is_active());
         (&self.bucket.key, &self.bucket.value)
     }
 }
@@ -63,6 +70,7 @@ impl<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>>> Deref for Guard<'a, K, V, A>
 
 impl<'a, K, V, A: ObjectAllocator<Bucket<K, V, A>>> Clone for Guard<'a, K, V, A> {
     fn clone(&self) -> Self {
+        debug_assert!(self.gc.is_active());
         self.gc.enter();
 
         Self {

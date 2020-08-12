@@ -73,8 +73,14 @@ impl<G: EbrState> ThreadState<G> {
 
     /// Exit a critical section with the given thread.
     pub fn exit(&self, state: &G) {
-        // decrement the `active` counter and check if we should advance if it reaches 0
-        if self.active.fetch_sub(1, Ordering::SeqCst) == 1 {
+         // decrement the `active` counter and fetch the previous value
+        let prev_active = self.active.fetch_sub(1, Ordering::SeqCst);
+
+        // if the counter wraps we've called exit more than enter which is not allowed
+        debug_assert!(prev_active != 0);
+
+        // check if we should try to advance the epoch if it reaches 0
+        if prev_active == 1 {
             if self.should_advance(state) {
                 state.try_cycle();
             }

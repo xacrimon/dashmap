@@ -63,6 +63,10 @@ where
         self.thread_state().exit(&self);
     }
 
+    pub fn is_active(&self) -> bool {
+        self.thread_state().is_active()
+    }
+
     pub fn retire(&self, tag: A::Tag) {
         let epoch = self.epoch.load();
         let queue = self.get_map_garbage(epoch);

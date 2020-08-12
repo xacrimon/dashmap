@@ -51,6 +51,9 @@ impl<V> ObjectAllocator<V> for GlobalObjectAllocator {
         let ptr = tag as *mut V;
         let layout = Layout::new::<V>();
 
+        // most allocators accept null but we consider it invalid
+        debug_assert!(!ptr.is_null());
+
         // # Safety
         // We call `drop_in_place` here to drop the value at this memory location.
         // This is safe to do since it is guaranteed to be initialized.
@@ -71,11 +74,8 @@ mod tests {
     #[test]
     fn alloc_dealloc() {
         let allocator = GlobalObjectAllocator;
-        let (tag, ptr) =
+        let (tag, _ptr) =
             <GlobalObjectAllocator as ObjectAllocator<usize>>::allocate(&allocator, 55);
-
-        // the allocator should never return null
-        assert!(!ptr.is_null());
 
         unsafe {
             <GlobalObjectAllocator as ObjectAllocator<usize>>::deallocate(&allocator, tag);
