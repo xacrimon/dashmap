@@ -157,7 +157,12 @@ mod tests {
             &atomic_entry,
             |_, _| {
                 let bucket = Bucket::new(key, value);
-                let (_, bucket_ptr) = gc.allocator().allocate(bucket);
+                let (tag, bucket_ptr) = gc.allocator().allocate(bucket);
+
+                unsafe {
+                    (*bucket_ptr).tag = tag;
+                }
+
                 NewEntryState::New(bucket_ptr)
             },
             &gc,
