@@ -2,6 +2,10 @@ const NUMS_0: u64 = 2654435840;
 const NUMS_1: u64 = 6364136223846793005;
 
 /// A fast and compact PRNG.
+/// This is not cryptographically secure nor does it perform very well in statistical tests
+/// This is however quite irrelevant as it is only used for reducing the
+/// frequency of certain code paths within the garbage collector and
+/// this only requires a roughly uniform distribution of the output to work well.
 pub struct Pcg32 {
     state: u64,
     inc: u64,
