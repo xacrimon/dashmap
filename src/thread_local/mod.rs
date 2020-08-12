@@ -62,7 +62,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
         if key > table.max_id() {
             None
         } else {
-            match table.get(key) {
+            match unsafe { table.get(key) } {
                 Some(x) => Some(unsafe { &*x }),
                 None => self.get_slow(key, table),
             }
@@ -74,9 +74,12 @@ impl<T: Send + Sync> ThreadLocal<T> {
         let mut current = table_top.previous();
 
         while let Some(table) = current {
-            if let Some(x) = table.get(key) {
-                return Some(self.insert(key, x, false));
+            if key <= table.max_id() {
+                if let Some(x) = unsafe { table.get(key) } {
+                    return Some(self.insert(key, x, false));
+                }
             }
+
             current = table.previous();
         }
 
@@ -104,8 +107,10 @@ impl<T: Send + Sync> ThreadLocal<T> {
             table
         };
 
-        table.set(key, data);
-        unsafe { &*data }
+        unsafe {
+            table.set(key, data);
+            &*data
+        }
     }
 }
 
