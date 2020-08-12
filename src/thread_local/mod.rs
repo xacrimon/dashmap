@@ -2,9 +2,12 @@ mod priority_queue;
 mod table;
 mod thread_id;
 
-use crate::utils::shim::sync::{
-    atomic::{AtomicPtr, Ordering},
-    Mutex,
+use crate::utils::{
+    hint::UnwrapUnchecked,
+    shim::sync::{
+        atomic::{AtomicPtr, Ordering},
+        Mutex,
+    },
 };
 use table::Table;
 
@@ -82,7 +85,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
 
     /// Insert into the top level table.
     fn insert(&self, key: usize, data: *mut T, new: bool) -> &T {
-        let mut count = self.lock.lock().unwrap();
+        let mut count = unsafe { self.lock.lock().unwrap_unchecked() };
 
         if new {
             *count += 1;

@@ -8,17 +8,29 @@ pub unsafe fn unreachable() -> ! {
     std::hint::unreachable_unchecked();
 }
 
-pub trait OptionUnchecked {
+pub trait UnwrapUnchecked {
     type Value;
 
     unsafe fn unwrap_unchecked(self) -> Self::Value;
 }
 
-impl<T> OptionUnchecked for Option<T> {
+impl<T> UnwrapUnchecked for Option<T> {
     type Value = T;
 
     unsafe fn unwrap_unchecked(self) -> Self::Value {
         if let Some(value) = self {
+            value
+        } else {
+            unreachable()
+        }
+    }
+}
+
+impl<T, E> UnwrapUnchecked for Result<T, E> {
+    type Value = T;
+
+    unsafe fn unwrap_unchecked(self) -> Self::Value {
+        if let Ok(value) = self {
             value
         } else {
             unreachable()
