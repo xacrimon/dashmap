@@ -1,7 +1,7 @@
 //! This module deals with allocating thread ids.
 //! We aggressively reuse ids and try to keep them as low as possible.
 //! This important because low reusable thread ids allows us to use lookup tables
-//! instead of hash tables for storing thread local data.
+//! instead of hash tables for storing thread-local data.
 
 use super::priority_queue::PriorityQueue;
 use crate::utils::{hint::UnwrapUnchecked, shim::sync::Mutex};
