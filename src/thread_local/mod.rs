@@ -2,13 +2,7 @@ mod priority_queue;
 mod table;
 mod thread_id;
 
-use crate::utils::{
-    hint::UnwrapUnchecked,
-    shim::sync::{
-        atomic::{AtomicPtr, Ordering},
-        Mutex,
-    },
-};
+use crate::utils::shim::sync::atomic::{AtomicPtr, Ordering};
 use table::Table;
 
 /// A wrapper that keeps different instances of something per thread.
@@ -18,7 +12,6 @@ use table::Table;
 /// There isn't a nice way to avoid this without compromising on performance.
 pub struct ThreadLocal<T: Send + Sync> {
     table: AtomicPtr<Table<T>>,
-    lock: Mutex<usize>,
 }
 
 impl<T: Send + Sync> ThreadLocal<T> {
@@ -28,7 +21,6 @@ impl<T: Send + Sync> ThreadLocal<T> {
 
         Self {
             table: AtomicPtr::new(table_ptr),
-            lock: Mutex::new(0),
         }
     }
 
@@ -42,7 +34,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
 
         self.get_fast(id_usize).unwrap_or_else(|| {
             let data = Box::into_raw(Box::new(create(id)));
-            self.insert(id_usize, data, true)
+            unsafe { self.insert(id_usize, data) }
         })
     }
 
@@ -76,7 +68,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
         while let Some(table) = current {
             if key <= table.max_id() {
                 if let Some(x) = unsafe { table.get_as_owner(key) } {
-                    return Some(self.insert(key, x, false));
+                    return Some(unsafe { self.insert(key, x) });
                 }
             }
 
@@ -87,29 +79,39 @@ impl<T: Send + Sync> ThreadLocal<T> {
     }
 
     /// Insert into the top level table.
-    fn insert(&self, key: usize, data: *mut T, new: bool) -> &T {
-        let mut count = unsafe { self.lock.lock().unwrap_unchecked() };
+    ///
+    /// # Safety
+    /// A key may not be inserted two times with the same top level table.
+    unsafe fn insert(&self, key: usize, data: *mut T) -> &T {
+        loop {
+            let table = self.table(Ordering::Acquire);
 
-        if new {
-            *count += 1;
-        }
+            let actual_table = if key > table.max_id() {
+                let old_table_ptr = table as *const Table<T> as *mut Table<T>;
+                let old_table = Box::from_raw(old_table_ptr);
+                let new_table = Table::new(key * 2, Some(old_table));
+                let new_table_ptr = Box::into_raw(Box::new(new_table));
 
-        let table = self.table(Ordering::Relaxed);
-        let table_ptr = table as *const Table<T> as *mut Table<T>;
+                if self
+                    .table
+                    .compare_exchange_weak(
+                        old_table_ptr,
+                        new_table_ptr,
+                        Ordering::AcqRel,
+                        Ordering::Relaxed,
+                    )
+                    .is_ok()
+                {
+                    &*new_table_ptr
+                } else {
+                    continue;
+                }
+            } else {
+                table
+            };
 
-        let table = if key > table.max_id() {
-            let old_table = unsafe { Box::from_raw(table_ptr) };
-            let new_table = Table::new(key * 2, Some(old_table));
-            let new_table_ptr = Box::into_raw(Box::new(new_table));
-            self.table.store(new_table_ptr, Ordering::Release);
-            unsafe { &*new_table_ptr }
-        } else {
-            table
-        };
-
-        unsafe {
-            table.set(key, data);
-            &*data
+            actual_table.set(key, data);
+            break &*data;
         }
     }
 }

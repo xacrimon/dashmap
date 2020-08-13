@@ -1,7 +1,7 @@
+use super::thread_id;
 use crate::utils::shim::sync::atomic::{AtomicPtr, Ordering};
 use std::mem;
 use std::ptr;
-use super::thread_id;
 
 /// A wait-free table mapping thread ids to pointers.
 /// Because we try to keep thread ids low and reuse them
@@ -50,13 +50,21 @@ impl<T> Table<T> {
     /// # Safety
     /// - `key` must be below or equal to `self.max_id()`
     /// - `key` must be the id of the calling thread
+    /// - `key` must not have been set earlier
     pub unsafe fn set(&self, key: usize, ptr: *mut T) {
         debug_assert!(key <= self.max_id());
         debug_assert_eq!(key, thread_id::get() as usize);
 
-        self.buckets
-            .get_unchecked(key)
-            .store(ptr, Ordering::Release);
+        let atomic = self.buckets.get_unchecked(key);
+
+        #[cfg(debug_assertions)]
+        {
+            let old = atomic.compare_and_swap(ptr::null_mut(), ptr, Ordering::Release);
+            debug_assert!(old.is_null());
+        }
+
+        #[cfg(not(debug_assertions))]
+        atomic.store(ptr, Ordering::Release);
     }
 
     pub fn previous(&self) -> Option<&Self> {
