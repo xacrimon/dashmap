@@ -25,7 +25,7 @@ impl<T> Table<T> {
     }
 
     pub unsafe fn get(&self, key: usize) -> Option<*mut T> {
-        let ptr = self.buckets.get_unchecked(key).load(Ordering::Relaxed);
+        let ptr = self.buckets.get_unchecked(key).load(Ordering::Acquire);
 
         // empty buckets are represented as null
         if !ptr.is_null() {
