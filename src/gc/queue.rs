@@ -1,4 +1,4 @@
-use crate::utils::shim::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+use crate::utils::shim::sync::atomic::{AtomicPtr, AtomicUsize, Ordering, fence};
 use std::cell::UnsafeCell;
 use std::cmp;
 use std::iter;
@@ -36,7 +36,7 @@ impl<T> Queue<T> {
 
     /// Push an item onto the queue.
     pub fn push(&self, data: T) {
-        let slot = self.head.fetch_add(1, Ordering::SeqCst);
+        let slot = self.head.fetch_add(1, Ordering::Release);
 
         if slot >= QUEUE_CAPACITY {
             self.get_next_or_create().push(data);
@@ -51,7 +51,7 @@ impl<T> Queue<T> {
 
     /// Iterate over all elements in this queue segment;
     pub fn iter(&self) -> impl Iterator<Item = &T> {
-        let top = self.head.load(Ordering::SeqCst);
+        let top = self.head.load(Ordering::Acquire);
         let mut slot = 0;
 
         iter::from_fn(move || {
@@ -67,7 +67,7 @@ impl<T> Queue<T> {
 
     /// How many elements there currently are in the queue segment.
     pub fn len(&self) -> usize {
-        cmp::min(self.head.load(Ordering::SeqCst), QUEUE_CAPACITY)
+        cmp::min(self.head.load(Ordering::Relaxed), QUEUE_CAPACITY)
     }
 
     /// The maxmimum capacity of the queue segment.
@@ -77,12 +77,12 @@ impl<T> Queue<T> {
 
     /// Get a reference to the next queue segment if it exists.
     pub fn get_next(&self) -> Option<&Self> {
-        unsafe { self.next.load(Ordering::SeqCst).as_ref() }
+        unsafe { self.next.load(Ordering::Acquire).as_ref() }
     }
 
     /// Get a reference to the next queue segment, creating it if it doesn't exist
     fn get_next_or_create(&self) -> &Self {
-        let mut next = self.next.load(Ordering::SeqCst);
+        let mut next = self.next.load(Ordering::Relaxed);
 
         while next.is_null() {
             let new_queue = Self::new();
@@ -90,8 +90,8 @@ impl<T> Queue<T> {
             let did_swap = self.next.compare_exchange_weak(
                 next,
                 new_queue,
-                Ordering::SeqCst,
-                Ordering::SeqCst,
+                Ordering::AcqRel,
+                Ordering::Relaxed,
             );
 
             if let Err(actual) = did_swap {
@@ -116,7 +116,7 @@ impl<T> Queue<T> {
 
 impl<T> Drop for Queue<T> {
     fn drop(&mut self) {
-        let next_ptr = self.next.load(Ordering::SeqCst);
+        let next_ptr = self.next.load(Ordering::Acquire);
 
         if !next_ptr.is_null() {
             unsafe {
