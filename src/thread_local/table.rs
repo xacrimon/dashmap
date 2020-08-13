@@ -1,4 +1,4 @@
-use crate::utils::shim::sync::atomic::{AtomicPtr, Ordering, fence};
+use crate::utils::shim::sync::atomic::{AtomicPtr, Ordering};
 use std::mem;
 use std::ptr;
 
@@ -37,11 +37,6 @@ impl<T> Table<T> {
 
     pub unsafe fn set(&self, key: usize, ptr: *mut T) {
         self.buckets.get_unchecked(key).store(ptr, Ordering::Release);
-
-        // this fence is needed so that a subsequent `get` call will read the updated value
-        // if get somehow reads null after an initialization we would create an uneeded copy
-        // of the thread local state
-        fence(Ordering::SeqCst);
     }
 
     pub fn previous(&self) -> Option<&Self> {

@@ -5,7 +5,7 @@ mod thread_id;
 use crate::utils::{
     hint::UnwrapUnchecked,
     shim::sync::{
-        atomic::{AtomicPtr, Ordering, fence},
+        atomic::{AtomicPtr, Ordering},
         Mutex,
     },
 };
@@ -52,7 +52,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
     }
 
     fn table(&self) -> &Table<T> {
-        unsafe { &*self.table.load(Ordering::Relaxed) }
+        unsafe { &*self.table.load(Ordering::Acquire) }
     }
 
     // Fast path, checks the top level table.
@@ -102,7 +102,6 @@ impl<T: Send + Sync> ThreadLocal<T> {
             let new_table = Table::new(key * 2, Some(old_table));
             let new_table_ptr = Box::into_raw(Box::new(new_table));
             self.table.store(new_table_ptr, Ordering::Release);
-            fence(Ordering::SeqCst);
             unsafe { &*new_table_ptr }
         } else {
             table
