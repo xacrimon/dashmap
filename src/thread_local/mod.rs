@@ -5,7 +5,7 @@ mod thread_id;
 use crate::utils::{
     hint::UnwrapUnchecked,
     shim::sync::{
-        atomic::{AtomicPtr, Ordering},
+        atomic::{AtomicPtr, Ordering, fence},
         Mutex,
     },
 };
@@ -52,7 +52,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
     }
 
     fn table(&self) -> &Table<T> {
-        unsafe { &*self.table.load(Ordering::SeqCst) }
+        unsafe { &*self.table.load(Ordering::Relaxed) }
     }
 
     // Fast path, checks the top level table.
@@ -101,7 +101,8 @@ impl<T: Send + Sync> ThreadLocal<T> {
             let old_table = unsafe { Box::from_raw(table_ptr) };
             let new_table = Table::new(key * 2, Some(old_table));
             let new_table_ptr = Box::into_raw(Box::new(new_table));
-            self.table.store(new_table_ptr, Ordering::SeqCst);
+            self.table.store(new_table_ptr, Ordering::Release);
+            fence(Ordering::SeqCst);
             unsafe { &*new_table_ptr }
         } else {
             table
@@ -116,7 +117,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
 
 impl<T: Send + Sync> Drop for ThreadLocal<T> {
     fn drop(&mut self) {
-        let table_ptr = self.table.load(Ordering::SeqCst);
+        let table_ptr = self.table.load(Ordering::Acquire);
 
         // the table must always be valid, this drops it and its child tables.
         unsafe {

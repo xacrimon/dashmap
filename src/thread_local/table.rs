@@ -1,4 +1,4 @@
-use crate::utils::shim::sync::atomic::{AtomicPtr, Ordering};
+use crate::utils::shim::sync::atomic::{AtomicPtr, Ordering, fence};
 use std::mem;
 use std::ptr;
 
@@ -25,7 +25,7 @@ impl<T> Table<T> {
     }
 
     pub unsafe fn get(&self, key: usize) -> Option<*mut T> {
-        let ptr = self.buckets.get_unchecked(key).load(Ordering::SeqCst);
+        let ptr = self.buckets.get_unchecked(key).load(Ordering::Relaxed);
 
         // empty buckets are represented as null
         if !ptr.is_null() {
@@ -36,7 +36,12 @@ impl<T> Table<T> {
     }
 
     pub unsafe fn set(&self, key: usize, ptr: *mut T) {
-        self.buckets.get_unchecked(key).store(ptr, Ordering::SeqCst);
+        self.buckets.get_unchecked(key).store(ptr, Ordering::Release);
+
+        // this fence is needed so that a subsequent `get` call will read the updated value
+        // if get somehow reads null after an initialization we would create an uneeded copy
+        // of the thread local state
+        fence(Ordering::SeqCst);
     }
 
     pub fn previous(&self) -> Option<&Self> {
@@ -56,7 +61,7 @@ impl<T> Table<T> {
 impl<T> Drop for Table<T> {
     fn drop(&mut self) {
         for atomic_ptr in &*self.buckets {
-            let ptr = atomic_ptr.load(Ordering::SeqCst);
+            let ptr = atomic_ptr.load(Ordering::Acquire);
 
             // create a box from the pointer and drop it if it isn't null
             if !ptr.is_null() {
