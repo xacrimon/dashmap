@@ -54,7 +54,6 @@ impl<T> Table<T> {
     pub unsafe fn set(&self, key: usize, ptr: *mut T) {
         debug_assert!(key <= self.max_id());
         debug_assert_eq!(key, thread_id::get() as usize);
-
         let atomic = self.buckets.get_unchecked(key);
 
         #[cfg(debug_assertions)]
