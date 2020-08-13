@@ -24,8 +24,12 @@ impl<T> Table<T> {
         self.buckets.len() - 1
     }
 
-    pub unsafe fn get(&self, key: usize) -> Option<*mut T> {
-        let ptr = self.buckets.get_unchecked(key).load(Ordering::Acquire);
+    pub unsafe fn get_as_owner(&self, key: usize) -> Option<*mut T> {
+        self.get(key, Ordering::Relaxed)
+    }
+
+    unsafe fn get(&self, key: usize, order: Ordering) -> Option<*mut T> {
+        let ptr = self.buckets.get_unchecked(key).load(order);
 
         // empty buckets are represented as null
         if !ptr.is_null() {
@@ -124,7 +128,7 @@ impl<'a, T> Iterator for LocalTableIter<'a, T> {
                 let key = self.position;
                 self.position += 1;
 
-                if let Some(ptr) = unsafe { self.table.get(key) } {
+                if let Some(ptr) = unsafe { self.table.get(key, Ordering::Acquire) } {
                     if ptr.is_null() || self.read_set.contains(&ptr) {
                         continue;
                     } else {

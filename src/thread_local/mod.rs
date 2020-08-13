@@ -62,20 +62,20 @@ impl<T: Send + Sync> ThreadLocal<T> {
         if key > table.max_id() {
             None
         } else {
-            match unsafe { table.get(key) } {
+            match unsafe { table.get_as_owner(key) } {
                 Some(x) => Some(unsafe { &*x }),
-                None => self.get_slow(key, table),
+                None => self.get_slow(key),
             }
         }
     }
 
     /// Slow path, searches tables recursively.
-    fn get_slow(&self, key: usize, table_top: &Table<T>) -> Option<&T> {
-        let mut current = table_top.previous();
+    fn get_slow(&self, key: usize) -> Option<&T> {
+        let mut current = Some(self.table(Ordering::Acquire));
 
         while let Some(table) = current {
             if key <= table.max_id() {
-                if let Some(x) = unsafe { table.get(key) } {
+                if let Some(x) = unsafe { table.get_as_owner(key) } {
                     return Some(self.insert(key, x, false));
                 }
             }
