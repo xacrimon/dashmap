@@ -48,16 +48,16 @@ impl<T: Send + Sync> ThreadLocal<T> {
 
     /// Iterate over values.
     pub fn iter(&self) -> impl Iterator<Item = &T> + '_ {
-        self.table().iter()
+        self.table(Ordering::Acquire).iter()
     }
 
-    fn table(&self) -> &Table<T> {
-        unsafe { &*self.table.load(Ordering::Acquire) }
+    fn table(&self, order: Ordering) -> &Table<T> {
+        unsafe { &*self.table.load(order) }
     }
 
     // Fast path, checks the top level table.
     fn get_fast(&self, key: usize) -> Option<&T> {
-        let table = self.table();
+        let table = self.table(Ordering::Relaxed);
 
         if key > table.max_id() {
             None
@@ -94,7 +94,7 @@ impl<T: Send + Sync> ThreadLocal<T> {
             *count += 1;
         }
 
-        let table = self.table();
+        let table = self.table(Ordering::Relaxed);
         let table_ptr = table as *const Table<T> as *mut Table<T>;
 
         let table = if key > table.max_id() {
