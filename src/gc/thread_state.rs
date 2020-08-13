@@ -73,7 +73,7 @@ impl<G: EbrState> ThreadState<G> {
     /// Exit a critical section with the given thread.
     pub fn exit(&self, state: &G) {
         // decrement the `active` counter and fetch the previous value
-        let prev_active = self.active.fetch_sub(1, Ordering::Release);
+        let prev_active = self.active.fetch_sub(1, Ordering::Relaxed);
 
         // if the counter wraps we've called exit more than enter which is not allowed
         debug_assert!(prev_active != 0);

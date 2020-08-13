@@ -1,4 +1,4 @@
-use crate::utils::shim::sync::atomic::{AtomicPtr, AtomicUsize, Ordering, fence};
+use crate::utils::shim::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::cell::UnsafeCell;
 use std::cmp;
 use std::iter;
