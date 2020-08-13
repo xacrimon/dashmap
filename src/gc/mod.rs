@@ -108,6 +108,8 @@ where
 
             maybe_queue = queue.get_next();
         }
+
+        ptr::drop_in_place(old_queue_ptr);
     }
 }
 
