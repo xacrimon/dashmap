@@ -24,7 +24,10 @@ impl Epoch {
         }
     }
 
-    /// Create an epoch from a raw integer value. Any value above 3 will cause undefined behavior.
+    /// Create an epoch from a raw integer value.
+    ///
+    /// # Safety
+    /// This function may only be called with integers 0..4.
     unsafe fn from_usize_unchecked(raw: usize) -> Self {
         match raw {
             0 => Self::Zero,
@@ -73,7 +76,7 @@ impl AtomicEpoch {
         unsafe { Epoch::from_usize_unchecked(raw) }
     }
 
-    /// Store an epoch into the atomic.
+    /// Store an epoch into the atomic with relaxed ordering.
     pub fn store(&self, epoch: Epoch) {
         let raw: usize = epoch.into();
         self.raw.store(raw, Ordering::Relaxed);
@@ -87,6 +90,12 @@ impl AtomicEpoch {
         let next = current.next();
         let next_raw: usize = next.into();
 
+        // we need to use acq_rel here in order for this to synchronize properly with
+        // attempts to advance in other threads and certain code that
+        // must have the correct epoch performing an acquire load
+        //
+        // in practice since the relative frequency of calls to this function
+        // is low this should not have problematic impact on performance
         let did_advance = self.raw.compare_exchange_weak(
             current_raw,
             next_raw,

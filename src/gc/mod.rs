@@ -56,11 +56,15 @@ where
     }
 
     pub fn enter(&self) {
-        self.thread_state().enter(&self);
+        unsafe {
+            self.thread_state().enter(&self);
+        }
     }
 
     pub fn exit(&self) {
-        self.thread_state().exit(&self);
+        unsafe {
+            self.thread_state().exit(&self);
+        }
     }
 
     pub fn is_active(&self) -> bool {

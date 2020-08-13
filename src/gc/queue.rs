@@ -36,6 +36,7 @@ impl<T> Queue<T> {
 
     /// Push an item onto the queue.
     pub fn push(&self, data: T) {
+        // release is needed so it synchronizes properly with the acquire load in `iter`
         let slot = self.head.fetch_add(1, Ordering::Release);
 
         if slot >= QUEUE_CAPACITY {
@@ -51,6 +52,7 @@ impl<T> Queue<T> {
 
     /// Iterate over all elements in this queue segment;
     pub fn iter(&self) -> impl Iterator<Item = &T> {
+        // acquire is needed so it synchronizes properly with the increment in `push`
         let top = self.head.load(Ordering::Acquire);
         let mut slot = 0;
 
@@ -66,6 +68,7 @@ impl<T> Queue<T> {
     }
 
     /// How many elements there currently are in the queue segment.
+    /// This function loads the length using relaxed ordering and thus it may not be fully accurate
     pub fn len(&self) -> usize {
         cmp::min(self.head.load(Ordering::Relaxed), QUEUE_CAPACITY)
     }
@@ -77,6 +80,10 @@ impl<T> Queue<T> {
 
     /// Get a reference to the next queue segment if it exists.
     pub fn get_next(&self) -> Option<&Self> {
+        // acquire is needed here so it synchronizes properly with the
+        // rmw in `get_next_or_create`
+        //
+        // the pointer must always pointer to a valid object or be null
         unsafe { self.next.load(Ordering::Acquire).as_ref() }
     }
 
@@ -87,15 +94,19 @@ impl<T> Queue<T> {
         while next.is_null() {
             let new_queue = Self::new();
 
+            // release is used here so the write becomes visible to the
+            // load in `get_next` and the drop implementation
             let did_swap = self.next.compare_exchange_weak(
                 next,
                 new_queue,
-                Ordering::AcqRel,
+                Ordering::Release,
                 Ordering::Relaxed,
             );
 
             if let Err(actual) = did_swap {
                 // drop the allocated queue segment
+                // we've previously allocated the segment with a box
+                // so it must be valid to drop it with a box
                 unsafe {
                     Box::from_raw(new_queue);
                 }
@@ -110,15 +121,20 @@ impl<T> Queue<T> {
             }
         }
 
+        // at this point `next` must point to a valid object
+        debug_assert!(!next.is_null());
         unsafe { &*next }
     }
 }
 
 impl<T> Drop for Queue<T> {
     fn drop(&mut self) {
+        // acquire needs to so that we synchronize with the rmw in `get_next_or_create`
+        // otherwise we may not find all the queue segments that have been allocated
         let next_ptr = self.next.load(Ordering::Acquire);
 
         if !next_ptr.is_null() {
+            // if `next_ptr` is not null it must point to a valid object
             unsafe {
                 Box::from_raw(next_ptr);
             }
