@@ -1,6 +1,7 @@
 use crate::utils::shim::sync::atomic::{AtomicPtr, Ordering};
 use std::mem;
 use std::ptr;
+use super::thread_id;
 
 /// A wait-free table mapping thread ids to pointers.
 /// Because we try to keep thread ids low and reuse them
@@ -24,11 +25,18 @@ impl<T> Table<T> {
         self.buckets.len() - 1
     }
 
+    /// # Safety
+    /// - `key` must be below or equal to `self.max_id()`
+    /// - `key` must be the id of the calling thread
     pub unsafe fn get_as_owner(&self, key: usize) -> Option<*mut T> {
+        debug_assert_eq!(key, thread_id::get() as usize);
         self.get(key, Ordering::Relaxed)
     }
 
+    /// # Safety
+    /// - `key` must be below or equal to `self.max_id()`
     unsafe fn get(&self, key: usize, order: Ordering) -> Option<*mut T> {
+        debug_assert!(key <= self.max_id());
         let ptr = self.buckets.get_unchecked(key).load(order);
 
         // empty buckets are represented as null
@@ -39,7 +47,13 @@ impl<T> Table<T> {
         }
     }
 
+    /// # Safety
+    /// - `key` must be below or equal to `self.max_id()`
+    /// - `key` must be the id of the calling thread
     pub unsafe fn set(&self, key: usize, ptr: *mut T) {
+        debug_assert!(key <= self.max_id());
+        debug_assert_eq!(key, thread_id::get() as usize);
+
         self.buckets
             .get_unchecked(key)
             .store(ptr, Ordering::Release);
@@ -66,6 +80,7 @@ impl<T> Drop for Table<T> {
 
             // create a box from the pointer and drop it if it isn't null
             if !ptr.is_null() {
+                // if it isn't null `ptr` must be pointing to a valid table
                 unsafe {
                     Box::from_raw(ptr);
                 }
