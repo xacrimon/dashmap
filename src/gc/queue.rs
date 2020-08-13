@@ -42,9 +42,8 @@ impl<T> Queue<T> {
         if slot >= QUEUE_CAPACITY {
             self.get_next_or_create().push(data);
         } else {
-            let node_ptr = self.nodes[slot].get();
-
             unsafe {
+                let node_ptr = self.nodes.get_unchecked(slot).get();
                 ptr::write(node_ptr, MaybeUninit::new(data));
             }
         }
@@ -60,7 +59,7 @@ impl<T> Queue<T> {
             if slot == top {
                 None
             } else {
-                let node_ptr = self.nodes[slot].get() as *mut T;
+                let node_ptr = unsafe { self.nodes.get_unchecked(slot).get() } as *mut T;
                 slot += 1;
                 Some(unsafe { &*node_ptr })
             }

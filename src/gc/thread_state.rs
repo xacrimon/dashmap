@@ -49,7 +49,7 @@ impl<G: EbrState> ThreadState<G> {
     /// # Safety
     /// This function may only be called from the thread this state belongs to.
     /// This is due to the fact that it will access the thread-local
-    /// PRNG without synchronization. 
+    /// PRNG without synchronization.
     unsafe fn should_advance(&self, state: &G) -> bool {
         let rng = &mut *self.rng.get();
         (rng.generate() % COLLECT_CHANCE == 0) && state.should_advance()

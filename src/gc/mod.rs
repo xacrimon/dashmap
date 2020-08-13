@@ -51,7 +51,7 @@ where
 
     fn get_map_garbage(&self, epoch: Epoch) -> &Queue<A::Tag> {
         let raw_epoch: usize = epoch.into();
-        let atomic_queue = &self.map_garbage[raw_epoch];
+        let atomic_queue = unsafe { self.map_garbage.get_unchecked(raw_epoch) };
         unsafe { &*atomic_queue.load(Ordering::SeqCst) }
     }
 
@@ -102,7 +102,10 @@ where
             ptr::null_mut()
         };
 
-        let old_queue_ptr = self.map_garbage[raw_epoch].swap(new_queue_ptr, Ordering::SeqCst);
+        let old_queue_ptr = self
+            .map_garbage
+            .get_unchecked(raw_epoch)
+            .swap(new_queue_ptr, Ordering::SeqCst);
         let mut maybe_queue = Some(&*old_queue_ptr);
 
         while let Some(queue) = maybe_queue {

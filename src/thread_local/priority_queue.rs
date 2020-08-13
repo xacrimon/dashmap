@@ -19,7 +19,7 @@ impl<T: Ord> PriorityQueue<T> {
     /// Find the index of the least item and remove it from the list.
     pub fn pop(&mut self) -> Option<T> {
         (0..self.items.len())
-            .min_by_key(|index| &self.items[*index])
+            .min_by_key(|index| unsafe { self.items.get_unchecked(*index) })
             .map(|index| self.items.remove(index))
     }
 }
