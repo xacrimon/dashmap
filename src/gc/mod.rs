@@ -68,7 +68,7 @@ where
     }
 
     pub fn retire(&self, tag: A::Tag) {
-        let epoch = self.epoch.load();
+        let epoch = self.epoch.load_acquire();
         let queue = self.get_map_garbage(epoch);
         queue.push(tag);
     }

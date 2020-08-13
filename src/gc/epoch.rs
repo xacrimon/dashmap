@@ -61,9 +61,15 @@ impl AtomicEpoch {
         }
     }
 
-    /// Load the epoch from the atomic.
+    /// Load the epoch from the atomic with relaxed ordering.
     pub fn load(&self) -> Epoch {
         let raw = self.raw.load(Ordering::Relaxed);
+        unsafe { Epoch::from_usize_unchecked(raw) }
+    }
+
+    /// Load the epoch from the atomic with acquire ordering.
+    pub fn load_acquire(&self) -> Epoch {
+        let raw = self.raw.load(Ordering::Acquire);
         unsafe { Epoch::from_usize_unchecked(raw) }
     }
 
