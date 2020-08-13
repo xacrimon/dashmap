@@ -63,21 +63,20 @@ impl AtomicEpoch {
 
     /// Load the epoch from the atomic.
     pub fn load(&self) -> Epoch {
-        let raw = self.raw.load(Ordering::SeqCst);
+        let raw = self.raw.load(Ordering::Relaxed);
         unsafe { Epoch::from_usize_unchecked(raw) }
     }
 
     /// Store an epoch into the atomic.
     pub fn store(&self, epoch: Epoch) {
         let raw: usize = epoch.into();
-        self.raw.store(raw, Ordering::SeqCst);
+        self.raw.store(raw, Ordering::Relaxed);
     }
 
     /// Try to advance the epoch in this atomic.
     /// On success it returns the new epoch.
     /// The atomic value is not updated on error.
-    pub fn try_advance(&self) -> Result<Epoch, ()> {
-        let current = self.load();
+    pub fn try_advance(&self, current: Epoch) -> Result<Epoch, ()> {
         let current_raw: usize = current.into();
         let next = current.next();
         let next_raw: usize = next.into();
@@ -85,8 +84,8 @@ impl AtomicEpoch {
         let did_advance = self.raw.compare_exchange_weak(
             current_raw,
             next_raw,
-            Ordering::SeqCst,
-            Ordering::SeqCst,
+            Ordering::AcqRel,
+            Ordering::Relaxed,
         );
 
         if did_advance.is_ok() {

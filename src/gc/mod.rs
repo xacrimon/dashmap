@@ -83,7 +83,7 @@ where
             .all(|state| state.load_epoch() == global_epoch);
 
         if can_collect {
-            self.epoch.try_advance()
+            self.epoch.try_advance(global_epoch)
         } else {
             Err(())
         }

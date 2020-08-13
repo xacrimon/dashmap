@@ -36,7 +36,9 @@ impl<T> Table<T> {
     }
 
     pub unsafe fn set(&self, key: usize, ptr: *mut T) {
-        self.buckets.get_unchecked(key).store(ptr, Ordering::Release);
+        self.buckets
+            .get_unchecked(key)
+            .store(ptr, Ordering::Release);
     }
 
     pub fn previous(&self) -> Option<&Self> {
