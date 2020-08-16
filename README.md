@@ -30,20 +30,6 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - `raw-api` - Enables the unstable raw-shard api.
 
-## Paid support, services and custom features
-
-[![xs:code](https://xscode.com/assets/promo-banner.svg)](https://xscode.com/xacrimon/dashmap)
-
-I offer paid priority support, services and custom features for this project.
-
-I can:
-- develop custom components or projects for your unique needs.
-- assist in deploying `dashmap` effectively in your codebase.
-- fix priority bugs quickly.
-- do consulting.
-
-Please head over to the [xs:code page](https://xscode.com/xacrimon/dashmap) or contact me directly for more information.
-
 ## Support me
 
 [![Foo](https://c5.patreon.com/external/logo/become_a_patron_button@2x.png)](https://patreon.com/acrimon)
