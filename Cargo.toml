@@ -12,9 +12,5 @@ documentation = "https://docs.rs/dashmap"
 keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
-[features]
-default = []
-loom = []
-
 [dependencies]
-once_cell = "1.4.0"
+flize = { version = "2.0.0", default-features = false, features = ["ebr"] }

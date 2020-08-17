@@ -11,9 +11,6 @@
 
 pub mod alloc;
 mod bucket;
-mod entry_manager;
-mod gc;
-mod thread_local;
-mod utils;
+mod table;
 
 pub use bucket::Guard;
