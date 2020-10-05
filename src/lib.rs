@@ -944,6 +944,7 @@ impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V, RandomState> {
 mod tests {
 
     use crate::DashMap;
+    use crate::mapref::one::{Ref, RefMut};
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "no_std")] {
@@ -1034,6 +1035,23 @@ mod tests {
             dm_hm_default.insert(i, i);
 
             assert_eq!(i, *dm_hm_default.get(&i).unwrap().value());
+        }
+    }
+    #[test]
+
+    fn test_ref_map() {
+        let dm = DashMap::new();
+
+        dm.insert(0, [0]);
+
+        {
+            let item = Ref::map(dm.get(&0).unwrap(), |v| &v[0]);
+            assert_eq!(item.value(), &0);
+        }
+
+        {
+            let item = RefMut::map(dm.get_mut(&0).unwrap(), |v| &mut v[0]);
+            assert_eq!(item.value(), &0);
         }
     }
 }
