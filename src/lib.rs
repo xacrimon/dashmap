@@ -13,6 +13,12 @@ pub mod setref;
 mod t;
 mod util;
 
+#[cfg(feature = "rayon")]
+pub mod rayon {
+    pub mod map;
+    pub mod set;
+}
+
 use ahash::RandomState;
 use cfg_if::cfg_if;
 use core::borrow::Borrow;
