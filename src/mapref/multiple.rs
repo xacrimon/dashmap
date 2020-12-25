@@ -4,14 +4,7 @@ use core::hash::BuildHasher;
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
 use std::collections::hash_map::RandomState;
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "no_std")] {
-        use alloc::sync::Arc;
-    } else {
-        use std::sync::Arc;
-    }
-}
+use std::sync::Arc;
 
 // -- Shared
 pub struct RefMulti<'a, K, V, S = RandomState> {

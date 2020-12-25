@@ -1,4 +1,3 @@
-#![cfg_attr(all(feature = "no_std", not(test)), no_std)] // Note: Concurrency tests require std for threading/channels
 #![allow(clippy::type_complexity)]
 
 pub mod iter;
@@ -43,17 +42,7 @@ cfg_if! {
     }
 }
 
-cfg_if! {
-    if #[cfg(feature = "no_std")] {
-        extern crate alloc;
-
-        use alloc::{vec::Vec, boxed::Box};
-
-        pub(crate) type HashMap<K, V, S> = hashbrown::HashMap<K, SharedValue<V>, S>;
-    } else {
-        pub(crate) type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
-    }
-}
+pub(crate) type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
 
 fn shard_amount() -> usize {
     (num_cpus::get() * 4).next_power_of_two()

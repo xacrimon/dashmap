@@ -6,17 +6,9 @@ use crate::util::SharedValue;
 use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
 use core::mem;
+use std::collections::hash_map;
 use std::collections::hash_map::RandomState;
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "no_std")] {
-        use alloc::sync::Arc;
-        use hashbrown::hash_map;
-    } else {
-        use std::sync::Arc;
-        use std::collections::hash_map;
-    }
-}
+use std::sync::Arc;
 
 /// Iterator over a DashMap yielding key value pairs.
 ///

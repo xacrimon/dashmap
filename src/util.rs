@@ -95,42 +95,8 @@ struct AbortOnPanic;
 
 impl Drop for AbortOnPanic {
     fn drop(&mut self) {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "no_std")] {
-                // Note: This is hard, as core/no_std has no concept of threads or knowledge of panicking.
-                // An alternative would be to do this:
-                //
-                // ```rust
-                // // Elsewhere in the library/host binary
-                // use core::sync::atomic::{AtomicBool, Ordering};
-                //
-                // static UNWINDING: AtomicBool = AtomicBool::new(false);
-                //
-                // #[panic_handler]
-                // fn panic(info: &PanicInfo) -> ! {
-                //      UNWINDING.store(true, Ordering::Relaxed);
-                //
-                //      unsafe {
-                //          core::intrinsics::abort();
-                //      }
-                // }
-                //
-                // // In AbortOnPanic::drop
-                // if UNWINDING.load(Ordering::Relaxed) {
-                //      unsafe {
-                //          core::intrinsics::abort();
-                //      }
-                // }
-                // ```
-                //
-                // Now, this isn't an ideal solution for multiple reasons, as it uses intrinsics which require a feature
-                // and can be overwritten by the user without them even knowing. That being said, *most* users of no_std
-                // do tend to use panic = "abort", which solves this problem for us by aborting on panics.
-            } else {
-                if std::thread::panicking() {
-                    std::process::abort()
-                }
-            }
+        if std::thread::panicking() {
+            std::process::abort()
         }
     }
 }

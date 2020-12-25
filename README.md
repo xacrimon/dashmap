@@ -24,11 +24,11 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 ## Cargo features
 
-- `no_std` - Enable no_std + alloc support.
-
 - `serde` - Enables serde support.
 
 - `raw-api` - Enables the unstable raw-shard api.
+
+- `rayon` - Enables rayon support.
 
 ## Support me
 

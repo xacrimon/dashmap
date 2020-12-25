@@ -6,14 +6,7 @@ use core::hash::{BuildHasher, Hash};
 use rayon::iter::plumbing::UnindexedConsumer;
 use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, ParallelIterator};
 use std::collections::hash_map::RandomState;
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "no_std")] {
-        use alloc::{boxed::Box, sync::Arc, vec::Vec};
-    } else {
-        use std::sync::Arc;
-    }
-}
+use std::sync::Arc;
 
 impl<K, V, S> ParallelExtend<(K, V)> for DashMap<K, V, S>
 where
