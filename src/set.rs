@@ -5,7 +5,7 @@ use crate::setref::one::Ref;
 use crate::DashMap;
 #[cfg(feature = "raw-api")]
 use crate::HashMap;
-use ahash::RandomState;
+use std::collections::hash_map::RandomState;
 use cfg_if::cfg_if;
 use core::borrow::Borrow;
 use core::fmt;

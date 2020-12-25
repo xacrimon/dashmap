@@ -1,6 +1,6 @@
 use crate::t::Map;
 use crate::{DashMap, HashMap};
-use ahash::RandomState;
+use std::collections::hash_map::RandomState;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};

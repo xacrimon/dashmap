@@ -4,7 +4,7 @@ use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::t::Map;
 use crate::util::SharedValue;
 use crate::{DashMap, HashMap};
-use ahash::RandomState;
+use std::collections::hash_map::RandomState;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 

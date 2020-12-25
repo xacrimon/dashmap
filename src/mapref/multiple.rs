@@ -1,6 +1,6 @@
 use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
-use ahash::RandomState;
+use std::collections::hash_map::RandomState;
 use core::hash::BuildHasher;
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};

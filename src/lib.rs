@@ -19,7 +19,7 @@ pub mod rayon {
     pub mod set;
 }
 
-use ahash::RandomState;
+use std::collections::hash_map::RandomState;
 use cfg_if::cfg_if;
 use core::borrow::Borrow;
 use core::fmt;
@@ -291,7 +291,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     ///
     /// ```rust
     /// use dashmap::DashMap;
-    /// use ahash::RandomState;
+    /// use std::collections::hash_map::RandomState;
     ///
     /// let hasher = RandomState::new();
     /// let map: DashMap<i32, i32> = DashMap::new();
@@ -919,15 +919,7 @@ impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V, RandomState> {
 #[cfg(test)]
 mod tests {
     use crate::DashMap;
-
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "no_std")] {
-            use alloc::string::String;
-            use ahash::RandomState;
-        } else {
-            use std::collections::hash_map::RandomState;
-        }
-    }
+    use std::collections::hash_map::RandomState;
 
     #[test]
     fn test_basic() {

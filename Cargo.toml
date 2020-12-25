@@ -19,7 +19,6 @@ no_std = ["hashbrown"]
 
 [dependencies]
 num_cpus = "1.13.0"
-ahash = "0.3.8"
 serde = { version = "1.0.114", optional = true, features = ["derive"] }
 cfg-if = "1.0.0"
 hashbrown = { version = "0.8.0", optional = true }

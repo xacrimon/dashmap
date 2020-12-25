@@ -1,5 +1,5 @@
 use crate::mapref;
-use ahash::RandomState;
+use std::collections::hash_map::RandomState;
 use core::hash::{BuildHasher, Hash};
 use core::ops::Deref;
 pub struct RefMulti<'a, K, S = RandomState> {
