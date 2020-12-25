@@ -24,11 +24,11 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 ## Cargo features
 
-- `no_std` - Enable no_std + alloc support.
-
 - `serde` - Enables serde support.
 
 - `raw-api` - Enables the unstable raw-shard api.
+
+- `rayon` - Enables rayon support.
 
 ## Support me
 
@@ -46,6 +46,9 @@ DashMap is gladly accepts contributions!
 Do not hesitate to open issues or PR's.
 
 I will take a look as soon as I have time for it.
+
+That said I do not get paid (yet) to work on open-source. This means
+that my time is limited and my work here comes after my personal life.
 
 ## Performance
 

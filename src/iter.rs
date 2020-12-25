@@ -4,19 +4,11 @@ use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::t::Map;
 use crate::util::SharedValue;
 use crate::{DashMap, HashMap};
-use ahash::RandomState;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "no_std")] {
-        use alloc::sync::Arc;
-        use hashbrown::hash_map;
-    } else {
-        use std::sync::Arc;
-        use std::collections::hash_map;
-    }
-}
+use std::collections::hash_map;
+use std::collections::hash_map::RandomState;
+use std::sync::Arc;
 
 /// Iterator over a DashMap yielding key value pairs.
 ///
@@ -31,7 +23,6 @@ cfg_if::cfg_if! {
 /// let pairs: Vec<(&'static str, &'static str)> = map.into_iter().collect();
 /// assert_eq!(pairs.len(), 2);
 /// ```
-
 pub struct OwningIter<K, V, S = RandomState> {
     map: DashMap<K, V, S>,
     shard_i: usize,
@@ -121,7 +112,6 @@ type GuardIterMut<'a, K, V, S> = (
 /// map.insert("hello", "world");
 /// assert_eq!(map.iter().count(), 1);
 /// ```
-
 pub struct Iter<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     map: &'a M,
     shard_i: usize,
@@ -200,7 +190,6 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 /// map.iter_mut().for_each(|mut r| *r += 1);
 /// assert_eq!(*map.get("Johnny").unwrap(), 22);
 /// ```
-
 pub struct IterMut<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     map: &'a M,
     shard_i: usize,
@@ -276,13 +265,10 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 }
 
 #[cfg(test)]
-
 mod tests {
-
     use crate::DashMap;
 
     #[test]
-
     fn iter_mut_manual_count() {
         let map = DashMap::new();
 
@@ -300,7 +286,6 @@ mod tests {
     }
 
     #[test]
-
     fn iter_mut_count() {
         let map = DashMap::new();
 
@@ -312,7 +297,6 @@ mod tests {
     }
 
     #[test]
-
     fn iter_count() {
         let map = DashMap::new();
 

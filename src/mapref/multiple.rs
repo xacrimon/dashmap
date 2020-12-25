@@ -1,17 +1,10 @@
 use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
-use ahash::RandomState;
 use core::hash::BuildHasher;
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "no_std")] {
-        use alloc::sync::Arc;
-    } else {
-        use std::sync::Arc;
-    }
-}
+use std::collections::hash_map::RandomState;
+use std::sync::Arc;
 
 // -- Shared
 pub struct RefMulti<'a, K, V, S = RandomState> {

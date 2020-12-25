@@ -3,10 +3,10 @@ use crate::lock::RwLockWriteGuard;
 use crate::util;
 use crate::util::SharedValue;
 use crate::HashMap;
-use ahash::RandomState;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 use core::ptr;
+use std::collections::hash_map::RandomState;
 
 pub enum Entry<'a, K, V, S = RandomState> {
     Occupied(OccupiedEntry<'a, K, V, S>),
@@ -15,7 +15,6 @@ pub enum Entry<'a, K, V, S = RandomState> {
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     /// Apply a function to the stored value if it exists.
-
     pub fn and_modify(self, f: impl FnOnce(&mut V)) -> Self {
         match self {
             Entry::Occupied(mut entry) => {
@@ -29,7 +28,6 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     }
 
     /// Get the key of the entry.
-
     pub fn key(&self) -> &K {
         match *self {
             Entry::Occupied(ref entry) => entry.key(),
@@ -38,7 +36,6 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     }
 
     /// Into the key of the entry.
-
     pub fn into_key(self) -> K {
         match self {
             Entry::Occupied(entry) => entry.into_key(),
@@ -48,7 +45,6 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
 
     /// Return a mutable reference to the element if it exists,
     /// otherwise insert the default and return a mutable reference to that.
-
     pub fn or_default(self) -> RefMut<'a, K, V, S>
     where
         V: Default,
@@ -61,7 +57,6 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
 
     /// Return a mutable reference to the element if it exists,
     /// otherwise a provided value and return a mutable reference to that.
-
     pub fn or_insert(self, value: V) -> RefMut<'a, K, V, S> {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
@@ -71,7 +66,6 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
 
     /// Return a mutable reference to the element if it exists,
     /// otherwise insert the result of a provided function and return a mutable reference to that.
-
     pub fn or_insert_with(self, value: impl FnOnce() -> V) -> RefMut<'a, K, V, S> {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
