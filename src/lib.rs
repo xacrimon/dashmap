@@ -572,7 +572,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     ///
     /// # Panics
     ///
-    /// If the given closure panics, then `alter_all` will abort the process
+    /// If the given closure panics, then `alter` will abort the process
 
     pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
