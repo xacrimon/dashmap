@@ -1,8 +1,8 @@
 use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
-use std::collections::hash_map::RandomState;
 use core::hash::{BuildHasher, Hash};
 use core::ops::{Deref, DerefMut};
+use std::collections::hash_map::RandomState;
 
 // -- Shared
 pub struct Ref<'a, K, V, S = RandomState> {

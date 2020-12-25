@@ -1,9 +1,9 @@
 use crate::setref::multiple::RefMulti;
 use crate::DashSet;
-use ahash::RandomState;
 use core::hash::{BuildHasher, Hash};
 use rayon::iter::plumbing::UnindexedConsumer;
 use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, ParallelIterator};
+use std::collections::hash_map::RandomState;
 
 impl<K, S> ParallelExtend<K> for DashSet<K, S>
 where

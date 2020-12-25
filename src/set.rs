@@ -5,12 +5,12 @@ use crate::setref::one::Ref;
 use crate::DashMap;
 #[cfg(feature = "raw-api")]
 use crate::HashMap;
-use std::collections::hash_map::RandomState;
 use cfg_if::cfg_if;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
 use core::iter::FromIterator;
+use std::collections::hash_map::RandomState;
 
 /// DashSet is a thin wrapper around [`DashMap`] using `()` as the value type. It uses
 /// methods and types which are more convenient to work with on a set.

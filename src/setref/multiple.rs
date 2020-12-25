@@ -1,7 +1,7 @@
 use crate::mapref;
-use std::collections::hash_map::RandomState;
 use core::hash::{BuildHasher, Hash};
 use core::ops::Deref;
+use std::collections::hash_map::RandomState;
 pub struct RefMulti<'a, K, S = RandomState> {
     inner: mapref::multiple::RefMulti<'a, K, (), S>,
 }

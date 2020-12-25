@@ -19,7 +19,6 @@ pub mod rayon {
     pub mod set;
 }
 
-use std::collections::hash_map::RandomState;
 use cfg_if::cfg_if;
 use core::borrow::Borrow;
 use core::fmt;
@@ -33,6 +32,7 @@ use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
 pub use read_only::ReadOnlyView;
 pub use set::DashSet;
+use std::collections::hash_map::RandomState;
 pub use t::Map;
 
 cfg_if! {

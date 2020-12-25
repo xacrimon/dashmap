@@ -2,10 +2,10 @@ use crate::lock::RwLock;
 use crate::mapref::multiple::{RefMulti, RefMutMulti};
 use crate::util;
 use crate::{DashMap, HashMap};
-use ahash::RandomState;
 use core::hash::{BuildHasher, Hash};
 use rayon::iter::plumbing::UnindexedConsumer;
 use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, ParallelIterator};
+use std::collections::hash_map::RandomState;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "no_std")] {

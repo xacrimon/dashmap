@@ -3,10 +3,10 @@ use crate::lock::RwLockWriteGuard;
 use crate::util;
 use crate::util::SharedValue;
 use crate::HashMap;
-use std::collections::hash_map::RandomState;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 use core::ptr;
+use std::collections::hash_map::RandomState;
 
 pub enum Entry<'a, K, V, S = RandomState> {
     Occupied(OccupiedEntry<'a, K, V, S>),

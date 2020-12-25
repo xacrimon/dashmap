@@ -1,9 +1,9 @@
 use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
-use std::collections::hash_map::RandomState;
 use core::hash::BuildHasher;
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
+use std::collections::hash_map::RandomState;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "no_std")] {
