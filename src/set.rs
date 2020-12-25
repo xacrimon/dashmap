@@ -16,7 +16,6 @@ use core::iter::FromIterator;
 /// methods and types which are more convenient to work with on a set.
 ///
 /// [`DashMap`]: struct.DashMap.html
-
 pub struct DashSet<K, S = RandomState> {
     pub(crate) inner: DashMap<K, (), S>,
 }
@@ -60,7 +59,6 @@ impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
     /// let games = DashSet::new();
     /// games.insert("Veloren");
     /// ```
-
     pub fn new() -> Self {
         Self::with_hasher(RandomState::default())
     }
@@ -76,7 +74,6 @@ impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
     /// numbers.insert(2);
     /// numbers.insert(8);
     /// ```
-
     pub fn with_capacity(capacity: usize) -> Self {
         Self::with_capacity_and_hasher(capacity, RandomState::default())
     }
@@ -95,7 +92,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// let games = DashSet::with_hasher(s);
     /// games.insert("Veloren");
     /// ```
-
     pub fn with_hasher(hasher: S) -> Self {
         Self::with_capacity_and_hasher(0, hasher)
     }
@@ -113,7 +109,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// numbers.insert(2);
     /// numbers.insert(8);
     /// ```
-
     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self {
             inner: DashMap::with_capacity_and_hasher(capacity, hasher),
@@ -122,7 +117,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
 
     /// Hash a given item to produce a usize.
     /// Uses the provided or default HashBuilder.
-
     pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
         self.inner.hash_usize(item)
     }
@@ -142,7 +136,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             /// let set = DashSet::<()>::new();
             /// println!("Amount of shards: {}", set.shards().len());
             /// ```
-
             pub fn shards(&self) -> &[RwLock<HashMap<K, (), S>>] {
                 self.inner.shards()
             }
@@ -166,7 +159,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             /// set.insert("coca-cola");
             /// println!("coca-cola is stored in shard: {}", set.determine_map("coca-cola"));
             /// ```
-
             pub fn determine_map<Q>(&self, key: &Q) -> usize
             where
                 K: Borrow<Q>,
@@ -193,7 +185,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             /// let hash = set.hash_usize(&key);
             /// println!("hash is stored in shard: {}", set.determine_shard(hash));
             /// ```
-
             pub fn determine_shard(&self, hash: usize) -> usize {
                 self.inner.determine_shard(hash)
             }
@@ -210,7 +201,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// let set = DashSet::new();
     /// set.insert("I am the key!");
     /// ```
-
     pub fn insert(&self, key: K) -> bool {
         self.inner.insert(key, ()).is_none()
     }
@@ -226,7 +216,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// soccer_team.insert("Jack");
     /// assert_eq!(soccer_team.remove("Jack").unwrap(), "Jack");
     /// ```
-
     pub fn remove<Q>(&self, key: &Q) -> Option<K>
     where
         K: Borrow<Q>,
@@ -254,7 +243,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// soccer_team.remove_if("Jacob", |player| player.starts_with("Ja"));
     /// assert!(!soccer_team.contains("Jacob"));
     /// ```
-
     pub fn remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K) -> bool) -> Option<K>
     where
         K: Borrow<Q>,
@@ -275,7 +263,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// words.insert("hello");
     /// assert_eq!(words.iter().count(), 1);
     /// ```
-
     pub fn iter(&'a self) -> Iter<'a, K, S, DashMap<K, (), S>> {
         let iter = self.inner.iter();
 
@@ -293,7 +280,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// youtubers.insert("Bosnian Bill");
     /// assert_eq!(*youtubers.get("Bosnian Bill").unwrap(), "Bosnian Bill");
     /// ```
-
     pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, S>>
     where
         K: Borrow<Q>,
@@ -303,7 +289,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     }
 
     /// Remove excess capacity to reduce memory usage.
-
     pub fn shrink_to_fit(&self) {
         self.inner.shrink_to_fit()
     }
@@ -323,9 +308,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// people.retain(|name| name.contains('i'));
     /// assert_eq!(people.len(), 2);
     /// ```
-
     pub fn retain(&self, mut f: impl FnMut(&K) -> bool) {
-        // TODO: Don't create another closure
         self.inner.retain(|k, _| f(k))
     }
 
@@ -342,7 +325,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// people.insert("Charlie");
     /// assert_eq!(people.len(), 3);
     /// ```
-
     pub fn len(&self) -> usize {
         self.inner.len()
     }
@@ -357,7 +339,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// let map = DashSet::<()>::new();
     /// assert!(map.is_empty());
     /// ```
-
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
@@ -375,13 +356,11 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// people.clear();
     /// assert!(people.is_empty());
     /// ```
-
     pub fn clear(&self) {
         self.inner.clear()
     }
 
     /// Returns how many keys the set can store without reallocating.
-
     pub fn capacity(&self) -> usize {
         self.inner.capacity()
     }
@@ -397,7 +376,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// people.insert("Dakota Cherries");
     /// assert!(people.contains("Dakota Cherries"));
     /// ```
-
     pub fn contains<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
@@ -436,13 +414,10 @@ impl<K: Eq + Hash> FromIterator<K> for DashSet<K, RandomState> {
 }
 
 #[cfg(test)]
-
 mod tests {
-
     use crate::DashSet;
 
     #[test]
-
     fn test_basic() {
         let set = DashSet::new();
 
@@ -452,7 +427,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_default() {
         let set: DashSet<u32> = DashSet::default();
 
@@ -462,7 +436,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_multiple_hashes() {
         let set = DashSet::<u32>::default();
 

@@ -6,7 +6,6 @@ use core::fmt;
 use core::hash::{BuildHasher, Hash};
 
 /// A read-only view into a `DashMap`. Allows to obtain raw references to the stored values.
-
 pub struct ReadOnlyView<K, V, S = RandomState> {
     map: DashMap<K, V, S>,
 }
@@ -33,7 +32,6 @@ impl<K, V, S> ReadOnlyView<K, V, S> {
     }
 
     /// Consumes this `ReadOnlyView`, returning the underlying `DashMap`.
-
     pub fn into_inner(self) -> DashMap<K, V, S> {
         self.map
     }
@@ -41,25 +39,21 @@ impl<K, V, S> ReadOnlyView<K, V, S> {
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S> {
     /// Returns the number of elements in the map.
-
     pub fn len(&self) -> usize {
         self.map.len()
     }
 
     /// Returns `true` if the map contains no elements.
-
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
 
     /// Returns the number of elements the map can hold without reallocating.
-
     pub fn capacity(&self) -> usize {
         self.map.capacity()
     }
 
     /// Returns `true` if the map contains a value for the specified key.
-
     pub fn contains_key<Q>(&'a self, key: &Q) -> bool
     where
         K: Borrow<Q>,
@@ -75,7 +69,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     }
 
     /// Returns a reference to the value corresponding to the key.
-
     pub fn get<Q>(&'a self, key: &Q) -> Option<&'a V>
     where
         K: Borrow<Q>,
@@ -91,7 +84,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     }
 
     /// Returns the key-value pair corresponding to the supplied key.
-
     pub fn get_key_value<Q>(&'a self, key: &Q) -> Option<(&'a K, &'a V)>
     where
         K: Borrow<Q>,
@@ -112,7 +104,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order. The iterator element type is `(&'a K, &'a V)`.
-
     pub fn iter(&'a self) -> impl Iterator<Item = (&'a K, &'a V)> + 'a {
         self.shard_read_iter()
             .flat_map(|shard| shard.iter())
@@ -120,13 +111,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     }
 
     /// An iterator visiting all keys in arbitrary order. The iterator element type is `&'a K`.
-
     pub fn keys(&'a self) -> impl Iterator<Item = &'a K> + 'a {
         self.shard_read_iter().flat_map(|shard| shard.keys())
     }
 
     /// An iterator visiting all values in arbitrary order. The iterator element type is `&'a V`.
-
     pub fn values(&'a self) -> impl Iterator<Item = &'a V> + 'a {
         self.shard_read_iter()
             .flat_map(|shard| shard.values())

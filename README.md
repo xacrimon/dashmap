@@ -47,6 +47,9 @@ Do not hesitate to open issues or PR's.
 
 I will take a look as soon as I have time for it.
 
+That said I do not get paid (yet) to work on open-source. This means
+that my time is limited and my work here comes after my personal life.
+
 ## Performance
 
 A comprehensive benchmark suite including DashMap can be found [here](https://github.com/xacrimon/conc-map-bench).

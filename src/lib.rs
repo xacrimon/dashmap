@@ -71,7 +71,6 @@ fn ncb(shard_amount: usize) -> usize {
 /// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V, S>>`.
 /// To accomplish these all methods take `&self` instead modifying methods taking `&mut self`.
 /// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
-
 pub struct DashMap<K, V, S = RandomState> {
     shift: usize,
     shards: Box<[RwLock<HashMap<K, V, S>>]>,
@@ -117,7 +116,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     /// let reviews = DashMap::new();
     /// reviews.insert("Veloren", "What a fantastic game!");
     /// ```
-
     pub fn new() -> Self {
         DashMap::with_hasher(RandomState::default())
     }
@@ -133,7 +131,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
-
     pub fn with_capacity(capacity: usize) -> Self {
         DashMap::with_capacity_and_hasher(capacity, RandomState::default())
     }
@@ -141,7 +138,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Wraps this `DashMap` into a read-only view. This view allows to obtain raw references to the stored values.
-
     pub fn into_read_only(self) -> ReadOnlyView<K, V, S> {
         ReadOnlyView::new(self)
     }
@@ -158,7 +154,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// let reviews = DashMap::with_hasher(s);
     /// reviews.insert("Veloren", "What a fantastic game!");
     /// ```
-
     pub fn with_hasher(hasher: S) -> Self {
         Self::with_capacity_and_hasher(0, hasher)
     }
@@ -176,7 +171,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
-
     pub fn with_capacity_and_hasher(mut capacity: usize, hasher: S) -> Self {
         let shard_amount = shard_amount();
         let shift = util::ptr_size_bits() - ncb(shard_amount);
@@ -200,7 +194,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Hash a given item to produce a usize.
     /// Uses the provided or default HashBuilder.
-
     pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
         let mut hasher = self.hasher.build_hasher();
 
@@ -224,13 +217,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// let map = DashMap::<(), ()>::new();
             /// println!("Amount of shards: {}", map.shards().len());
             /// ```
-
             pub fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
                 &self.shards
             }
         } else {
             #[allow(dead_code)]
-
             pub(crate) fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
                 &self.shards
             }
@@ -254,7 +245,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// map.insert("coca-cola", 1.4);
             /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
             /// ```
-
             pub fn determine_map<Q>(&self, key: &Q) -> usize
             where
                 K: Borrow<Q>,
@@ -282,7 +272,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// let hash = map.hash_usize(&key);
             /// println!("hash is stored in shard: {}", map.determine_shard(hash));
             /// ```
-
             pub fn determine_shard(&self, hash: usize) -> usize {
                 // Leave the high 7 bits for the HashBrown SIMD tag.
                 (hash << 7) >> self.shift
@@ -310,7 +299,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     ///
     /// [`BuildHasher`]: https://doc.rust-lang.org/std/hash/trait.BuildHasher.html
-
     pub fn hasher(&self) -> &S {
         &self.hasher
     }
@@ -327,7 +315,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// let map = DashMap::new();
     /// map.insert("I am the key!", "And I am the value!");
     /// ```
-
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         self._insert(key, value)
     }
@@ -345,7 +332,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// soccer_team.insert("Jack", "Goalie");
     /// assert_eq!(soccer_team.remove("Jack").unwrap().1, "Goalie");
     /// ```
-
     pub fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
         K: Borrow<Q>,
@@ -375,7 +361,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// soccer_team.remove_if("Sam", |_, position| position == &"Forward");
     /// assert!(!soccer_team.contains_key("Sam"));
     /// ```
-
     pub fn remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
     where
         K: Borrow<Q>,
@@ -397,7 +382,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// words.insert("hello", "world");
     /// assert_eq!(words.iter().count(), 1);
     /// ```
-
     pub fn iter(&'a self) -> Iter<'a, K, V, S, DashMap<K, V, S>> {
         self._iter()
     }
@@ -416,7 +400,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// map.iter_mut().for_each(|mut r| *r += 1);
     /// assert_eq!(*map.get("Johnny").unwrap(), 22);
     /// ```
-
     pub fn iter_mut(&'a self) -> IterMut<'a, K, V, S, DashMap<K, V, S>> {
         self._iter_mut()
     }
@@ -434,7 +417,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// youtubers.insert("Bosnian Bill", 457000);
     /// assert_eq!(*youtubers.get("Bosnian Bill").unwrap(), 457000);
     /// ```
-
     pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V, S>>
     where
         K: Borrow<Q>,
@@ -457,7 +439,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// *class.get_mut("Albin").unwrap() -= 1;
     /// assert_eq!(*class.get("Albin").unwrap(), 14);
     /// ```
-
     pub fn get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V, S>>
     where
         K: Borrow<Q>,
@@ -469,7 +450,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Remove excess capacity to reduce memory usage.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
-
     pub fn shrink_to_fit(&self) {
         self._shrink_to_fit();
     }
@@ -491,7 +471,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// people.retain(|_, v| *v > 20);
     /// assert_eq!(people.len(), 2);
     /// ```
-
     pub fn retain(&self, f: impl FnMut(&K, &mut V) -> bool) {
         self._retain(f);
     }
@@ -511,7 +490,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// people.insert("Charlie", 27);
     /// assert_eq!(people.len(), 3);
     /// ```
-
     pub fn len(&self) -> usize {
         self._len()
     }
@@ -528,7 +506,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// let map = DashMap::<(), ()>::new();
     /// assert!(map.is_empty());
     /// ```
-
     pub fn is_empty(&self) -> bool {
         self._is_empty()
     }
@@ -548,7 +525,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// stats.clear();
     /// assert!(stats.is_empty());
     /// ```
-
     pub fn clear(&self) {
         self._clear();
     }
@@ -556,7 +532,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Returns how many key-value pairs the map can store without reallocating.
     ///
     /// **Locking behaviour:** May deadlock if called when holding a mutable reference into the map.
-
     pub fn capacity(&self) -> usize {
         self._capacity()
     }
@@ -579,7 +554,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Panics
     ///
     /// If the given closure panics, then `alter` will abort the process
-
     pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
         K: Borrow<Q>,
@@ -608,7 +582,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Panics
     ///
     /// If the given closure panics, then `alter_all` will abort the process
-
     pub fn alter_all(&self, f: impl FnMut(&K, V) -> V) {
         self._alter_all(f);
     }
@@ -626,7 +599,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// team_sizes.insert("Dakota Cherries", 23);
     /// assert!(team_sizes.contains_key("Dakota Cherries"));
     /// ```
-
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
@@ -639,7 +611,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// See the documentation on `dashmap::mapref::entry` for more details.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
-
     pub fn entry(&'a self, key: K) -> Entry<'a, K, V, S> {
         self._entry(key)
     }
@@ -946,9 +917,7 @@ impl<K: Eq + Hash, V> FromIterator<(K, V)> for DashMap<K, V, RandomState> {
 }
 
 #[cfg(test)]
-
 mod tests {
-
     use crate::DashMap;
 
     cfg_if::cfg_if! {
@@ -961,7 +930,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_basic() {
         let dm = DashMap::new();
 
@@ -971,7 +939,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_default() {
         let dm: DashMap<u32, u32> = DashMap::default();
 
@@ -981,7 +948,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_multiple_hashes() {
         let dm: DashMap<u32, u32> = DashMap::default();
 
@@ -1005,7 +971,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_more_complex_values() {
         #[derive(Hash, PartialEq, Debug, Clone)]
 
@@ -1031,7 +996,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_different_hashers_randomstate() {
         let dm_hm_default: DashMap<u32, u32, RandomState> =
             DashMap::with_hasher(RandomState::new());

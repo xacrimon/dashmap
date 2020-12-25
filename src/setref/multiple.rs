@@ -2,7 +2,6 @@ use crate::mapref;
 use ahash::RandomState;
 use core::hash::{BuildHasher, Hash};
 use core::ops::Deref;
-
 pub struct RefMulti<'a, K, S = RandomState> {
     inner: mapref::multiple::RefMulti<'a, K, (), S>,
 }

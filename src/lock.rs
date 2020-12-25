@@ -19,7 +19,6 @@ const UPGRADED: usize = 1 << 1;
 const WRITER: usize = 1;
 
 #[derive(Debug)]
-
 pub struct RwLockReadGuard<'a, T: 'a + ?Sized> {
     lock: &'a AtomicUsize,
     data: NonNull<T>,
@@ -30,7 +29,6 @@ unsafe impl<'a, T: Send> Send for RwLockReadGuard<'a, T> {}
 unsafe impl<'a, T: Sync> Sync for RwLockReadGuard<'a, T> {}
 
 #[derive(Debug)]
-
 pub struct RwLockWriteGuard<'a, T: 'a + ?Sized> {
     lock: &'a AtomicUsize,
     data: NonNull<T>,
@@ -43,7 +41,6 @@ unsafe impl<'a, T: Send> Send for RwLockWriteGuard<'a, T> {}
 unsafe impl<'a, T: Sync> Sync for RwLockWriteGuard<'a, T> {}
 
 #[derive(Debug)]
-
 pub struct RwLockUpgradeableGuard<'a, T: 'a + ?Sized> {
     lock: &'a AtomicUsize,
     data: NonNull<T>,
@@ -101,7 +98,6 @@ impl<T: ?Sized> RwLock<T> {
     /// # Safety
     ///
     /// This is only safe if the lock is currently locked in read mode and the number of readers is not 0.
-
     pub unsafe fn force_read_decrement(&self) {
         debug_assert!(self.lock.load(Ordering::Relaxed) & !WRITER > 0);
 
@@ -111,7 +107,6 @@ impl<T: ?Sized> RwLock<T> {
     /// # Safety
     ///
     /// The lock must be locked in write mode.
-
     pub unsafe fn force_write_unlock(&self) {
         debug_assert_eq!(self.lock.load(Ordering::Relaxed) & !(WRITER | UPGRADED), 0);
 
@@ -334,9 +329,7 @@ fn compare_exchange(
 }
 
 #[cfg(test)]
-
 mod tests {
-
     use super::*;
     use std::prelude::v1::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -345,20 +338,14 @@ mod tests {
     use std::thread;
 
     #[derive(Eq, PartialEq, Debug)]
-
     struct NonCopy(i32);
 
     #[test]
-
     fn smoke() {
         let l = RwLock::new(());
-
         drop(l.read());
-
         drop(l.write());
-
         drop((l.read(), l.read()));
-
         drop(l.write());
     }
 
@@ -366,9 +353,7 @@ mod tests {
     #[test]
     fn test_rw_arc() {
         let arc = Arc::new(RwLock::new(0));
-
         let arc2 = arc.clone();
-
         let (tx, rx) = channel();
 
         thread::spawn(move || {
@@ -376,11 +361,8 @@ mod tests {
 
             for _ in 0..10 {
                 let tmp = *lock;
-
                 *lock = -1;
-
                 thread::yield_now();
-
                 *lock = tmp + 1;
             }
 
@@ -394,7 +376,6 @@ mod tests {
 
             children.push(thread::spawn(move || {
                 let lock = arc3.read();
-
                 assert!(*lock >= 0);
             }));
         }
@@ -404,9 +385,7 @@ mod tests {
         }
 
         rx.recv().unwrap();
-
         let lock = arc.read();
-
         assert_eq!(*lock, 10);
     }
 
@@ -414,7 +393,6 @@ mod tests {
     #[test]
     fn test_rw_access_in_unwind() {
         let arc = Arc::new(RwLock::new(1));
-
         let arc2 = arc.clone();
 
         let _ = thread::spawn(move || {
@@ -437,20 +415,16 @@ mod tests {
         .join();
 
         let lock = arc.read();
-
         assert_eq!(*lock, 2);
     }
 
     #[test]
-
     fn test_rwlock_unsized() {
         let rw: &RwLock<[i32]> = &RwLock::new([1, 2, 3]);
 
         {
             let b = &mut *rw.write();
-
             b[0] = 4;
-
             b[2] = 5;
         }
 
@@ -460,14 +434,11 @@ mod tests {
     }
 
     #[test]
-
     fn test_rwlock_try_write() {
         use std::mem::drop;
 
         let lock = RwLock::new(0isize);
-
         let read_guard = lock.read();
-
         let write_result = lock.try_write();
 
         match write_result {
@@ -479,7 +450,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_rw_try_read() {
         let m = RwLock::new(0);
 
@@ -489,7 +459,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_into_inner() {
         let m = RwLock::new(NonCopy(10));
 
@@ -497,7 +466,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_into_inner_drop() {
         struct Foo(Arc<AtomicUsize>);
 
@@ -508,14 +476,11 @@ mod tests {
         }
 
         let num_drops = Arc::new(AtomicUsize::new(0));
-
         let m = RwLock::new(Foo(num_drops.clone()));
-
         assert_eq!(num_drops.load(Ordering::SeqCst), 0);
 
         {
             let _inner = m.into_inner();
-
             assert_eq!(num_drops.load(Ordering::SeqCst), 0);
         }
 
@@ -523,21 +488,15 @@ mod tests {
     }
 
     #[test]
-
     fn test_force_read_decrement() {
         let m = RwLock::new(());
-
         ::std::mem::forget(m.read());
-
         ::std::mem::forget(m.read());
-
         ::std::mem::forget(m.read());
-
         assert!(m.try_write().is_none());
 
         unsafe {
             m.force_read_decrement();
-
             m.force_read_decrement();
         }
 
@@ -551,7 +510,6 @@ mod tests {
     }
 
     #[test]
-
     fn test_force_write_unlock() {
         let m = RwLock::new(());
 
@@ -567,39 +525,28 @@ mod tests {
     }
 
     #[test]
-
     fn test_upgrade_downgrade() {
         let m = RwLock::new(());
 
         {
             let _r = m.read();
-
             let upg = m.try_upgradeable_read().unwrap();
-
             assert!(m.try_read().is_none());
-
             assert!(m.try_write().is_none());
-
             assert!(upg.try_upgrade().is_err());
         }
 
         {
             let w = m.write();
-
             assert!(m.try_upgradeable_read().is_none());
-
             let _r = w.downgrade();
-
             assert!(m.try_upgradeable_read().is_some());
-
             assert!(m.try_read().is_some());
-
             assert!(m.try_write().is_none());
         }
 
         {
             let _u = m.upgradeable_read();
-
             assert!(m.try_upgradeable_read().is_none());
         }
 
