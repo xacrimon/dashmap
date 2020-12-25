@@ -18,7 +18,7 @@ use core::iter::FromIterator;
 /// [`DashMap`]: struct.DashMap.html
 
 pub struct DashSet<K, S = RandomState> {
-    inner: DashMap<K, (), S>,
+    pub(crate) inner: DashMap<K, (), S>,
 }
 
 impl<K: Eq + Hash + fmt::Debug, S: BuildHasher + Clone> fmt::Debug for DashSet<K, S> {
