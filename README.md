@@ -58,7 +58,7 @@ A comprehensive benchmark suite including DashMap can be found [here](https://gi
 
 - [Jon Gjengset](https://github.com/jonhoo)
 
-- [Krishna Sannasi](https://github.com/KrishnaSannasi) 
+- [Yato](https://github.com/RustyYato) 
 
 - [Karl Bergström](https://github.com/kabergstrom)
 
