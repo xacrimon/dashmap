@@ -168,6 +168,8 @@ impl<T: ?Sized> RwLock<T> {
         }
     }
 
+    /// # Safety
+    /// Write locks may not be used in combination with this method.
     pub unsafe fn get(&self) -> &T {
         &*self.data.get()
     }
