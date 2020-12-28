@@ -23,6 +23,8 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 [![minimum rustc version](https://img.shields.io/badge/rustc-1.44.1-orange.svg)](https://crates.io/crates/dashmap)
 
 ## Cargo features
+- `contents-view` - Enables the `ContentsView` type, which provides raw access to the contents of
+   the map while allowing append-only mutation.
 
 - `serde` - Enables serde support.
 
