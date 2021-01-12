@@ -18,6 +18,9 @@ pub mod rayon {
     pub mod set;
 }
 
+#[cfg(feature = "contents-view")]
+mod contents_view;
+
 use cfg_if::cfg_if;
 use core::borrow::Borrow;
 use core::fmt;
@@ -33,6 +36,9 @@ pub use read_only::ReadOnlyView;
 pub use set::DashSet;
 use std::collections::hash_map::RandomState;
 pub use t::Map;
+
+#[cfg(feature = "contents-view")]
+pub use contents_view::ContentsView;
 
 cfg_if! {
     if #[cfg(feature = "raw-api")] {
@@ -132,6 +138,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Wraps this `DashMap` into a read-only view. This view allows to obtain raw references to the stored values.
     pub fn into_read_only(self) -> ReadOnlyView<K, V, S> {
         ReadOnlyView::new(self)
+    }
+
+    #[cfg(feature = "contents-view")]
+    pub fn into_contents_view(self) -> ContentsView<K, V, S> {
+        ContentsView::new(self)
     }
 
     /// Creates a new DashMap with a capacity of 0 and the provided hasher.
