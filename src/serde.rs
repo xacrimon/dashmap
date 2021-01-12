@@ -1,8 +1,8 @@
 use crate::{DashMap, DashSet};
 use core::fmt;
 use core::hash::Hash;
+use core::marker::PhantomData;
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
-use serde::export::PhantomData;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde::Deserializer;
 
