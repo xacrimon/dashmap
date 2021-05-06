@@ -1,5 +1,3 @@
-#![allow(clippy::type_complexity)]
-
 pub mod iter;
 pub mod iter_set;
 pub mod lock;

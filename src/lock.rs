@@ -1,11 +1,12 @@
 use core::cell::UnsafeCell;
 use core::default::Default;
 use core::fmt;
+use core::hint::spin_loop as cpu_relax;
 use core::marker::PhantomData;
 use core::mem;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
-use core::sync::atomic::{spin_loop_hint as cpu_relax, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct RwLock<T: ?Sized> {
     lock: AtomicUsize,
