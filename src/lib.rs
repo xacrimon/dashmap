@@ -1,5 +1,6 @@
 pub mod iter;
 pub mod iter_set;
+#[cfg(not(feature = "parking_lot"))]
 pub mod lock;
 pub mod mapref;
 mod read_only;
@@ -23,10 +24,13 @@ use core::hash::{BuildHasher, Hash, Hasher};
 use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use iter::{Iter, IterMut, OwningIter};
+#[cfg(not(feature = "parking_lot"))]
 use lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
+#[cfg(feature = "parking_lot")]
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 pub use read_only::ReadOnlyView;
 pub use set::DashSet;
 use std::collections::hash_map::RandomState;
@@ -613,10 +617,18 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         self.shards.len()
     }
 
+    #[cfg(not(feature = "parking_lot"))]
     unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V, S> {
         debug_assert!(i < self.shards.len());
 
         self.shards.get_unchecked(i).get()
+    }
+
+    #[cfg(feature = "parking_lot")]
+    unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V, S> {
+        debug_assert!(i < self.shards.len());
+
+        &*self.shards.get_unchecked(i).data_ptr()
     }
 
     unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, S>> {
