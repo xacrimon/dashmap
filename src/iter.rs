@@ -1,11 +1,14 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use super::util;
+#[cfg(not(feature = "parking_lot"))]
 use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::t::Map;
 use crate::util::SharedValue;
 use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
 use core::mem;
+#[cfg(feature = "parking_lot")]
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::collections::hash_map;
 use std::collections::hash_map::RandomState;
 use std::sync::Arc;
