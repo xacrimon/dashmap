@@ -403,9 +403,9 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for DashSet<K, S> {
     }
 }
 
-impl<K: Eq + Hash> FromIterator<K> for DashSet<K, RandomState> {
+impl<K: Eq + Hash, S: BuildHasher + Clone + Default> FromIterator<K> for DashSet<K, S> {
     fn from_iter<I: IntoIterator<Item = K>>(iter: I) -> Self {
-        let mut set = DashSet::new();
+        let mut set = DashSet::default();
 
         set.extend(iter);
 
