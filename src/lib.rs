@@ -578,6 +578,25 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._alter_all(f);
     }
 
+    /// Scoped access into an item of the map according to a function.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let warehouse = DashMap::new();
+    /// warehouse.insert(4267, ("Banana", 100));
+    /// warehouse.insert(2359, ("Pear", 120));
+    /// let fruit = warehouse.view(&4267, |_k, v| *v);
+    /// assert_eq!(fruit, Some(("Banana", 100)));
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// If the given closure panics, then `view` will abort the process
     pub fn view<Q, R>(&self, key: &Q, f: impl FnOnce(&K, &V) -> R) -> Option<R>
     where
         K: Borrow<Q>,
