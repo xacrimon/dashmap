@@ -578,6 +578,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._alter_all(f);
     }
 
+    pub fn view<Q, R>(&self, key: &Q, f: impl FnOnce(&K, &V) -> R) -> Option<R>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self._view(key, f)
+    }
+
     /// Checks if the map contains a specific key.
     ///
     /// **Locking behaviour:** May deadlock if called when holding a mutable reference into the map.
@@ -771,6 +779,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
                 .iter_mut()
                 .for_each(|(k, v)| util::map_in_place_2((k, v.get_mut()), &mut f));
         });
+    }
+
+    fn _view<Q, R>(&self, key: &Q, f: impl FnOnce(&K, &V) -> R) -> Option<R>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.get(key).map(|r| {
+            let (k, v) = r.pair();
+            f(k, v)
+        })
     }
 
     fn _entry(&'a self, key: K) -> Entry<'a, K, V, S> {
@@ -989,5 +1008,43 @@ mod tests {
 
             assert_eq!(i, *dm_hm_default.get(&i).unwrap().value());
         }
+    }
+
+    #[test]
+    fn test_map_view() {
+        let dm = DashMap::new();
+
+        let vegetables: [String; 4] = [
+            "Salad".to_string(),
+            "Beans".to_string(),
+            "Potato".to_string(),
+            "Tomato".to_string(),
+        ];
+
+        // Give it some values
+        dm.insert(0, "Banana".to_string());
+        dm.insert(4, "Pear".to_string());
+        dm.insert(9, "Potato".to_string());
+        dm.insert(12, "Chicken".to_string());
+
+        let potato_vegetableness = dm.view(&9, |_, v| {
+            let is_vegetable = vegetables.contains(v);
+
+            is_vegetable
+        });
+
+        assert_eq!(potato_vegetableness, Some(true));
+
+        let chicken_vegetableness = dm.view(&12, |_, v| {
+            let is_vegetable = vegetables.contains(v);
+
+            is_vegetable
+        });
+
+        assert_eq!(chicken_vegetableness, Some(false));
+
+        let not_in_map = dm.view(&30, |_k, _v| false);
+
+        assert_eq!(not_in_map, None);
     }
 }
