@@ -20,7 +20,7 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 [![downloads](https://img.shields.io/crates/d/dashmap)](https://crates.io/crates/dashmap)
 
-[![minimum rustc version](https://img.shields.io/badge/rustc-1.44.1-orange.svg)](https://crates.io/crates/dashmap)
+[![minimum rustc version](https://img.shields.io/badge/rustc-1.49-orange.svg)](https://crates.io/crates/dashmap)
 
 ## Cargo features
 
