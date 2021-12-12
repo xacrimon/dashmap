@@ -1,6 +1,6 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use super::util;
-use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use crate::t::Map;
 use crate::util::SharedValue;
 use crate::{DashMap, HashMap};

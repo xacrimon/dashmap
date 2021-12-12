@@ -1,6 +1,6 @@
 use crate::iter_set::{Iter, OwningIter};
 #[cfg(feature = "raw-api")]
-use crate::lock::RwLock;
+use parking_lot::RwLock;
 use crate::setref::one::Ref;
 use crate::DashMap;
 #[cfg(feature = "raw-api")]

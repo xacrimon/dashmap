@@ -1,7 +1,7 @@
 //! Central map trait to ease modifications and extensions down the road.
 
 use crate::iter::{Iter, IterMut};
-use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use crate::mapref::entry::Entry;
 use crate::mapref::one::{Ref, RefMut};
 use crate::HashMap;

@@ -1,4 +1,4 @@
-use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
 use core::hash::BuildHasher;
 use core::hash::Hash;

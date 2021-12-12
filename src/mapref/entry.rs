@@ -1,5 +1,5 @@
 use super::one::RefMut;
-use crate::lock::RwLockWriteGuard;
+use parking_lot::RwLockWriteGuard;
 use crate::util;
 use crate::util::SharedValue;
 use crate::HashMap;
