@@ -1,12 +1,12 @@
 //! Central map trait to ease modifications and extensions down the road.
 
 use crate::iter::{Iter, IterMut};
-use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use crate::mapref::entry::Entry;
 use crate::mapref::one::{Ref, RefMut};
 use crate::HashMap;
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 
 /// Implementation detail that is exposed due to generic constraints in public types.
 pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {

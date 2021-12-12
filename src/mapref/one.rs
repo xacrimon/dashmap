@@ -1,7 +1,7 @@
-use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
 use core::hash::{BuildHasher, Hash};
 use core::ops::{Deref, DerefMut};
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::collections::hash_map::RandomState;
 
 // -- Shared
@@ -93,7 +93,11 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
     }
 
     pub fn downgrade(self) -> Ref<'a, K, V, S> {
-        Ref::new(parking_lot::RwLockWriteGuard::downgrade(self.guard), self.k, self.v)
+        Ref::new(
+            parking_lot::RwLockWriteGuard::downgrade(self.guard),
+            self.k,
+            self.v,
+        )
     }
 }
 
