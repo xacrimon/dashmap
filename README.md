@@ -30,16 +30,6 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - `rayon` - Enables rayon support.
 
-## Support me
-
-[![Foo](https://c5.patreon.com/external/logo/become_a_patron_button@2x.png)](https://patreon.com/acrimon)
-
-Creating and testing open-source software like DashMap takes up a large portion of my time
-and comes with costs such as test hardware. Please consider supporting me and everything I make for the public
-to enable me to continue doing this.
-
-If you want to support me please head over and take a look at my [patreon](https://www.patreon.com/acrimon).
-
 ## Contributing
 
 DashMap is gladly accepts contributions!
