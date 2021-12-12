@@ -361,6 +361,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._remove_if(key, f)
     }
 
+    pub fn remove_if_mut<Q>(&self, key: &Q, f: impl FnOnce(&K, &mut V) -> bool) -> Option<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self._remove_if_mut(key, f)
+    }
+
     /// Creates an iterator over a DashMap yielding immutable references.
     ///
     /// **Locking behaviour:** May deadlock if called when holding a mutable reference into the map.
@@ -702,6 +710,34 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
                 shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
             } else {
                 None
+            }
+        } else {
+            None
+        }
+    }
+
+    fn _remove_if_mut<Q>(&self, key: &Q, f: impl FnOnce(&K, &mut V) -> bool) -> Option<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        let hash = self.hash_usize(&key);
+
+        let idx = self.determine_shard(hash);
+
+        let mut shard = unsafe { self._yield_write_shard(idx) };
+
+        if let Some((kptr, vptr)) = shard.get_key_value(&key) {
+            unsafe {
+                let kptr = util::change_lifetime_const(kptr);
+
+                let vptr = &mut *vptr.as_ptr();
+
+                if f(kptr, vptr) {
+                    shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
+                } else {
+                    None
+                }
             }
         } else {
             None
