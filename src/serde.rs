@@ -1,18 +1,19 @@
 use crate::{DashMap, DashSet};
 use core::fmt;
-use core::hash::Hash;
+use core::hash::{Hash, BuildHasher};
 use core::marker::PhantomData;
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde::Deserializer;
 
-pub struct DashMapVisitor<K, V> {
-    marker: PhantomData<fn() -> DashMap<K, V>>,
+pub struct DashMapVisitor<K, V, S> {
+    marker: PhantomData<fn() -> DashMap<K, V, S>>,
 }
 
-impl<K, V> DashMapVisitor<K, V>
+impl<K, V, S> DashMapVisitor<K, V, S>
 where
     K: Eq + Hash,
+    S: BuildHasher + Clone,
 {
     fn new() -> Self {
         DashMapVisitor {
@@ -21,12 +22,13 @@ where
     }
 }
 
-impl<'de, K, V> Visitor<'de> for DashMapVisitor<K, V>
+impl<'de, K, V, S> Visitor<'de> for DashMapVisitor<K, V, S>
 where
     K: Deserialize<'de> + Eq + Hash,
     V: Deserialize<'de>,
+    S: BuildHasher + Clone + Default,
 {
-    type Value = DashMap<K, V>;
+    type Value = DashMap<K, V, S>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a DashMap")
@@ -36,7 +38,7 @@ where
     where
         M: MapAccess<'de>,
     {
-        let map = DashMap::with_capacity(access.size_hint().unwrap_or(0));
+        let map = DashMap::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
 
         while let Some((key, value)) = access.next_entry()? {
             map.insert(key, value);
@@ -46,23 +48,25 @@ where
     }
 }
 
-impl<'de, K, V> Deserialize<'de> for DashMap<K, V>
+impl<'de, K, V, S> Deserialize<'de> for DashMap<K, V, S>
 where
     K: Deserialize<'de> + Eq + Hash,
     V: Deserialize<'de>,
+    S: BuildHasher + Clone + Default,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_map(DashMapVisitor::<K, V>::new())
+        deserializer.deserialize_map(DashMapVisitor::<K, V, S>::new())
     }
 }
 
-impl<K, V> Serialize for DashMap<K, V>
+impl<K, V, H> Serialize for DashMap<K, V, H>
 where
     K: Serialize + Eq + Hash,
     V: Serialize,
+    H: BuildHasher + Clone,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -78,13 +82,14 @@ where
     }
 }
 
-pub struct DashSetVisitor<K> {
-    marker: PhantomData<fn() -> DashSet<K>>,
+pub struct DashSetVisitor<K, S> {
+    marker: PhantomData<fn() -> DashSet<K, S>>,
 }
 
-impl<K> DashSetVisitor<K>
+impl<K, S> DashSetVisitor<K, S>
 where
     K: Eq + Hash,
+    S: BuildHasher + Clone,
 {
     fn new() -> Self {
         DashSetVisitor {
@@ -93,11 +98,12 @@ where
     }
 }
 
-impl<'de, K> Visitor<'de> for DashSetVisitor<K>
+impl<'de, K, S> Visitor<'de> for DashSetVisitor<K, S>
 where
     K: Deserialize<'de> + Eq + Hash,
+    S: BuildHasher + Clone + Default,
 {
-    type Value = DashSet<K>;
+    type Value = DashSet<K, S>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("a DashSet")
@@ -107,7 +113,7 @@ where
     where
         M: SeqAccess<'de>,
     {
-        let map = DashSet::with_capacity(access.size_hint().unwrap_or(0));
+        let map = DashSet::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
 
         while let Some(key) = access.next_element()? {
             map.insert(key);
@@ -117,21 +123,23 @@ where
     }
 }
 
-impl<'de, K> Deserialize<'de> for DashSet<K>
+impl<'de, K, S> Deserialize<'de> for DashSet<K, S>
 where
     K: Deserialize<'de> + Eq + Hash,
+    S: BuildHasher + Clone + Default,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_seq(DashSetVisitor::<K>::new())
+        deserializer.deserialize_seq(DashSetVisitor::<K, S>::new())
     }
 }
 
-impl<K> Serialize for DashSet<K>
+impl<K, H> Serialize for DashSet<K, H>
 where
     K: Serialize + Eq + Hash,
+    H: BuildHasher + Clone,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
