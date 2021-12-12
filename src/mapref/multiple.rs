@@ -1,8 +1,8 @@
-use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
 use core::hash::BuildHasher;
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
+use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::collections::hash_map::RandomState;
 use std::sync::Arc;
 

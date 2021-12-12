@@ -2,7 +2,6 @@
 
 pub mod iter;
 pub mod iter_set;
-pub mod lock;
 pub mod mapref;
 mod read_only;
 #[cfg(feature = "serde")]
@@ -25,10 +24,10 @@ use core::hash::{BuildHasher, Hash, Hasher};
 use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use iter::{Iter, IterMut, OwningIter};
-use lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 pub use read_only::ReadOnlyView;
 pub use set::DashSet;
 use std::collections::hash_map::RandomState;
@@ -653,7 +652,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V, S> {
         debug_assert!(i < self.shards.len());
 
-        self.shards.get_unchecked(i).get()
+        &*self.shards.get_unchecked(i).data_ptr()
     }
 
     unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, S>> {
@@ -1082,24 +1081,13 @@ mod tests {
         dm.insert(9, "Potato".to_string());
         dm.insert(12, "Chicken".to_string());
 
-        let potato_vegetableness = dm.view(&9, |_, v| {
-            let is_vegetable = vegetables.contains(v);
-
-            is_vegetable
-        });
-
+        let potato_vegetableness = dm.view(&9, |_, v| vegetables.contains(v));
         assert_eq!(potato_vegetableness, Some(true));
 
-        let chicken_vegetableness = dm.view(&12, |_, v| {
-            let is_vegetable = vegetables.contains(v);
-
-            is_vegetable
-        });
-
+        let chicken_vegetableness = dm.view(&12, |_, v| vegetables.contains(v));
         assert_eq!(chicken_vegetableness, Some(false));
 
         let not_in_map = dm.view(&30, |_k, _v| false);
-
         assert_eq!(not_in_map, None);
     }
 }

@@ -1,6 +1,4 @@
 use crate::iter_set::{Iter, OwningIter};
-#[cfg(feature = "raw-api")]
-use crate::lock::RwLock;
 use crate::setref::one::Ref;
 use crate::DashMap;
 #[cfg(feature = "raw-api")]
@@ -10,6 +8,8 @@ use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
 use core::iter::FromIterator;
+#[cfg(feature = "raw-api")]
+use parking_lot::RwLock;
 use std::collections::hash_map::RandomState;
 
 /// DashSet is a thin wrapper around [`DashMap`] using `()` as the value type. It uses

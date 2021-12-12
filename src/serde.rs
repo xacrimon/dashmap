@@ -1,6 +1,6 @@
 use crate::{DashMap, DashSet};
 use core::fmt;
-use core::hash::{Hash, BuildHasher};
+use core::hash::{BuildHasher, Hash};
 use core::marker::PhantomData;
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
@@ -38,7 +38,8 @@ where
     where
         M: MapAccess<'de>,
     {
-        let map = DashMap::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
+        let map =
+            DashMap::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
 
         while let Some((key, value)) = access.next_entry()? {
             map.insert(key, value);
@@ -113,7 +114,8 @@ where
     where
         M: SeqAccess<'de>,
     {
-        let map = DashSet::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
+        let map =
+            DashSet::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
 
         while let Some(key) = access.next_element()? {
             map.insert(key);
