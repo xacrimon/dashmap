@@ -72,6 +72,11 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
 
     fn _alter_all(&self, f: impl FnMut(&K, V) -> V);
 
+    fn _view<Q, R>(&self, key: &Q, f: impl FnOnce(&K, &V) -> R) -> Option<R>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized;
+
     fn _entry(&'a self, key: K) -> Entry<'a, K, V, S>;
 
     fn _hasher(&self) -> S;
