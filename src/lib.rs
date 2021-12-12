@@ -1081,24 +1081,13 @@ mod tests {
         dm.insert(9, "Potato".to_string());
         dm.insert(12, "Chicken".to_string());
 
-        let potato_vegetableness = dm.view(&9, |_, v| {
-            let is_vegetable = vegetables.contains(v);
-
-            is_vegetable
-        });
-
+        let potato_vegetableness = dm.view(&9, |_, v| vegetables.contains(v));
         assert_eq!(potato_vegetableness, Some(true));
 
-        let chicken_vegetableness = dm.view(&12, |_, v| {
-            let is_vegetable = vegetables.contains(v);
-
-            is_vegetable
-        });
-
+        let chicken_vegetableness = dm.view(&12, |_, v| vegetables.contains(v));
         assert_eq!(chicken_vegetableness, Some(false));
 
         let not_in_map = dm.view(&30, |_k, _v| false);
-
         assert_eq!(not_in_map, None);
     }
 }
