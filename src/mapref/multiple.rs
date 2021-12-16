@@ -33,15 +33,15 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMulti<'a, K, V, S> {
         }
     }
 
-    pub fn key(&self) -> &'a K {
+    pub fn key(&self) -> &K {
         self.k
     }
 
-    pub fn value(&self) -> &'a V {
+    pub fn value(&self) -> &V {
         self.v
     }
 
-    pub fn pair(&self) -> (&'a K, &'a V) {
+    pub fn pair(&self) -> (&K, &V) {
         (self.k, self.v)
     }
 }
@@ -82,7 +82,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
         }
     }
 
-    pub fn key(&self) -> &'a K {
+    pub fn key(&self) -> &K {
         self.k
     }
 
@@ -94,11 +94,11 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
         self.v
     }
 
-    pub fn pair(&self) -> (&'a K, &V) {
+    pub fn pair(&self) -> (&K, &V) {
         (self.k, self.v)
     }
 
-    pub fn pair_mut(&mut self) -> (&'a K, &mut V) {
+    pub fn pair_mut(&mut self) -> (&K, &mut V) {
         (self.k, self.v)
     }
 }
