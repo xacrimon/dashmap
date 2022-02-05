@@ -32,7 +32,7 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 ## Contributing
 
-DashMap is gladly accepts contributions!
+DashMap gladly accepts contributions!
 Do not hesitate to open issues or PR's.
 
 I will take a look as soon as I have time for it.
