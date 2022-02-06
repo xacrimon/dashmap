@@ -732,13 +732,19 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         self.shards.get_unchecked(i).write()
     }
 
-    unsafe fn _try_yield_read_shard(&'a self, i: usize) -> Option<RwLockReadGuard<'a, HashMap<K, V, S>>> {
+    unsafe fn _try_yield_read_shard(
+        &'a self,
+        i: usize,
+    ) -> Option<RwLockReadGuard<'a, HashMap<K, V, S>>> {
         debug_assert!(i < self.shards.len());
 
         self.shards.get_unchecked(i).try_read()
     }
 
-    unsafe fn _try_yield_write_shard(&'a self, i: usize) -> Option<RwLockWriteGuard<'a, HashMap<K, V, S>>> {
+    unsafe fn _try_yield_write_shard(
+        &'a self,
+        i: usize,
+    ) -> Option<RwLockWriteGuard<'a, HashMap<K, V, S>>> {
         debug_assert!(i < self.shards.len());
 
         self.shards.get_unchecked(i).try_write()
@@ -906,7 +912,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     fn _try_get_mut<Q>(&'a self, key: &Q) -> TryResult<RefMut<'a, K, V, S>>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized
+        Q: Hash + Eq + ?Sized,
     {
         let hash = self.hash_usize(&key);
 
@@ -1013,7 +1019,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
                 let vptr = &mut *vptr.as_ptr();
 
-                Some(Entry::Occupied(OccupiedEntry::new(shard, key, (kptr, vptr))))
+                Some(Entry::Occupied(OccupiedEntry::new(
+                    shard,
+                    key,
+                    (kptr, vptr),
+                )))
             }
         } else {
             Some(Entry::Vacant(VacantEntry::new(shard, key)))

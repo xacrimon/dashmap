@@ -13,15 +13,16 @@ keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
 [features]
-default = []
+default = ["send_guard"]
 raw-api = []
+send_guard = ["parking_lot/send_guard"]
 
 [dependencies]
 num_cpus = "1.13.0"
-parking_lot = { version = "0.11.2", features = ["send_guard"] }
+parking_lot = "0.11.2"
 serde = { version = "1.0.131", optional = true, features = ["derive"] }
 cfg-if = "1.0.0"
 rayon = { version = "1.5.1", optional = true }
 
 [package.metadata.docs.rs]
-features = ["rayon", "raw-api", "serde"]
+features = ["rayon", "raw-api", "serde", "send_guard"]

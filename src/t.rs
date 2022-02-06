@@ -31,12 +31,18 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
     /// # Safety
     ///
     /// The index must not be out of bounds.
-    unsafe fn _try_yield_read_shard(&'a self, i: usize) -> Option<RwLockReadGuard<'a, HashMap<K, V, S>>>;
+    unsafe fn _try_yield_read_shard(
+        &'a self,
+        i: usize,
+    ) -> Option<RwLockReadGuard<'a, HashMap<K, V, S>>>;
 
     /// # Safety
     ///
     /// The index must not be out of bounds.
-    unsafe fn _try_yield_write_shard(&'a self, i: usize) -> Option<RwLockWriteGuard<'a, HashMap<K, V, S>>>;
+    unsafe fn _try_yield_write_shard(
+        &'a self,
+        i: usize,
+    ) -> Option<RwLockWriteGuard<'a, HashMap<K, V, S>>>;
 
     fn _insert(&self, key: K, value: V) -> Option<V>;
 

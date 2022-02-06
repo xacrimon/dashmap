@@ -30,6 +30,8 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - `rayon` - Enables rayon support.
 
+- `send_guard` - Enables the `send_guard` feature of `parking_lot`, making `Ref*` guards `Send`. This is on by default.
+
 ## Contributing
 
 DashMap gladly accepts contributions!

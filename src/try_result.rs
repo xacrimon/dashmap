@@ -1,4 +1,3 @@
-
 /// Represents the result of a non-blocking read from a [DashMap](crate::DashMap).
 #[derive(Debug)]
 pub enum TryResult<R> {
@@ -12,30 +11,18 @@ pub enum TryResult<R> {
 
 impl<R> TryResult<R> {
     /// Returns `true` if the value was present in the map, and the lock for the shard was successfully obtained.
-    #[inline]
     pub fn is_present(&self) -> bool {
-        match self {
-            TryResult::Present(_) => true,
-            _ => false,
-        }
+        matches!(self, TryResult::Present(_))
     }
 
     /// Returns `true` if the shard wasn't locked, and the value wasn't present in the map.
-    #[inline]
     pub fn is_absent(&self) -> bool {
-        match self {
-            TryResult::Absent => true,
-            _ => false,
-        }
+        matches!(self, TryResult::Absent)
     }
 
     /// Returns `true` if the shard was locked.
-    #[inline]
     pub fn is_locked(&self) -> bool {
-        match self {
-            TryResult::Locked => true,
-            _ => false,
-        }
+        matches!(self, TryResult::Locked)
     }
 
     /// If `self` is [Present](TryResult::Present), returns the reference to the value in the map.
