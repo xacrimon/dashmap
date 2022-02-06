@@ -11,7 +11,7 @@ impl<'a, K: Eq + Hash, S: BuildHasher> RefMulti<'a, K, S> {
         Self { inner }
     }
 
-    pub fn key<'r>(&'r self) -> &'r K {
+    pub fn key(&self) -> &K {
         self.inner.key()
     }
 }

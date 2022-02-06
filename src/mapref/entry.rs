@@ -28,7 +28,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     }
 
     /// Get the key of the entry.
-    pub fn key<'r>(&'r self) -> &'r K {
+    pub fn key(&self) -> &K {
         match *self {
             Entry::Occupied(ref entry) => entry.key(),
             Entry::Vacant(ref entry) => entry.key(),
@@ -125,7 +125,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
         self.key
     }
 
-    pub fn key<'r>(&'r self) -> &'r K {
+    pub fn key(&self) -> &K {
         &self.key
     }
 }
@@ -152,11 +152,11 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
         Self { shard, elem, key }
     }
 
-    pub fn get<'r>(&'r self) -> &'r V {
+    pub fn get(&self) -> &V {
         self.elem.1
     }
 
-    pub fn get_mut<'r>(&'r mut self) -> &'r mut V {
+    pub fn get_mut(&mut self) -> &mut V {
         self.elem.1
     }
 
@@ -172,7 +172,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
         self.key
     }
 
-    pub fn key<'r>(&'r self) -> &'r K {
+    pub fn key(&self) -> &K {
         self.elem.0
     }
 

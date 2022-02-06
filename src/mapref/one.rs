@@ -26,15 +26,15 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
         }
     }
 
-    pub fn key<'r>(&'r self) -> &'r K {
+    pub fn key(&self) -> &K {
         self.k
     }
 
-    pub fn value<'r>(&'r self) -> &'r V {
+    pub fn value(&self) -> &V {
         self.v
     }
 
-    pub fn pair<'r>(&'r self) -> (&'r K, &'r V) {
+    pub fn pair(&self) -> (&K, &V) {
         (self.k, self.v)
     }
 }
@@ -69,23 +69,23 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
         Self { guard, k, v }
     }
 
-    pub fn key<'r>(&'r self) -> &'r K {
+    pub fn key(&self) -> &K {
         self.k
     }
 
-    pub fn value<'r>(&'r self) -> &'r V {
+    pub fn value(&self) -> &V {
         self.v
     }
 
-    pub fn value_mut<'r>(&'r mut self) -> &'r mut V {
+    pub fn value_mut(&mut self) -> &mut V {
         self.v
     }
 
-    pub fn pair<'r>(&'r self) -> (&'r K, &'r V) {
+    pub fn pair(&self) -> (&K, &V) {
         (self.k, self.v)
     }
 
-    pub fn pair_mut<'r>(&'r mut self) -> (&'r K, &'r mut V) {
+    pub fn pair_mut(&mut self) -> (&K, &mut V) {
         (self.k, self.v)
     }
 
