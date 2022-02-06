@@ -6,11 +6,10 @@ use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::collections::hash_map::RandomState;
 use std::sync::Arc;
 
-// -- Shared
 pub struct RefMulti<'a, K, V, S = RandomState> {
     _guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
-    k: &'a K,
-    v: &'a V,
+    k: *const K,
+    v: *const V,
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for RefMulti<'a, K, V, S> {}
@@ -21,10 +20,10 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMulti<'a, K, V, S> {
-    pub(crate) fn new(
+    pub(crate) unsafe fn new(
         guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
-        k: &'a K,
-        v: &'a V,
+        k: *const K,
+        v: *const V,
     ) -> Self {
         Self {
             _guard: guard,
@@ -33,16 +32,16 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMulti<'a, K, V, S> {
         }
     }
 
-    pub fn key(&self) -> &'a K {
-        self.k
+    pub fn key(&self) -> &K {
+        self.pair().0
     }
 
-    pub fn value(&self) -> &'a V {
-        self.v
+    pub fn value(&self) -> &V {
+        self.pair().1
     }
 
-    pub fn pair(&self) -> (&'a K, &'a V) {
-        (self.k, self.v)
+    pub fn pair(&self) -> (&K, &V) {
+        unsafe { (&*self.k, &*self.v) }
     }
 }
 
@@ -54,12 +53,10 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMulti<'a, K, V, S> {
     }
 }
 
-// --
-// -- Unique
 pub struct RefMutMulti<'a, K, V, S = RandomState> {
     _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
-    k: &'a K,
-    v: &'a mut V,
+    k: *const K,
+    v: *mut V,
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for RefMutMulti<'a, K, V, S> {}
@@ -70,10 +67,10 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
-    pub(crate) fn new(
+    pub(crate) unsafe fn new(
         guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
-        k: &'a K,
-        v: &'a mut V,
+        k: *const K,
+        v: *mut V,
     ) -> Self {
         Self {
             _guard: guard,
@@ -82,24 +79,24 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
         }
     }
 
-    pub fn key(&self) -> &'a K {
-        self.k
+    pub fn key(&self) -> &K {
+        self.pair().0
     }
 
     pub fn value(&self) -> &V {
-        self.v
+        self.pair().1
     }
 
     pub fn value_mut(&mut self) -> &mut V {
-        self.v
+        self.pair_mut().1
     }
 
-    pub fn pair(&self) -> (&'a K, &V) {
-        (self.k, self.v)
+    pub fn pair(&self) -> (&K, &V) {
+        unsafe { (&*self.k, &*self.v) }
     }
 
-    pub fn pair_mut(&mut self) -> (&'a K, &mut V) {
-        (self.k, self.v)
+    pub fn pair_mut(&mut self) -> (&K, &mut V) {
+        unsafe { (&*self.k, &mut *self.v) }
     }
 }
 
@@ -116,5 +113,3 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> DerefMut for RefMutMulti<'a, K, V, S> 
         self.value_mut()
     }
 }
-
-// --

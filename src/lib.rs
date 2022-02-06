@@ -811,11 +811,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some((kptr, vptr)) = shard.get_key_value(&key) {
             unsafe {
-                let kptr = util::change_lifetime_const(kptr);
+                let kptr: *const K = kptr;
+                let vptr: *mut V = vptr.as_ptr();
 
-                let vptr = &mut *vptr.as_ptr();
-
-                if f(kptr, vptr) {
+                if f(&*kptr, &mut *vptr) {
                     shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
                 } else {
                     None
@@ -847,11 +846,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
-                let kptr = util::change_lifetime_const(kptr);
-
-                let vptr = util::change_lifetime_const(vptr);
-
-                Some(Ref::new(shard, kptr, vptr.get()))
+                let kptr: *const K = kptr;
+                let vptr: *const V = vptr.get();
+                Some(Ref::new(shard, kptr, vptr))
             }
         } else {
             None
@@ -871,10 +868,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
-                let kptr = util::change_lifetime_const(kptr);
-
-                let vptr = &mut *vptr.as_ptr();
-
+                let kptr: *const K = kptr;
+                let vptr: *mut V = vptr.as_ptr();
                 Some(RefMut::new(shard, kptr, vptr))
             }
         } else {
@@ -898,10 +893,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
-                let kptr = util::change_lifetime_const(kptr);
-
-                let vptr = &mut *vptr.as_ptr();
-
+                let kptr: *const K = kptr;
+                let vptr: *const V = vptr.get();
                 TryResult::Present(Ref::new(shard, kptr, vptr))
             }
         } else {
@@ -925,10 +918,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
-                let kptr = util::change_lifetime_const(kptr);
-
-                let vptr = &mut *vptr.as_ptr();
-
+                let kptr: *const K = kptr;
+                let vptr: *mut V = vptr.as_ptr();
                 TryResult::Present(RefMut::new(shard, kptr, vptr))
             }
         } else {
@@ -992,14 +983,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some((kptr, vptr)) = shard.get_key_value(&key) {
             unsafe {
-                let kptr = util::change_lifetime_const(kptr);
-
-                let vptr = &mut *vptr.as_ptr();
-
+                let kptr: *const K = kptr;
+                let vptr: *mut V = vptr.as_ptr();
                 Entry::Occupied(OccupiedEntry::new(shard, key, (kptr, vptr)))
             }
         } else {
-            Entry::Vacant(VacantEntry::new(shard, key))
+            unsafe { Entry::Vacant(VacantEntry::new(shard, key)) }
         }
     }
 
@@ -1015,9 +1004,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some((kptr, vptr)) = shard.get_key_value(&key) {
             unsafe {
-                let kptr = util::change_lifetime_const(kptr);
-
-                let vptr = &mut *vptr.as_ptr();
+                let kptr: *const K = kptr;
+                let vptr: *mut V = vptr.as_ptr();
 
                 Some(Entry::Occupied(OccupiedEntry::new(
                     shard,
@@ -1026,7 +1014,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
                 )))
             }
         } else {
-            Some(Entry::Vacant(VacantEntry::new(shard, key)))
+            unsafe { Some(Entry::Vacant(VacantEntry::new(shard, key))) }
         }
     }
 
