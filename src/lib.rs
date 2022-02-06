@@ -993,9 +993,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         if let Some((kptr, vptr)) = shard.get_key_value(&key) {
             unsafe {
                 let kptr = util::change_lifetime_const(kptr);
-
                 let vptr = &mut *vptr.as_ptr();
-
                 Entry::Occupied(OccupiedEntry::new(shard, key, (kptr, vptr)))
             }
         } else {

@@ -132,7 +132,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
 
 pub struct OccupiedEntry<'a, K, V, S> {
     shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
-    elem: (&'a K, &'a mut V),
+    elem: (*const K, *mut V),
     key: K,
 }
 
@@ -147,21 +147,21 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
     pub(crate) fn new(
         shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
         key: K,
-        elem: (&'a K, &'a mut V),
+        elem: (*const K, *mut V),
     ) -> Self {
         Self { shard, elem, key }
     }
 
     pub fn get(&self) -> &V {
-        self.elem.1
+        unsafe { &*self.elem.1 }
     }
 
     pub fn get_mut(&mut self) -> &mut V {
-        self.elem.1
+        unsafe { &mut *self.elem.1 }
     }
 
     pub fn insert(&mut self, value: V) -> V {
-        mem::replace(self.elem.1, value)
+        mem::replace(self.get_mut(), value)
     }
 
     pub fn into_ref(self) -> RefMut<'a, K, V, S> {
@@ -173,26 +173,25 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
     }
 
     pub fn key(&self) -> &K {
-        self.elem.0
+        unsafe { &*self.elem.0 }
     }
 
     pub fn remove(mut self) -> V {
-        self.shard.remove(self.elem.0).unwrap().into_inner()
+        let key = unsafe { &*self.elem.0 };
+        self.shard.remove(key).unwrap().into_inner()
     }
 
     pub fn remove_entry(mut self) -> (K, V) {
-        let (k, v) = self.shard.remove_entry(self.elem.0).unwrap();
-
+        let key = unsafe { &*self.elem.0 };
+        let (k, v) = self.shard.remove_entry(key).unwrap();
         (k, v.into_inner())
     }
 
     pub fn replace_entry(mut self, value: V) -> (K, V) {
         let nk = self.key;
-
-        let (k, v) = self.shard.remove_entry(self.elem.0).unwrap();
-
+        let key = unsafe { &*self.elem.0 };
+        let (k, v) = self.shard.remove_entry(key).unwrap();
         self.shard.insert(nk, SharedValue::new(value));
-
         (k, v.into_inner())
     }
 }

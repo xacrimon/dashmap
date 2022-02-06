@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 pub struct RefMulti<'a, K, V, S = RandomState> {
     _guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
-    k: &'a K,
-    v: &'a V,
+    k: *const K,
+    v: *const V,
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for RefMulti<'a, K, V, S> {}
@@ -22,8 +22,8 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMulti<'a, K, V, S> {
     pub(crate) fn new(
         guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
-        k: &'a K,
-        v: &'a V,
+        k: *const K,
+        v: *const V,
     ) -> Self {
         Self {
             _guard: guard,
@@ -33,15 +33,15 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMulti<'a, K, V, S> {
     }
 
     pub fn key(&self) -> &K {
-        self.k
+        self.pair().0
     }
 
     pub fn value(&self) -> &V {
-        self.v
+        self.pair().1
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        (self.k, self.v)
+        unsafe { (&*self.k, &*self.v) }
     }
 }
 
@@ -55,8 +55,8 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMulti<'a, K, V, S> {
 
 pub struct RefMutMulti<'a, K, V, S = RandomState> {
     _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
-    k: &'a K,
-    v: &'a mut V,
+    k: *const K,
+    v: *mut V,
 }
 
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for RefMutMulti<'a, K, V, S> {}
@@ -69,8 +69,8 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
     pub(crate) fn new(
         guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
-        k: &'a K,
-        v: &'a mut V,
+        k: *const K,
+        v: *mut V,
     ) -> Self {
         Self {
             _guard: guard,
@@ -80,23 +80,23 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
     }
 
     pub fn key(&self) -> &K {
-        self.k
+        self.pair().0
     }
 
     pub fn value(&self) -> &V {
-        self.v
+        self.pair().1
     }
 
     pub fn value_mut(&mut self) -> &mut V {
-        self.v
+        self.pair_mut().1
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        (self.k, self.v)
+        unsafe { (&*self.k, &*self.v) }
     }
 
     pub fn pair_mut(&mut self) -> (&K, &mut V) {
-        (self.k, self.v)
+        unsafe { (&*self.k, &mut *self.v) }
     }
 }
 
