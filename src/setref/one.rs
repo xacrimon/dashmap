@@ -15,7 +15,7 @@ impl<'a, K: Eq + Hash, S: BuildHasher> Ref<'a, K, S> {
         Self { inner }
     }
 
-    pub fn key(&self) -> &'a K {
+    pub fn key<'r>(&'r self) -> &'r K {
         self.inner.key()
     }
 }

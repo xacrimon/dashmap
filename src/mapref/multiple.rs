@@ -6,7 +6,6 @@ use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::collections::hash_map::RandomState;
 use std::sync::Arc;
 
-// -- Shared
 pub struct RefMulti<'a, K, V, S = RandomState> {
     _guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
     k: &'a K,
@@ -33,15 +32,15 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMulti<'a, K, V, S> {
         }
     }
 
-    pub fn key(&self) -> &'a K {
+    pub fn key<'r>(&'r self) -> &'r K {
         self.k
     }
 
-    pub fn value(&self) -> &'a V {
+    pub fn value<'r>(&'r self) -> &'r V {
         self.v
     }
 
-    pub fn pair(&self) -> (&'a K, &'a V) {
+    pub fn pair<'r>(&'r self) -> (&'r K, &'r V) {
         (self.k, self.v)
     }
 }
@@ -54,8 +53,6 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMulti<'a, K, V, S> {
     }
 }
 
-// --
-// -- Unique
 pub struct RefMutMulti<'a, K, V, S = RandomState> {
     _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
     k: &'a K,
@@ -82,23 +79,23 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
         }
     }
 
-    pub fn key(&self) -> &'a K {
+    pub fn key<'r>(&'r self) -> &'r K {
         self.k
     }
 
-    pub fn value(&self) -> &V {
+    pub fn value<'r>(&'r self) -> &'r V {
         self.v
     }
 
-    pub fn value_mut(&mut self) -> &mut V {
+    pub fn value_mut<'r>(&'r mut self) -> &'r mut V {
         self.v
     }
 
-    pub fn pair(&self) -> (&'a K, &V) {
+    pub fn pair<'r>(&'r self) -> (&'r K, &'r V) {
         (self.k, self.v)
     }
 
-    pub fn pair_mut(&mut self) -> (&'a K, &mut V) {
+    pub fn pair_mut<'r>(&'r mut self) -> (&'r K, &'r mut V) {
         (self.k, self.v)
     }
 }
@@ -116,5 +113,3 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> DerefMut for RefMutMulti<'a, K, V, S> 
         self.value_mut()
     }
 }
-
-// --

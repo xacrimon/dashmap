@@ -4,7 +4,6 @@ use core::ops::{Deref, DerefMut};
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::collections::hash_map::RandomState;
 
-// -- Shared
 pub struct Ref<'a, K, V, S = RandomState> {
     _guard: RwLockReadGuard<'a, HashMap<K, V, S>>,
     k: &'a K,
@@ -27,15 +26,15 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
         }
     }
 
-    pub fn key(&self) -> &'a K {
+    pub fn key<'r>(&'r self) -> &'r K {
         self.k
     }
 
-    pub fn value(&self) -> &'a V {
+    pub fn value<'r>(&'r self) -> &'r V {
         self.v
     }
 
-    pub fn pair(&self) -> (&'a K, &'a V) {
+    pub fn pair<'r>(&'r self) -> (&'r K, &'r V) {
         (self.k, self.v)
     }
 }
@@ -48,8 +47,6 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for Ref<'a, K, V, S> {
     }
 }
 
-// --
-// -- Unique
 pub struct RefMut<'a, K, V, S = RandomState> {
     guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
     k: &'a K,
@@ -72,23 +69,23 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
         Self { guard, k, v }
     }
 
-    pub fn key(&self) -> &'a K {
+    pub fn key<'r>(&'r self) -> &'r K {
         self.k
     }
 
-    pub fn value(&self) -> &V {
+    pub fn value<'r>(&'r self) -> &'r V {
         self.v
     }
 
-    pub fn value_mut(&mut self) -> &mut V {
+    pub fn value_mut<'r>(&'r mut self) -> &'r mut V {
         self.v
     }
 
-    pub fn pair(&self) -> (&'a K, &V) {
+    pub fn pair<'r>(&'r self) -> (&'r K, &'r V) {
         (self.k, self.v)
     }
 
-    pub fn pair_mut(&mut self) -> (&'a K, &mut V) {
+    pub fn pair_mut<'r>(&'r mut self) -> (&'r K, &'r mut V) {
         (self.k, self.v)
     }
 
@@ -114,5 +111,3 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> DerefMut for RefMut<'a, K, V, S> {
         self.value_mut()
     }
 }
-
-// --
