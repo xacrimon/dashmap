@@ -1,6 +1,6 @@
 [package]
 name = "dashmap"
-version = "5.0.0"
+version = "5.1.0"
 authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -18,9 +18,9 @@ raw-api = []
 send_guard = ["parking_lot/send_guard"]
 
 [dependencies]
-num_cpus = "1.13.0"
-parking_lot = "0.11.2"
-serde = { version = "1.0.131", optional = true, features = ["derive"] }
+num_cpus = "1.13.1"
+parking_lot = "0.12.0"
+serde = { version = "1.0.136", optional = true, features = ["derive"] }
 cfg-if = "1.0.0"
 rayon = { version = "1.5.1", optional = true }
 
