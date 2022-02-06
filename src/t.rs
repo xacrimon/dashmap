@@ -3,6 +3,7 @@
 use crate::iter::{Iter, IterMut};
 use crate::mapref::entry::Entry;
 use crate::mapref::one::{Ref, RefMut};
+use crate::try_result::TryResult;
 use crate::HashMap;
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
@@ -26,6 +27,16 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
     ///
     /// The index must not be out of bounds.
     unsafe fn _yield_write_shard(&'a self, i: usize) -> RwLockWriteGuard<'a, HashMap<K, V, S>>;
+
+    /// # Safety
+    ///
+    /// The index must not be out of bounds.
+    unsafe fn _try_yield_read_shard(&'a self, i: usize) -> Option<RwLockReadGuard<'a, HashMap<K, V, S>>>;
+
+    /// # Safety
+    ///
+    /// The index must not be out of bounds.
+    unsafe fn _try_yield_write_shard(&'a self, i: usize) -> Option<RwLockWriteGuard<'a, HashMap<K, V, S>>>;
 
     fn _insert(&self, key: K, value: V) -> Option<V>;
 
@@ -62,6 +73,16 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized;
 
+    fn _try_get<Q>(&'a self, key: &Q) -> TryResult<Ref<'a, K, V, S>>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized;
+
+    fn _try_get_mut<Q>(&'a self, key: &Q) -> TryResult<RefMut<'a, K, V, S>>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized;
+
     fn _shrink_to_fit(&self);
 
     fn _retain(&self, f: impl FnMut(&K, &mut V) -> bool);
@@ -83,6 +104,8 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
         Q: Hash + Eq + ?Sized;
 
     fn _entry(&'a self, key: K) -> Entry<'a, K, V, S>;
+
+    fn _try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>>;
 
     fn _hasher(&self) -> S;
 
