@@ -9,6 +9,7 @@ mod serde;
 mod set;
 pub mod setref;
 mod t;
+pub mod try_result;
 mod util;
 
 #[cfg(feature = "rayon")]
@@ -32,6 +33,7 @@ pub use read_only::ReadOnlyView;
 pub use set::DashSet;
 use std::collections::hash_map::RandomState;
 pub use t::Map;
+use try_result::TryResult;
 
 cfg_if! {
     if #[cfg(feature = "raw-api")] {
@@ -446,6 +448,61 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._get_mut(key)
     }
 
+    /// Get an immutable reference to an entry in the map, if the shard is not locked.
+    /// If the shard is locked, the function will return [TryResult::Locked].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    /// use dashmap::try_result::TryResult;
+    ///
+    /// let map = DashMap::new();
+    /// map.insert("Johnny", 21);
+    ///
+    /// assert_eq!(*map.try_get("Johnny").unwrap(), 21);
+    ///
+    /// let _result1_locking = map.get_mut("Johnny");
+    ///
+    /// let result2 = map.try_get("Johnny");
+    /// assert!(result2.is_locked());
+    /// ```
+    pub fn try_get<Q>(&'a self, key: &Q) -> TryResult<Ref<'a, K, V, S>>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self._try_get(key)
+    }
+
+    /// Get a mutable reference to an entry in the map, if the shard is not locked.
+    /// If the shard is locked, the function will return [TryResult::Locked].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    /// use dashmap::try_result::TryResult;
+    ///
+    /// let map = DashMap::new();
+    /// map.insert("Johnny", 21);
+    ///
+    /// *map.try_get_mut("Johnny").unwrap() += 1;
+    /// assert_eq!(*map.get("Johnny").unwrap(), 22);
+    ///
+    /// let _result1_locking = map.get("Johnny");
+    ///
+    /// let result2 = map.try_get_mut("Johnny");
+    /// assert!(result2.is_locked());
+    /// ```
+    pub fn try_get_mut<Q>(&'a self, key: &Q) -> TryResult<RefMut<'a, K, V, S>>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self._try_get_mut(key)
+    }
+
     /// Remove excess capacity to reduce memory usage.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
@@ -640,6 +697,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     pub fn entry(&'a self, key: K) -> Entry<'a, K, V, S> {
         self._entry(key)
     }
+
+    /// Advanced entry API that tries to mimic `std::collections::HashMap`.
+    /// See the documentation on `dashmap::mapref::entry` for more details.
+    ///
+    /// Returns None if the shard is currently locked.
+    pub fn try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>> {
+        self._try_entry(key)
+    }
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
@@ -665,6 +730,18 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         debug_assert!(i < self.shards.len());
 
         self.shards.get_unchecked(i).write()
+    }
+
+    unsafe fn _try_yield_read_shard(&'a self, i: usize) -> Option<RwLockReadGuard<'a, HashMap<K, V, S>>> {
+        debug_assert!(i < self.shards.len());
+
+        self.shards.get_unchecked(i).try_read()
+    }
+
+    unsafe fn _try_yield_write_shard(&'a self, i: usize) -> Option<RwLockWriteGuard<'a, HashMap<K, V, S>>> {
+        debug_assert!(i < self.shards.len());
+
+        self.shards.get_unchecked(i).try_write()
     }
 
     fn _insert(&self, key: K, value: V) -> Option<V> {
@@ -799,6 +876,60 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         }
     }
 
+    fn _try_get<Q>(&'a self, key: &Q) -> TryResult<Ref<'a, K, V, S>>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        let hash = self.hash_usize(&key);
+
+        let idx = self.determine_shard(hash);
+
+        let shard = match unsafe { self._try_yield_read_shard(idx) } {
+            Some(shard) => shard,
+            None => return TryResult::Locked,
+        };
+
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
+            unsafe {
+                let kptr = util::change_lifetime_const(kptr);
+
+                let vptr = &mut *vptr.as_ptr();
+
+                TryResult::Present(Ref::new(shard, kptr, vptr))
+            }
+        } else {
+            TryResult::Absent
+        }
+    }
+
+    fn _try_get_mut<Q>(&'a self, key: &Q) -> TryResult<RefMut<'a, K, V, S>>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized
+    {
+        let hash = self.hash_usize(&key);
+
+        let idx = self.determine_shard(hash);
+
+        let shard = match unsafe { self._try_yield_write_shard(idx) } {
+            Some(shard) => shard,
+            None => return TryResult::Locked,
+        };
+
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
+            unsafe {
+                let kptr = util::change_lifetime_const(kptr);
+
+                let vptr = &mut *vptr.as_ptr();
+
+                TryResult::Present(RefMut::new(shard, kptr, vptr))
+            }
+        } else {
+            TryResult::Absent
+        }
+    }
+
     fn _shrink_to_fit(&self) {
         self.shards.iter().for_each(|s| s.write().shrink_to_fit());
     }
@@ -863,6 +994,29 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             }
         } else {
             Entry::Vacant(VacantEntry::new(shard, key))
+        }
+    }
+
+    fn _try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>> {
+        let hash = self.hash_usize(&key);
+
+        let idx = self.determine_shard(hash);
+
+        let shard = match unsafe { self._try_yield_write_shard(idx) } {
+            Some(shard) => shard,
+            None => return None,
+        };
+
+        if let Some((kptr, vptr)) = shard.get_key_value(&key) {
+            unsafe {
+                let kptr = util::change_lifetime_const(kptr);
+
+                let vptr = &mut *vptr.as_ptr();
+
+                Some(Entry::Occupied(OccupiedEntry::new(shard, key, (kptr, vptr))))
+            }
+        } else {
+            Some(Entry::Vacant(VacantEntry::new(shard, key)))
         }
     }
 
@@ -1089,5 +1243,33 @@ mod tests {
 
         let not_in_map = dm.view(&30, |_k, _v| false);
         assert_eq!(not_in_map, None);
+    }
+
+    #[test]
+    fn test_try_get() {
+        {
+            let map = DashMap::new();
+            map.insert("Johnny", 21);
+
+            assert_eq!(*map.try_get("Johnny").unwrap(), 21);
+
+            let _result1_locking = map.get_mut("Johnny");
+
+            let result2 = map.try_get("Johnny");
+            assert!(result2.is_locked());
+        }
+
+        {
+            let map = DashMap::new();
+            map.insert("Johnny", 21);
+
+            *map.try_get_mut("Johnny").unwrap() += 1;
+            assert_eq!(*map.get("Johnny").unwrap(), 22);
+
+            let _result1_locking = map.get("Johnny");
+
+            let result2 = map.try_get_mut("Johnny");
+            assert!(result2.is_locked());
+        }
     }
 }
