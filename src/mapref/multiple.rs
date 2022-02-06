@@ -20,7 +20,7 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMulti<'a, K, V, S> {
-    pub(crate) fn new(
+    pub(crate) unsafe fn new(
         guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
         k: *const K,
         v: *const V,
@@ -67,7 +67,7 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
-    pub(crate) fn new(
+    pub(crate) unsafe fn new(
         guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
         k: *const K,
         v: *mut V,

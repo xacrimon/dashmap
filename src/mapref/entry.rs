@@ -97,7 +97,7 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
-    pub(crate) fn new(shard: RwLockWriteGuard<'a, HashMap<K, V, S>>, key: K) -> Self {
+    pub(crate) unsafe fn new(shard: RwLockWriteGuard<'a, HashMap<K, V, S>>, key: K) -> Self {
         Self { shard, key }
     }
 
@@ -144,7 +144,7 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
-    pub(crate) fn new(
+    pub(crate) unsafe fn new(
         shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
         key: K,
         elem: (*const K, *mut V),
@@ -165,7 +165,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
     }
 
     pub fn into_ref(self) -> RefMut<'a, K, V, S> {
-        RefMut::new(self.shard, self.elem.0, self.elem.1)
+        unsafe { RefMut::new(self.shard, self.elem.0, self.elem.1) }
     }
 
     pub fn into_key(self) -> K {

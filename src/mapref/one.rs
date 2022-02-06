@@ -18,7 +18,7 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
-    pub(crate) fn new(
+    pub(crate) unsafe fn new(
         guard: RwLockReadGuard<'a, HashMap<K, V, S>>,
         k: *const K,
         v: *const V,
@@ -65,7 +65,7 @@ unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
 }
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
-    pub(crate) fn new(
+    pub(crate) unsafe fn new(
         guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
         k: *const K,
         v: *mut V,
@@ -94,11 +94,13 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
     }
 
     pub fn downgrade(self) -> Ref<'a, K, V, S> {
-        Ref::new(
-            parking_lot::RwLockWriteGuard::downgrade(self.guard),
-            self.k,
-            self.v,
-        )
+        unsafe {
+            Ref::new(
+                parking_lot::RwLockWriteGuard::downgrade(self.guard),
+                self.k,
+                self.v,
+            )
+        }
     }
 }
 

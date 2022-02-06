@@ -163,7 +163,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
                 if let Some((k, v)) = current.1.next() {
                     let guard = current.0.clone();
 
-                    return Some(RefMulti::new(guard, k, v.get()));
+                    return unsafe { Some(RefMulti::new(guard, k, v.get())) };
                 }
             }
 
