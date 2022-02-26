@@ -45,7 +45,7 @@ cfg_if! {
 
 pub(crate) type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
 
-fn shard_amount() -> usize {
+fn default_shard_amount() -> usize {
     (num_cpus::get() * 4).next_power_of_two()
 }
 
@@ -127,6 +127,34 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     pub fn with_capacity(capacity: usize) -> Self {
         DashMap::with_capacity_and_hasher(capacity, RandomState::default())
     }
+
+    /// Creates a new DashMap with a specified shard amount
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let mappings = DashMap::with_shard_amount(10);
+    /// mappings.insert(2, 4);
+    /// mappings.insert(8, 16);
+    /// ```
+    pub fn with_shard_amount(shard_amount: usize) -> Self {
+        Self::with_capacity_and_hasher_and_shard_amount(0, RandomState::default(), shard_amount)
+    }
+
+    /// Creates a new DashMap with a specified shard amount and capacity
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let mappings = DashMap::with_capacity_and_shard_amount(32, 10);
+    /// mappings.insert(2, 4);
+    /// mappings.insert(8, 16);
+    /// ```
+    pub fn with_capacity_and_shard_amount(capacity: usize, shard_amount: usize) -> Self {
+        Self::with_capacity_and_hasher_and_shard_amount(capacity, RandomState::default(), shard_amount)
+    }
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
@@ -165,7 +193,42 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// mappings.insert(8, 16);
     /// ```
     pub fn with_capacity_and_hasher(mut capacity: usize, hasher: S) -> Self {
-        let shard_amount = shard_amount();
+        Self::with_capacity_and_hasher_and_shard_amount(capacity, hasher, default_shard_amount())
+    }
+
+    /// Creates a new DashMap with a specified hasher and shard amount
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let mappings = DashMap::with_hasher_and_shard_amount(s, 10);
+    /// mappings.insert(2, 4);
+    /// mappings.insert(8, 16);
+    /// ```
+    pub fn with_hasher_and_shard_amount(hasher: S, shard_amount: usize) -> Self {
+        Self::with_capacity_and_hasher_and_shard_amount(0, hasher, shard_amount)
+    }
+
+    /// Creates a new DashMap with a specified starting capacity, hasher and shard_amount.
+    /// 
+    /// shard_amount should greater than 0.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let mappings = DashMap::with_capacity_and_hasher_and_shard_amount(2, s, 10);
+    /// mappings.insert(2, 4);
+    /// mappings.insert(8, 16);
+    /// ```
+    pub fn with_capacity_and_hasher_and_shard_amount(mut capacity: usize, hasher: S, shard_amount: usize) -> Self {
+        assert!(shard_amount > 0);
         let shift = util::ptr_size_bits() - ncb(shard_amount);
 
         if capacity != 0 {
