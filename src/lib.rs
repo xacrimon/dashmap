@@ -204,7 +204,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
-    pub fn with_capacity_and_hasher(mut capacity: usize, hasher: S) -> Self {
+    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self::with_capacity_and_hasher_and_shard_amount(capacity, hasher, default_shard_amount())
     }
 
