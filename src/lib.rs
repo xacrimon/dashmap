@@ -129,10 +129,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     }
 
     /// Creates a new DashMap with a specified shard amount
-    /// 
-    /// shard_amount should greater than 0 and be a power of two. 
+    ///
+    /// shard_amount should greater than 0 and be a power of two.
     /// If a shard_amount which is not a power of two is provided, the function will panic.
-    /// 
+    ///
     /// # Examples
     ///
     /// ```
@@ -147,10 +147,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     }
 
     /// Creates a new DashMap with a specified capacity and shard amount.
-    /// 
-    /// shard_amount should greater than 0 and be a power of two. 
+    ///
+    /// shard_amount should greater than 0 and be a power of two.
     /// If a shard_amount which is not a power of two is provided, the function will panic.
-    /// 
+    ///
     /// # Examples
     ///
     /// ```
@@ -161,7 +161,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     /// mappings.insert(8, 16);
     /// ```
     pub fn with_capacity_and_shard_amount(capacity: usize, shard_amount: usize) -> Self {
-        Self::with_capacity_and_hasher_and_shard_amount(capacity, RandomState::default(), shard_amount)
+        Self::with_capacity_and_hasher_and_shard_amount(
+            capacity,
+            RandomState::default(),
+            shard_amount,
+        )
     }
 }
 
@@ -205,10 +209,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Creates a new DashMap with a specified hasher and shard amount
-    /// 
-    /// shard_amount should greater than 0 and be a power of two. 
+    ///
+    /// shard_amount should greater than 0 and be a power of two.
     /// If a shard_amount which is not a power of two is provided, the function will panic.
-    /// 
+    ///
     /// # Examples
     ///
     /// ```
@@ -225,10 +229,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Creates a new DashMap with a specified starting capacity, hasher and shard_amount.
-    /// 
-    /// shard_amount should greater than 0 and be a power of two. 
+    ///
+    /// shard_amount should greater than 0 and be a power of two.
     /// If a shard_amount which is not a power of two is provided, the function will panic.
-    /// 
+    ///
     /// # Examples
     ///
     /// ```
@@ -240,7 +244,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
-    pub fn with_capacity_and_hasher_and_shard_amount(mut capacity: usize, hasher: S, shard_amount: usize) -> Self {
+    pub fn with_capacity_and_hasher_and_shard_amount(
+        mut capacity: usize,
+        hasher: S,
+        shard_amount: usize,
+    ) -> Self {
         assert!(shard_amount > 0);
 
         let shift = util::ptr_size_bits() - ncb(shard_amount);
