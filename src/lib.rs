@@ -139,7 +139,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     /// ```
     /// use dashmap::DashMap;
     ///
-    /// let mappings = DashMap::with_shard_amount(10);
+    /// let mappings = DashMap::with_shard_amount(32);
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
@@ -158,7 +158,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     /// ```
     /// use dashmap::DashMap;
     ///
-    /// let mappings = DashMap::with_capacity_and_shard_amount(32, 10);
+    /// let mappings = DashMap::with_capacity_and_shard_amount(32, 32);
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
@@ -219,7 +219,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// use std::collections::hash_map::RandomState;
     ///
     /// let s = RandomState::new();
-    /// let mappings = DashMap::with_hasher_and_shard_amount(s, 10);
+    /// let mappings = DashMap::with_hasher_and_shard_amount(s, 32);
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
@@ -240,7 +240,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// use std::collections::hash_map::RandomState;
     ///
     /// let s = RandomState::new();
-    /// let mappings = DashMap::with_capacity_and_hasher_and_shard_amount(2, s, 10);
+    /// let mappings = DashMap::with_capacity_and_hasher_and_shard_amount(2, s, 32);
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
