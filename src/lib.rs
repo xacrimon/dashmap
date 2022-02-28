@@ -129,6 +129,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     }
 
     /// Creates a new DashMap with a specified shard amount
+    /// 
+    /// shard_amount should greater than 0 and be a power of two. 
+    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    /// To use a shard_amount not a power of two, you should have `slow_shard_amount` feature enabled.
+    /// 
     /// # Examples
     ///
     /// ```
@@ -142,7 +147,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
         Self::with_capacity_and_hasher_and_shard_amount(0, RandomState::default(), shard_amount)
     }
 
-    /// Creates a new DashMap with a specified shard amount and capacity
+    /// Creates a new DashMap with a specified capacity and shard amount.
+    /// 
+    /// shard_amount should greater than 0 and be a power of two. 
+    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    /// To use a shard_amount not a power of two, you should have `slow_shard_amount` feature enabled.
+    /// 
     /// # Examples
     ///
     /// ```
@@ -197,6 +207,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Creates a new DashMap with a specified hasher and shard amount
+    /// 
+    /// shard_amount should greater than 0 and be a power of two. 
+    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    /// To use a shard_amount not a power of two, you should have `slow_shard_amount` feature enabled.
+    /// 
     /// # Examples
     ///
     /// ```
@@ -214,8 +229,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Creates a new DashMap with a specified starting capacity, hasher and shard_amount.
     /// 
-    /// shard_amount should greater than 0.
-    ///
+    /// shard_amount should greater than 0 and be a power of two. 
+    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    /// To use a shard_amount not a power of two, you should have `slow_shard_amount` feature enabled.
+    /// 
     /// # Examples
     ///
     /// ```
@@ -229,6 +246,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn with_capacity_and_hasher_and_shard_amount(mut capacity: usize, hasher: S, shard_amount: usize) -> Self {
         assert!(shard_amount > 0);
+
+        cfg_if!(
+            if #[cfg(not(feature = "slow_shard_amount"))] {
+                assert!(shard_amount == shard_amount.next_power_of_two());
+            }
+        );
+
         let shift = util::ptr_size_bits() - ncb(shard_amount);
 
         if capacity != 0 {

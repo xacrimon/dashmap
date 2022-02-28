@@ -16,6 +16,7 @@ categories = ["concurrency", "algorithms", "data-structures"]
 default = ["send_guard"]
 raw-api = []
 send_guard = ["parking_lot/send_guard"]
+slow_shard_amount = []
 
 [dependencies]
 num_cpus = "1.13.1"
