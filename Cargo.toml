@@ -20,6 +20,7 @@ send_guard = ["parking_lot/send_guard"]
 [dependencies]
 num_cpus = "1.13.1"
 parking_lot = "0.12.0"
+hashbrown = "0.11.2"
 serde = { version = "1.0.136", optional = true, features = ["derive"] }
 cfg-if = "1.0.0"
 rayon = { version = "1.5.1", optional = true }
