@@ -12,8 +12,10 @@ pub struct RefMulti<'a, K, V, S = RandomState> {
     v: *const V,
 }
 
+#[cfg(not(feature = "send_guard"))]
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for RefMulti<'a, K, V, S> {}
 
+#[cfg(not(feature = "send_guard"))]
 unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
     for RefMulti<'a, K, V, S>
 {
@@ -59,8 +61,10 @@ pub struct RefMutMulti<'a, K, V, S = RandomState> {
     v: *mut V,
 }
 
+#[cfg(not(feature = "send_guard"))]
 unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for RefMutMulti<'a, K, V, S> {}
 
+#[cfg(not(feature = "send_guard"))]
 unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
     for RefMutMulti<'a, K, V, S>
 {

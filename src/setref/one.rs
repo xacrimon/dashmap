@@ -6,10 +6,6 @@ pub struct Ref<'a, K, S = RandomState> {
     inner: mapref::one::Ref<'a, K, (), S>,
 }
 
-unsafe impl<'a, K: Eq + Hash + Send, S: BuildHasher> Send for Ref<'a, K, S> {}
-
-unsafe impl<'a, K: Eq + Hash + Send + Sync, S: BuildHasher> Sync for Ref<'a, K, S> {}
-
 impl<'a, K: Eq + Hash, S: BuildHasher> Ref<'a, K, S> {
     pub(crate) fn new(inner: mapref::one::Ref<'a, K, (), S>) -> Self {
         Self { inner }

@@ -75,22 +75,6 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     }
 }
 
-unsafe impl<K, V, S> Send for OwningIter<K, V, S>
-where
-    K: Eq + Hash + Send,
-    V: Send,
-    S: BuildHasher + Clone + Send,
-{
-}
-
-unsafe impl<K, V, S> Sync for OwningIter<K, V, S>
-where
-    K: Eq + Hash + Sync,
-    V: Sync,
-    S: BuildHasher + Clone + Sync,
-{
-}
-
 type GuardIter<'a, K, V, S> = (
     Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
     hash_map::Iter<'a, K, SharedValue<V>>,
@@ -122,24 +106,6 @@ impl<'a, 'i, K: Clone + Hash + Eq, V: Clone, S: Clone + BuildHasher> Clone for I
     fn clone(&self) -> Self {
         Iter::new(self.map)
     }
-}
-
-unsafe impl<'a, 'i, K, V, S, M> Send for Iter<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Send,
-    V: 'a + Send,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
-}
-
-unsafe impl<'a, 'i, K, V, S, M> Sync for Iter<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Sync,
-    V: 'a + Sync,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
 }
 
 impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter<'a, K, V, S, M> {
@@ -200,24 +166,6 @@ pub struct IterMut<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     map: &'a M,
     shard_i: usize,
     current: Option<GuardIterMut<'a, K, V, S>>,
-}
-
-unsafe impl<'a, 'i, K, V, S, M> Send for IterMut<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Send,
-    V: 'a + Send,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
-}
-
-unsafe impl<'a, 'i, K, V, S, M> Sync for IterMut<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Sync,
-    V: 'a + Sync,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
 }
 
 impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>>
