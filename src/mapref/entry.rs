@@ -84,7 +84,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     }
 }
 
-pub struct VacantEntry<'a, K, V, S> {
+pub struct VacantEntry<'a, K, V, S = RandomState> {
     shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
     key: K,
 }
@@ -130,7 +130,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
     }
 }
 
-pub struct OccupiedEntry<'a, K, V, S> {
+pub struct OccupiedEntry<'a, K, V, S = RandomState> {
     shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
     elem: (*const K, *mut V),
     key: K,
