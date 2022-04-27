@@ -6,7 +6,6 @@ use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
-use std::collections::hash_map;
 use std::collections::hash_map::RandomState;
 use std::sync::Arc;
 
@@ -39,7 +38,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> OwningIter<K, V, S> {
     }
 }
 
-type GuardOwningIter<K, V> = hash_map::IntoIter<K, SharedValue<V>>;
+type GuardOwningIter<K, V> = hashbrown::hash_map::IntoIter<K, SharedValue<V>>;
 
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     type Item = (K, V);
@@ -93,12 +92,12 @@ where
 
 type GuardIter<'a, K, V, S> = (
     Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
-    hash_map::Iter<'a, K, SharedValue<V>>,
+    hashbrown::hash_map::Iter<'a, K, SharedValue<V>>,
 );
 
 type GuardIterMut<'a, K, V, S> = (
     Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
-    hash_map::IterMut<'a, K, SharedValue<V>>,
+    hashbrown::hash_map::IterMut<'a, K, SharedValue<V>>,
 );
 
 /// Iterator over a DashMap yielding immutable references.
