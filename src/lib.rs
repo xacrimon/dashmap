@@ -891,7 +891,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         match shard.raw_entry_mut().from_key_hashed_nocheck(hash, key) {
             hashbrown::hash_map::RawEntryMut::Occupied(occupied) => {
-                if f(&occupied.key(), &occupied.get().get()) {
+                if f(occupied.key(), occupied.get().get()) {
                     let (k, v) = occupied.remove_entry();
                     Some((k, v.into_inner()))
                 } else {
