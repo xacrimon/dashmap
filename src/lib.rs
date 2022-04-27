@@ -46,7 +46,7 @@ cfg_if! {
 pub(crate) type HashMap<K, V, S> = hashbrown::HashMap<K, SharedValue<V>, S>;
 
 fn default_shard_amount() -> usize {
-    (num_cpus::get() * 4).next_power_of_two()
+    (std::thread::available_parallelism().map_or(1, usize::from) * 4).next_power_of_two()
 }
 
 fn ncb(shard_amount: usize) -> usize {
