@@ -10,12 +10,10 @@ pub struct Ref<'a, K, V, S = RandomState> {
     v: *const V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for Ref<'a, K, V, S> {}
+#[cfg(feature = "send_guard")]
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for Ref<'a, K, V, S> {}
 
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
-    for Ref<'a, K, V, S>
-{
-}
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for Ref<'a, K, V, S> {}
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
     pub(crate) unsafe fn new(
@@ -57,12 +55,10 @@ pub struct RefMut<'a, K, V, S = RandomState> {
     v: *mut V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Send, V: Send, S: BuildHasher> Send for RefMut<'a, K, V, S> {}
+#[cfg(feature = "send_guard")]
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for RefMut<'a, K, V, S> {}
 
-unsafe impl<'a, K: Eq + Hash + Send + Sync, V: Send + Sync, S: BuildHasher> Sync
-    for RefMut<'a, K, V, S>
-{
-}
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for RefMut<'a, K, V, S> {}
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
     pub(crate) unsafe fn new(
