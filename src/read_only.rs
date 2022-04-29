@@ -208,7 +208,7 @@ mod tests {
         for (key, value) in view.iter() {
             map.contains_key(key);
 
-            let map_entry = map.get(&key).unwrap();
+            let map_entry = map.get(key).unwrap();
 
             assert_eq!(key, map_entry.key());
 
@@ -222,7 +222,7 @@ mod tests {
         for key in view.keys() {
             map.contains_key(key);
 
-            let map_entry = map.get(&key).unwrap();
+            let map_entry = map.get(key).unwrap();
 
             assert_eq!(key, map_entry.key());
 
