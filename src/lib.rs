@@ -2,6 +2,7 @@
 
 pub mod iter;
 pub mod iter_set;
+mod lock;
 pub mod mapref;
 mod read_only;
 #[cfg(feature = "serde")]
@@ -18,6 +19,12 @@ pub mod rayon {
     pub mod set;
 }
 
+#[cfg(not(feature = "raw-api"))]
+use crate::lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+
+#[cfg(feature = "raw-api")]
+pub use crate::lock::{RawRwLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
+
 use cfg_if::cfg_if;
 use core::borrow::Borrow;
 use core::fmt;
@@ -28,7 +35,6 @@ use iter::{Iter, IterMut, OwningIter};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
-use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 pub use read_only::ReadOnlyView;
 pub use set::DashSet;
 use std::collections::hash_map::RandomState;
