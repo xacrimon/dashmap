@@ -1,11 +1,11 @@
 use super::one::RefMut;
+use crate::lock::RwLockWriteGuard;
 use crate::util;
 use crate::util::SharedValue;
 use crate::HashMap;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 use core::ptr;
-use parking_lot::RwLockWriteGuard;
 use std::collections::hash_map::RandomState;
 
 pub enum Entry<'a, K, V, S = RandomState> {
@@ -89,9 +89,7 @@ pub struct VacantEntry<'a, K, V, S = RandomState> {
     key: K,
 }
 
-#[cfg(feature = "send_guard")]
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for VacantEntry<'a, K, V, S> {}
-
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for VacantEntry<'a, K, V, S> {}
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
@@ -134,9 +132,7 @@ pub struct OccupiedEntry<'a, K, V, S = RandomState> {
     key: K,
 }
 
-#[cfg(feature = "send_guard")]
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for OccupiedEntry<'a, K, V, S> {}
-
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for OccupiedEntry<'a, K, V, S> {}
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {

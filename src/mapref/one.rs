@@ -1,7 +1,7 @@
+use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
 use core::hash::{BuildHasher, Hash};
 use core::ops::{Deref, DerefMut};
-use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::collections::hash_map::RandomState;
 
 pub struct Ref<'a, K, V, S = RandomState> {
@@ -10,9 +10,7 @@ pub struct Ref<'a, K, V, S = RandomState> {
     v: *const V,
 }
 
-#[cfg(feature = "send_guard")]
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for Ref<'a, K, V, S> {}
-
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for Ref<'a, K, V, S> {}
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
@@ -55,9 +53,7 @@ pub struct RefMut<'a, K, V, S = RandomState> {
     v: *mut V,
 }
 
-#[cfg(feature = "send_guard")]
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for RefMut<'a, K, V, S> {}
-
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for RefMut<'a, K, V, S> {}
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
@@ -90,13 +86,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
     }
 
     pub fn downgrade(self) -> Ref<'a, K, V, S> {
-        unsafe {
-            Ref::new(
-                parking_lot::RwLockWriteGuard::downgrade(self.guard),
-                self.k,
-                self.v,
-            )
-        }
+        unsafe { Ref::new(RwLockWriteGuard::downgrade(self.guard), self.k, self.v) }
     }
 }
 

@@ -1,8 +1,8 @@
+use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
 use core::hash::BuildHasher;
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
-use parking_lot::{RwLockReadGuard, RwLockWriteGuard};
 use std::collections::hash_map::RandomState;
 use std::sync::Arc;
 
@@ -12,9 +12,7 @@ pub struct RefMulti<'a, K, V, S = RandomState> {
     v: *const V,
 }
 
-#[cfg(feature = "send_guard")]
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for RefMulti<'a, K, V, S> {}
-
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for RefMulti<'a, K, V, S> {}
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMulti<'a, K, V, S> {
@@ -57,9 +55,7 @@ pub struct RefMutMulti<'a, K, V, S = RandomState> {
     v: *mut V,
 }
 
-#[cfg(feature = "send_guard")]
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for RefMutMulti<'a, K, V, S> {}
-
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for RefMutMulti<'a, K, V, S> {}
 
 impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
