@@ -277,18 +277,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         }
     }
 
-    fn hash_u64<T: Hash>(&self, item: &T) -> u64 {
+    /// Hash a given item to produce a usize.
+    /// Uses the provided or default HashBuilder.
+    pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
         let mut hasher = self.hasher.build_hasher();
 
         item.hash(&mut hasher);
 
-        hasher.finish()
-    }
-
-    /// Hash a given item to produce a usize.
-    /// Uses the provided or default HashBuilder.
-    pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
-        self.hash_u64(item) as usize
+        hasher.finish() as usize
     }
 
     cfg_if! {
@@ -339,8 +335,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
                 K: Borrow<Q>,
                 Q: Hash + Eq + ?Sized,
             {
-                let hash = self.hash_u64(&key);
-                self.determine_shard(hash as usize)
+                let hash = self.hash_usize(&key);
+                self.determine_shard(hash)
             }
         }
     }
@@ -847,21 +843,15 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     }
 
     fn _insert(&self, key: K, value: V) -> Option<V> {
-        let hash = self.hash_u64(&key);
+        let hash = self.hash_usize(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self.determine_shard(hash);
 
         let mut shard = unsafe { self._yield_write_shard(idx) };
 
-        match shard.raw_entry_mut().from_key_hashed_nocheck(hash, &key) {
-            hashbrown::hash_map::RawEntryMut::Occupied(mut occupied) => {
-                Some(occupied.insert(SharedValue::new(value)).into_inner())
-            }
-            hashbrown::hash_map::RawEntryMut::Vacant(vacant) => {
-                vacant.insert(key, SharedValue::new(value));
-                None
-            }
-        }
+        shard
+            .insert(key, SharedValue::new(value))
+            .map(|v| v.into_inner())
     }
 
     fn _remove<Q>(&self, key: &Q) -> Option<(K, V)>
@@ -869,19 +859,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.hash_u64(&key);
+        let hash = self.hash_usize(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self.determine_shard(hash);
 
         let mut shard = unsafe { self._yield_write_shard(idx) };
 
-        match shard.raw_entry_mut().from_key_hashed_nocheck(hash, key) {
-            hashbrown::hash_map::RawEntryMut::Occupied(entry) => {
-                let (k, v) = entry.remove_entry();
-                Some((k, v.into_inner()))
-            }
-            hashbrown::hash_map::RawEntryMut::Vacant(_) => None,
-        }
+        shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
     }
 
     fn _remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
@@ -889,22 +873,25 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.hash_u64(&key);
+        let hash = self.hash_usize(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self.determine_shard(hash);
 
         let mut shard = unsafe { self._yield_write_shard(idx) };
 
-        match shard.raw_entry_mut().from_key_hashed_nocheck(hash, key) {
-            hashbrown::hash_map::RawEntryMut::Occupied(occupied) => {
-                if f(occupied.key(), occupied.get().get()) {
-                    let (k, v) = occupied.remove_entry();
-                    Some((k, v.into_inner()))
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
+            unsafe {
+                let kptr: *const K = kptr;
+                let vptr: *mut V = vptr.as_ptr();
+
+                if f(&*kptr, &mut *vptr) {
+                    shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
                 } else {
                     None
                 }
             }
-            hashbrown::hash_map::RawEntryMut::Vacant(_) => None,
+        } else {
+            None
         }
     }
 
@@ -913,23 +900,25 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.hash_u64(&key);
+        let hash = self.hash_usize(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self.determine_shard(hash);
 
         let mut shard = unsafe { self._yield_write_shard(idx) };
 
-        match shard.raw_entry_mut().from_key_hashed_nocheck(hash, key) {
-            hashbrown::hash_map::RawEntryMut::Occupied(mut occupied) => {
-                let (k, v) = occupied.get_key_value_mut();
-                if f(k, v.get_mut()) {
-                    let (k, v) = occupied.remove_entry();
-                    Some((k, v.into_inner()))
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
+            unsafe {
+                let kptr: *const K = kptr;
+                let vptr: *mut V = vptr.as_ptr();
+
+                if f(&*kptr, &mut *vptr) {
+                    shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
                 } else {
                     None
                 }
             }
-            hashbrown::hash_map::RawEntryMut::Vacant(_) => None,
+        } else {
+            None
         }
     }
 
@@ -946,13 +935,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.hash_u64(&key);
+        let hash = self.hash_usize(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self.determine_shard(hash);
 
         let shard = unsafe { self._yield_read_shard(idx) };
 
-        if let Some((kptr, vptr)) = shard.raw_entry().from_key_hashed_nocheck(hash, key) {
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
                 let kptr: *const K = kptr;
                 let vptr: *const V = vptr.get();
@@ -968,13 +957,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.hash_u64(&key);
+        let hash = self.hash_usize(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self.determine_shard(hash);
 
         let shard = unsafe { self._yield_write_shard(idx) };
 
-        if let Some((kptr, vptr)) = shard.raw_entry().from_key_hashed_nocheck(hash, key) {
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
                 let kptr: *const K = kptr;
                 let vptr: *mut V = vptr.as_ptr();
@@ -990,16 +979,16 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.hash_u64(&key);
+        let hash = self.hash_usize(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self.determine_shard(hash);
 
         let shard = match unsafe { self._try_yield_read_shard(idx) } {
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
 
-        if let Some((kptr, vptr)) = shard.raw_entry().from_key_hashed_nocheck(hash, key) {
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
                 let kptr: *const K = kptr;
                 let vptr: *const V = vptr.get();
@@ -1015,16 +1004,16 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.hash_u64(&key);
+        let hash = self.hash_usize(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self.determine_shard(hash);
 
         let shard = match unsafe { self._try_yield_write_shard(idx) } {
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
 
-        if let Some((kptr, vptr)) = shard.raw_entry().from_key_hashed_nocheck(hash, key) {
+        if let Some((kptr, vptr)) = shard.get_key_value(key) {
             unsafe {
                 let kptr: *const K = kptr;
                 let vptr: *mut V = vptr.as_ptr();
@@ -1083,13 +1072,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     }
 
     fn _entry(&'a self, key: K) -> Entry<'a, K, V, S> {
-        let hash = self.hash_u64(&key);
+        let hash = self.hash_usize(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self.determine_shard(hash);
 
         let shard = unsafe { self._yield_write_shard(idx) };
 
-        if let Some((kptr, vptr)) = shard.raw_entry().from_key_hashed_nocheck(hash, &key) {
+        if let Some((kptr, vptr)) = shard.get_key_value(&key) {
             unsafe {
                 let kptr: *const K = kptr;
                 let vptr: *mut V = vptr.as_ptr();
@@ -1101,16 +1090,16 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     }
 
     fn _try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>> {
-        let hash = self.hash_u64(&key);
+        let hash = self.hash_usize(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self.determine_shard(hash);
 
         let shard = match unsafe { self._try_yield_write_shard(idx) } {
             Some(shard) => shard,
             None => return None,
         };
 
-        if let Some((kptr, vptr)) = shard.raw_entry().from_key_hashed_nocheck(hash, &key) {
+        if let Some((kptr, vptr)) = shard.get_key_value(&key) {
             unsafe {
                 let kptr: *const K = kptr;
                 let vptr: *mut V = vptr.as_ptr();
