@@ -65,7 +65,7 @@ fn ncb(shard_amount: usize) -> usize {
 /// with some slight changes to handle concurrency.
 ///
 /// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V, S>>`.
-/// To accomplish these all methods take `&self` instead modifying methods taking `&mut self`.
+/// To accomplish this, all methods take `&self` instead of modifying methods taking `&mut self`.
 /// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
 ///
 /// Documentation mentioning locking behaviour acts in the reference frame of the calling thread.
