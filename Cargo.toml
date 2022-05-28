@@ -3,6 +3,7 @@ name = "dashmap"
 version = "5.3.3"
 authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
+rust-version = "1.59"
 license = "MIT"
 repository = "https://github.com/xacrimon/dashmap"
 homepage = "https://github.com/xacrimon/dashmap"
