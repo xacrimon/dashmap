@@ -6,8 +6,7 @@ use crate::util::SharedValue;
 use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
 use core::mem;
-use hashbrown::hash_map;
-use std::collections::hash_map::RandomState;
+use std::collections::hash_map::{self, RandomState};
 use std::sync::Arc;
 
 /// Iterator over a DashMap yielding key value pairs.
