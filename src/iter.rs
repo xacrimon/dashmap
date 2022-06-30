@@ -1,14 +1,21 @@
-use super::mapref::multiple::{RefMulti, RefMutMulti};
-use super::util;
-use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
-use crate::t::Map;
-use crate::util::SharedValue;
-use crate::{DashMap, HashMap};
-use core::hash::{BuildHasher, Hash};
-use core::mem;
+use core::{
+    hash::{BuildHasher, Hash},
+    mem,
+};
+use std::{collections::hash_map::RandomState, sync::Arc};
+
 use hashbrown::hash_map;
-use std::collections::hash_map::RandomState;
-use std::sync::Arc;
+
+use super::{
+    mapref::multiple::{RefMulti, RefMutMulti},
+    util,
+};
+use crate::{
+    lock::{RwLockReadGuard, RwLockWriteGuard},
+    t::Map,
+    util::SharedValue,
+    DashMap, HashMap,
+};
 
 /// Iterator over a DashMap yielding key value pairs.
 ///
@@ -56,7 +63,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
                 return None;
             }
 
-            //let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+            // let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
             let mut shard_wl = unsafe { self.map._yield_write_shard(self.shard_i) };
 
             let hasher = self.map._hasher();
@@ -67,11 +74,17 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
 
             let iter = map.into_iter();
 
-            //unsafe { ptr::write(&mut self.current, Some((arcee, iter))); }
+            // unsafe { ptr::write(&mut self.current, Some((arcee, iter))); }
             self.current = Some(iter);
 
             self.shard_i += 1;
         }
+    }
+}
+
+impl<K: Eq + Hash, V, S: BuildHasher + Clone> ExactSizeIterator for OwningIter<K, V, S> {
+    fn len(&self) -> usize {
+        self.map.len()
     }
 }
 
@@ -184,6 +197,14 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
     }
 }
 
+impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> ExactSizeIterator
+    for Iter<'a, K, V, S, M>
+{
+    fn len(&self) -> usize {
+        self.map._len()
+    }
+}
+
 /// Iterator over a DashMap yielding mutable references.
 ///
 /// # Examples
@@ -270,6 +291,14 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
     }
 }
 
+impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> ExactSizeIterator
+    for IterMut<'a, K, V, S, M>
+{
+    fn len(&self) -> usize {
+        self.map._len()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::DashMap;
@@ -311,5 +340,14 @@ mod tests {
         assert_eq!(map.len(), 1);
 
         assert_eq!(map.iter().count(), 1);
+    }
+
+    #[test]
+    fn iter_len() {
+        let map = DashMap::new();
+
+        map.insert("Johnny", 21);
+
+        assert_eq!(map.len(), map.iter().len());
     }
 }

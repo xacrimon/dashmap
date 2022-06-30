@@ -1,6 +1,6 @@
-use crate::setref::multiple::RefMulti;
-use crate::t::Map;
 use core::hash::{BuildHasher, Hash};
+
+use crate::{setref::multiple::RefMulti, t::Map};
 
 pub struct OwningIter<K, S> {
     inner: crate::iter::OwningIter<K, (), S>,
@@ -17,6 +17,12 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> Iterator for OwningIter<K, S> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|(k, _)| k)
+    }
+}
+
+impl<K: Eq + Hash, S: BuildHasher + Clone> ExactSizeIterator for OwningIter<K, S> {
+    fn len(&self) -> usize {
+        self.inner.len()
     }
 }
 
@@ -67,5 +73,13 @@ impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iterat
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(RefMulti::new)
+    }
+}
+
+impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> ExactSizeIterator
+    for Iter<'a, K, S, M>
+{
+    fn len(&self) -> usize {
+        self.inner.len()
     }
 }
