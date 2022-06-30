@@ -1,21 +1,14 @@
-use core::{
-    hash::{BuildHasher, Hash},
-    mem,
-};
-use std::{collections::hash_map::RandomState, sync::Arc};
-
+use super::mapref::multiple::{RefMulti, RefMutMulti};
+use super::util;
+use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
+use crate::t::Map;
+use crate::util::SharedValue;
+use crate::{DashMap, HashMap};
+use core::hash::{BuildHasher, Hash};
+use core::mem;
 use hashbrown::hash_map;
-
-use super::{
-    mapref::multiple::{RefMulti, RefMutMulti},
-    util,
-};
-use crate::{
-    lock::{RwLockReadGuard, RwLockWriteGuard},
-    t::Map,
-    util::SharedValue,
-    DashMap, HashMap,
-};
+use std::collections::hash_map::RandomState;
+use std::sync::Arc;
 
 /// Iterator over a DashMap yielding key value pairs.
 ///
@@ -63,7 +56,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
                 return None;
             }
 
-            // let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+            //let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
             let mut shard_wl = unsafe { self.map._yield_write_shard(self.shard_i) };
 
             let hasher = self.map._hasher();
@@ -74,7 +67,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
 
             let iter = map.into_iter();
 
-            // unsafe { ptr::write(&mut self.current, Some((arcee, iter))); }
+            //unsafe { ptr::write(&mut self.current, Some((arcee, iter))); }
             self.current = Some(iter);
 
             self.shard_i += 1;
