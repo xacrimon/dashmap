@@ -80,7 +80,7 @@ where
 }
 
 pub struct OwningIter<K, V, S = RandomState> {
-    shards: Box<[RwLock<HashMap<K, V, S>>]>,
+    pub(super) shards: Box<[RwLock<HashMap<K, V, S>>]>,
 }
 
 impl<K, V, S> ParallelIterator for OwningIter<K, V, S>
@@ -125,7 +125,7 @@ where
 }
 
 pub struct Iter<'a, K, V, S = RandomState> {
-    shards: &'a [RwLock<HashMap<K, V, S>>],
+    pub(super) shards: &'a [RwLock<HashMap<K, V, S>>],
 }
 
 impl<'a, K, V, S> ParallelIterator for Iter<'a, K, V, S>

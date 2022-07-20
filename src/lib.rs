@@ -16,6 +16,7 @@ mod util;
 #[cfg(feature = "rayon")]
 pub mod rayon {
     pub mod map;
+    pub mod read_only;
     pub mod set;
 }
 
