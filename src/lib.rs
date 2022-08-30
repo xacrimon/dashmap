@@ -821,7 +821,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     // TODO: return std::collections::TryReserveError once std::collections::TryReserveErrorKind stabilises.
     pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
         for shard in self.shards.iter() {
-            shard.write().try_reserve(additional).map_err(|_| TryReserveError {})?;
+            shard
+                .write()
+                .try_reserve(additional)
+                .map_err(|_| TryReserveError {})?;
         }
         Ok(())
     }
