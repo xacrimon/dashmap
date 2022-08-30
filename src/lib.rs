@@ -35,6 +35,7 @@ use iter::{Iter, IterMut, OwningIter};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
+use once_cell::sync::OnceCell;
 pub use read_only::ReadOnlyView;
 pub use set::DashSet;
 use std::collections::hash_map::RandomState;
@@ -60,7 +61,10 @@ pub(crate) type HashMap<K, V, S> = hashbrown::HashMap<K, SharedValue<V>, S>;
 pub struct TryReserveError {}
 
 fn default_shard_amount() -> usize {
-    (std::thread::available_parallelism().map_or(1, usize::from) * 4).next_power_of_two()
+    static DEFAULT_SHARD_AMOUNT: OnceCell<usize> = OnceCell::new();
+    *DEFAULT_SHARD_AMOUNT.get_or_init(|| {
+        (std::thread::available_parallelism().map_or(1, usize::from) * 4).next_power_of_two()
+    })
 }
 
 fn ncb(shard_amount: usize) -> usize {
