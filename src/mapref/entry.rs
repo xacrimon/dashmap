@@ -82,7 +82,24 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
             Entry::Vacant(entry) => Ok(entry.insert(value()?)),
         }
     }
+
+    /// Sets the value of the entry, and returns a reference to the inserted value.
+    pub fn insert(self, value: V) -> RefMut<'a, K, V, S> {
+        match self {
+            Entry::Occupied(mut entry) => {
+                entry.insert(value);
+                entry.into_ref()
+            }
+            Entry::Vacant(entry) => entry.insert(value),
+        }
+    }
+
     /// Sets the value of the entry, and returns an OccupiedEntry.
+    ///
+    /// If you are not interested in the occupied entry,
+    /// consider [`insert`] as it doesn't need to clone the key.
+    /// 
+    /// [`insert`]: Entry::insert
     pub fn insert_entry(self, value: V) -> OccupiedEntry<'a, K, V, S> where K: Clone {
         match self {
             Entry::Occupied(mut entry) => {
