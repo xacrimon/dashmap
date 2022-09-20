@@ -810,6 +810,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     pub fn try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>> {
         self._try_entry(key)
     }
+    
+    /// Advanced entry API that tries to mimic `std::collections::HashMap`.
+    /// See the documentation on `dashmap::mapref::entry` for more details.
+    ///
+    /// Returns Err with the given key if the shard is currently locked.
+    pub fn try_entry_res(&'a self, key: K) -> Result<Entry<'a, K, V, S>, K> {
+        self._try_entry_res(key)
+    }
 
     /// Advanced entry API that tries to mimic `std::collections::HashMap::try_reserve`.
     /// Tries to reserve capacity for at least `shard * additional`
@@ -1121,13 +1129,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     }
 
     fn _try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>> {
+        self._try_entry_res(key).ok()
+    }
+    
+    fn _try_entry_res(&'a self, key: K) -> Result<Entry<'a, K, V, S>, K> {
         let hash = self.hash_usize(&key);
 
         let idx = self.determine_shard(hash);
 
         let shard = match unsafe { self._try_yield_write_shard(idx) } {
             Some(shard) => shard,
-            None => return None,
+            None => return Err(key),
         };
 
         if let Some((kptr, vptr)) = shard.get_key_value(&key) {
@@ -1135,14 +1147,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
                 let kptr: *const K = kptr;
                 let vptr: *mut V = vptr.as_ptr();
 
-                Some(Entry::Occupied(OccupiedEntry::new(
+                Ok(Entry::Occupied(OccupiedEntry::new(
                     shard,
                     key,
                     (kptr, vptr),
                 )))
             }
         } else {
-            unsafe { Some(Entry::Vacant(VacantEntry::new(shard, key))) }
+            unsafe { Ok(Entry::Vacant(VacantEntry::new(shard, key))) }
         }
     }
 

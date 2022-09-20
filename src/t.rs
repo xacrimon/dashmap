@@ -113,6 +113,8 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
 
     fn _try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>>;
 
+    fn _try_entry_res(&'a self, key: K) -> Result<Entry<'a, K, V, S>, K>;
+    
     fn _hasher(&self) -> S;
 
     // provided
