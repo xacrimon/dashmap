@@ -51,6 +51,11 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized;
 
+    fn _try_remove<Q>(&self, key: &Q) -> TryResult<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized;
+    
     fn _remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
     where
         K: Borrow<Q>,

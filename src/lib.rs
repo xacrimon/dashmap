@@ -437,6 +437,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         self._remove(key)
     }
+    
+    /// Removes an entry from the map, returning the key and value if they existed in the map.
+    ///
+    /// Returns `TryResult::`
+    pub fn try_remove<Q>(&self, key: &Q) -> TryResult<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized, 
+    {
+        self._try_remove(key)
+    }
 
     /// Removes an entry from the map, returning the key and value
     /// if the entry existed and the provided conditional function returned true.
@@ -905,6 +916,26 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let mut shard = unsafe { self._yield_write_shard(idx) };
 
         shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
+    }
+
+    fn _try_remove<Q>(&self, key: &Q) -> TryResult<(K, V)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        let hash = self.hash_usize(&key);
+
+        let idx = self.determine_shard(hash);
+
+        let mut shard = match unsafe { self._try_yield_write_shard(idx) } {
+            Some(shard) => shard,
+            None => return TryResult::Locked,
+        };
+
+        match shard.remove_entry(key).map(|(k, v)| (k, v.into_inner())) {
+            Some(val) => TryResult::Present(val),
+            None => TryResult::Absent,
+        }
     }
 
     fn _remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
