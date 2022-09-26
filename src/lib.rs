@@ -510,7 +510,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._iter_mut()
     }
 
-    /// Get a immutable reference to an entry in the map
+    /// Get an immutable reference to an entry in the map
     ///
     /// **Locking behaviour:** May deadlock if called when holding a mutable reference into the map.
     ///
