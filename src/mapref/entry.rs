@@ -73,6 +73,8 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
         }
     }
 
+    /// Ensures a value is in the entry by inserting the result of the function if empty,
+    /// and returns a mutable reference to the value in the entry.
     pub fn or_try_insert_with<E>(
         self,
         value: impl FnOnce() -> Result<V, E>,
@@ -80,6 +82,19 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
         match self {
             Entry::Occupied(entry) => Ok(entry.into_ref()),
             Entry::Vacant(entry) => Ok(entry.insert(value()?)),
+        }
+    }
+
+    /// Inserts a value into the map unless the key already exists.
+    /// 
+    /// If the map does not contain the key, the key-value pair is inserted and this method returns Ok.
+    /// 
+    /// If the map does contain the key, the map is left unchanged and this method returns Err 
+    /// with a reference to the value in the entry.
+    pub fn try_insert(self, value: V) -> Result<RefMut<'a, K, V, S>, RefMut<'a, K, V, S>> {
+        match self {
+            Entry::Occupied(entry) => Err(entry.into_ref()),
+            Entry::Vacant(entry) => Ok(entry.insert(value)),
         }
     }
 }
