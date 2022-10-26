@@ -13,6 +13,11 @@ pub enum Entry<'a, K, V, S = RandomState> {
     Vacant(VacantEntry<'a, K, V, S>),
 }
 
+pub struct TryInsertError<'a, K, V, S> {
+    pub current: RefMut<'a, K, V, S>,
+    pub not_inserted: V,
+}
+
 impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     /// Apply a function to the stored value if it exists.
     pub fn and_modify(self, f: impl FnOnce(&mut V)) -> Self {
@@ -86,14 +91,17 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     }
 
     /// Inserts a value into the map unless the key already exists.
-    /// 
+    ///
     /// If the map does not contain the key, the key-value pair is inserted and this method returns Ok.
-    /// 
-    /// If the map does contain the key, the map is left unchanged and this method returns Err 
-    /// with a reference to the value in the entry.
-    pub fn try_insert(self, value: V) -> Result<RefMut<'a, K, V, S>, RefMut<'a, K, V, S>> {
+    ///
+    /// If the map does contain the key, the map is left unchanged and this method returns Err
+    /// with a reference to the value in the entry and the not inserted value.
+    pub fn try_insert(self, value: V) -> Result<RefMut<'a, K, V, S>, TryInsertError<'a, K, V, S>> {
         match self {
-            Entry::Occupied(entry) => Err(entry.into_ref()),
+            Entry::Occupied(entry) => Err(TryInsertError {
+                current: entry.into_ref(),
+                not_inserted: value,
+            }),
             Entry::Vacant(entry) => Ok(entry.insert(value)),
         }
     }
