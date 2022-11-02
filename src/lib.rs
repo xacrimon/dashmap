@@ -318,10 +318,50 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             pub fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
                 &self.shards
             }
+
+            /// Provides mutable access to the inner shards that store your data.
+            /// You should probably not use this unless you know what you are doing.
+            ///
+            /// Requires the `raw-api` feature to be enabled.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use dashmap::DashMap;
+            /// use dashmap::SharedValue;
+            ///
+            /// let mut map = DashMap::<i32, &'static str>::new();
+            /// let shard_ind = map.determine_map(&42); 
+            /// map.shards_mut()[shard_ind].get_mut().insert(42, SharedValue::new("forty two"));
+            /// assert_eq!(*map.get(&42).unwrap(), "forty two");
+            /// ```
+            pub fn shards_mut(&mut self) -> &mut [RwLock<HashMap<K, V, S>>] {
+                &mut self.shards
+            }
+
+            /// Consumes this `DashMap` and returns the inner shards.
+            /// You should probably not use this unless you know what you are doing.
+            /// 
+            /// Requires the `raw-api` feature to be enabled.
+            /// 
+            /// See [`DashMap::shards()`] and [`DashMap::shards_mut()`] for more information.
+            pub fn into_shards(self) -> Box<[RwLock<HashMap<K, V, S>>]> {
+                self.shards
+            }
         } else {
             #[allow(dead_code)]
             pub(crate) fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
                 &self.shards
+            }
+
+            #[allow(dead_code)]
+            pub(crate) fn shards_mut(&mut self) -> &mut [RwLock<HashMap<K, V, S>>] {
+                &mut self.shards
+            }
+
+            #[allow(dead_code)]
+            pub(crate) fn into_shards(self) -> Box<[RwLock<HashMap<K, V, S>>]> {
+                self.shards
             }
         }
     }
