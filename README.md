@@ -30,6 +30,8 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - `rayon` - Enables rayon support.
 
+- `inline` - Enables `inline-more` feature from the `hashbrown` crate. Can lead to better performance, but with the cost of longer compile-time.
+
 ## Contributing
 
 DashMap gladly accepts contributions!
