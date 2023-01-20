@@ -1,5 +1,7 @@
+use crate::lock::RwLock;
 use crate::t::Map;
 use crate::{DashMap, HashMap};
+use cfg_if::cfg_if;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
@@ -120,6 +122,32 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
         self.shard_read_iter()
             .flat_map(|shard| shard.values())
             .map(|v| v.get())
+    }
+
+    cfg_if! {
+        if #[cfg(feature = "raw-api")] {
+            /// Allows you to peek at the inner shards that store your data.
+            /// You should probably not use this unless you know what you are doing.
+            ///
+            /// Requires the `raw-api` feature to be enabled.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use dashmap::DashMap;
+            ///
+            /// let map = DashMap::<(), ()>::new().into_read_only();
+            /// println!("Amount of shards: {}", map.shards().len());
+            /// ```
+            pub fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
+                &self.map.shards
+            }
+        } else {
+            #[allow(dead_code)]
+            pub(crate) fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
+                &self.map.shards
+            }
+        }
     }
 }
 
