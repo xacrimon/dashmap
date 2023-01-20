@@ -331,7 +331,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// use dashmap::SharedValue;
             ///
             /// let mut map = DashMap::<i32, &'static str>::new();
-            /// let shard_ind = map.determine_map(&42); 
+            /// let shard_ind = map.determine_map(&42);
             /// map.shards_mut()[shard_ind].get_mut().insert(42, SharedValue::new("forty two"));
             /// assert_eq!(*map.get(&42).unwrap(), "forty two");
             /// ```
@@ -341,9 +341,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
             /// Consumes this `DashMap` and returns the inner shards.
             /// You should probably not use this unless you know what you are doing.
-            /// 
+            ///
             /// Requires the `raw-api` feature to be enabled.
-            /// 
+            ///
             /// See [`DashMap::shards()`] and [`DashMap::shards_mut()`] for more information.
             pub fn into_shards(self) -> Box<[RwLock<HashMap<K, V, S>>]> {
                 self.shards
