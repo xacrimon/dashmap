@@ -51,7 +51,7 @@ cfg_if! {
     }
 }
 
-pub(crate) type HashMap<K, V, S> = hashbrown::HashMap<K, SharedValue<V>, S>;
+pub(crate) type HashMap<K, V, S> = std::collections::HashMap<K, SharedValue<V>, S>;
 
 // Temporary reimplementation of [`std::collections::TryReserveError`]
 // util [`std::collections::TryReserveError`] stabilises.
