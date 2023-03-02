@@ -68,8 +68,8 @@ fn default_shard_amount() -> usize {
     })
 }
 
-fn ncb(shard_amount: usize) -> usize {
-    shard_amount.trailing_zeros() as usize
+fn ncb(shard_amount: usize) -> u32 {
+    shard_amount.trailing_zeros()
 }
 
 /// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
@@ -84,7 +84,7 @@ fn ncb(shard_amount: usize) -> usize {
 /// Documentation mentioning locking behaviour acts in the reference frame of the calling thread.
 /// This means that it is safe to ignore it across multiple threads.
 pub struct DashMap<K, V, S = RandomState> {
-    shift: usize,
+    shift: u32,
     shards: Box<[RwLock<HashMap<K, V, S>>]>,
     hasher: S,
 }
@@ -271,7 +271,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         assert!(shard_amount > 0);
         assert!(shard_amount.is_power_of_two());
 
-        let shift = util::ptr_size_bits() - ncb(shard_amount);
+        let shift = util::ptr_size_bits() as u32 - ncb(shard_amount);
 
         if capacity != 0 {
             capacity = (capacity + (shard_amount - 1)) & !(shard_amount - 1);
@@ -412,13 +412,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// ```
             pub fn determine_shard(&self, hash: usize) -> usize {
                 // Leave the high 7 bits for the HashBrown SIMD tag.
-                (hash << 7) >> self.shift
+                (hash << 7).checked_shr(self.shift).unwrap_or(0)
             }
         } else {
 
             pub(crate) fn determine_shard(&self, hash: usize) -> usize {
                 // Leave the high 7 bits for the HashBrown SIMD tag.
-                (hash << 7) >> self.shift
+                (hash << 7 as usize).checked_shr(self.shift).unwrap_or(0)
             }
         }
     }
@@ -1459,5 +1459,12 @@ mod tests {
             Err(_) => {}
             _ => panic!("should have raised CapacityOverflow error"),
         }
+    }
+
+    #[test]
+    fn test_one_shard() {
+        let map: DashMap<i32, i32> = DashMap::with_shard_amount(1);
+        map.insert(0, 21);
+        assert_eq!(map.get(&0).unwrap().value(), &21);
     }
 }
