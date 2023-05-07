@@ -241,6 +241,20 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> Deref for MappedRef<'a, K, V, T, S>
     }
 }
 
+impl<'a, K: Eq + Hash, V, T: std::fmt::Display> std::fmt::Display for MappedRef<'a, K, V, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self.value(), f)
+    }
+}
+
+impl<'a, K: Eq + Hash, V, T: AsRef<TDeref>, TDeref: ?Sized> AsRef<TDeref>
+    for MappedRef<'a, K, V, T>
+{
+    fn as_ref(&self) -> &TDeref {
+        self.value().as_ref()
+    }
+}
+
 pub struct MappedRefMut<'a, K, V, T, S = RandomState> {
     _guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
     k: *const K,
