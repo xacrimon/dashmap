@@ -156,3 +156,57 @@ where
         seq.end()
     }
 }
+
+#[cfg(feature = "serde")]
+macro_rules! serialize_impl {
+    () => {
+        fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
+            where
+                Ser: serde::Serializer,
+            {
+                std::ops::Deref::deref(self).serialize(serializer)
+            }
+    };
+}
+
+// Map
+#[cfg(feature = "serde")]
+impl<'a, K: Eq + Hash, V: serde::Serialize, S: BuildHasher> serde::Serialize for crate::mapref::multiple::RefMulti<'a, K, V, S> {
+    serialize_impl!{}
+}
+
+#[cfg(feature = "serde")]
+impl<'a, K: Eq + Hash, V: serde::Serialize, S: BuildHasher> serde::Serialize for crate::mapref::multiple::RefMutMulti<'a, K, V, S> {
+    serialize_impl!{}
+}
+
+#[cfg(feature = "serde")]
+impl<'a, K: Eq + Hash, V: serde::Serialize, S: BuildHasher> serde::Serialize for crate::mapref::one::Ref<'a, K, V, S> {
+    serialize_impl!{}
+}
+
+#[cfg(feature = "serde")]
+impl<'a, K: Eq + Hash, V: serde::Serialize, S: BuildHasher> serde::Serialize for crate::mapref::one::RefMut<'a, K, V, S> {
+    serialize_impl!{}
+}
+
+#[cfg(feature = "serde")]
+impl<'a, K: Eq + Hash, V, T: serde::Serialize, S: BuildHasher> serde::Serialize for crate::mapref::one::MappedRef<'a, K, V, T, S> {
+    serialize_impl!{}
+}
+
+#[cfg(feature = "serde")]
+impl<'a, K: Eq + Hash, V, T: serde::Serialize, S: BuildHasher> serde::Serialize for crate::mapref::one::MappedRefMut<'a, K, V, T, S> {
+    serialize_impl!{}
+}
+
+// Set
+#[cfg(feature = "serde")]
+impl<'a, V: Hash + Eq + serde::Serialize, S: BuildHasher> serde::Serialize for crate::setref::multiple::RefMulti<'a, V, S> {
+    serialize_impl!{}
+}
+
+#[cfg(feature = "serde")]
+impl<'a, V: Hash + Eq + serde::Serialize, S: BuildHasher> serde::Serialize for crate::setref::one::Ref<'a, V, S> {
+    serialize_impl!{}
+}
