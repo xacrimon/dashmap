@@ -1,5 +1,7 @@
 #![allow(clippy::type_complexity)]
 
+#[cfg(feature = "arbitrary")]
+mod arbitrary;
 pub mod iter;
 pub mod iter_set;
 pub mod mapref;
