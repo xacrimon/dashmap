@@ -32,6 +32,8 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - `inline` - Enables `inline-more` feature from the `hashbrown` crate. Can lead to better performance, but with the cost of longer compile-time.
 
+- `arbitrary` - Enables support for the `arbitrary` crate.
+
 ## Contributing
 
 DashMap gladly accepts contributions!
