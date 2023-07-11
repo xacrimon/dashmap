@@ -98,9 +98,12 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     ///
     /// If you are not interested in the occupied entry,
     /// consider [`insert`] as it doesn't need to clone the key.
-    /// 
+    ///
     /// [`insert`]: Entry::insert
-    pub fn insert_entry(self, value: V) -> OccupiedEntry<'a, K, V, S> where K: Clone {
+    pub fn insert_entry(self, value: V) -> OccupiedEntry<'a, K, V, S>
+    where
+        K: Clone,
+    {
         match self {
             Entry::Occupied(mut entry) => {
                 entry.insert(value);
@@ -145,7 +148,10 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
     }
 
     /// Sets the value of the entry with the VacantEntry’s key, and returns an OccupiedEntry.
-    pub fn insert_entry(mut self, value: V) -> OccupiedEntry<'a, K, V, S> where K: Clone {
+    pub fn insert_entry(mut self, value: V) -> OccupiedEntry<'a, K, V, S>
+    where
+        K: Clone,
+    {
         unsafe {
             self.shard.insert(self.key.clone(), SharedValue::new(value));
 
@@ -230,8 +236,6 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use crate::DashMap;
@@ -245,7 +249,7 @@ mod tests {
         let entry = map.entry(1);
 
         assert!(matches!(entry, Entry::Vacant(_)));
-        
+
         let entry = entry.insert_entry(2);
 
         assert_eq!(*entry.get(), 2);
@@ -264,7 +268,7 @@ mod tests {
         let entry = map.entry(1);
 
         assert!(matches!(&entry, Entry::Occupied(entry) if *entry.get() == 1000));
-        
+
         let entry = entry.insert_entry(2);
 
         assert_eq!(*entry.get(), 2);
