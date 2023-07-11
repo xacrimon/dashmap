@@ -159,9 +159,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
 
             let kptr: *const K = k;
             let vptr: *mut V = v.as_ptr();
-            let r = OccupiedEntry::new(self.shard, self.key, (kptr, vptr));
-
-            r
+            OccupiedEntry::new(self.shard, self.key, (kptr, vptr))
         }
     }
 
