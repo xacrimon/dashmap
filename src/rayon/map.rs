@@ -173,7 +173,7 @@ where
     }
 }
 
-impl<'a, K, V, S> DashMap<K, V, S>
+impl<K, V, S> DashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,

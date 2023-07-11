@@ -118,7 +118,7 @@ pub struct Iter<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     current: Option<GuardIter<'a, K, V, S>>,
 }
 
-impl<'a, 'i, K: Clone + Hash + Eq, V: Clone, S: Clone + BuildHasher> Clone for Iter<'i, K, V, S> {
+impl<'i, K: Clone + Hash + Eq, V: Clone, S: Clone + BuildHasher> Clone for Iter<'i, K, V, S> {
     fn clone(&self) -> Self {
         Iter::new(self.map)
     }

@@ -1263,7 +1263,7 @@ where
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> {
     type Item = (K, V);
 
     type IntoIter = OwningIter<K, V, S>;
