@@ -385,7 +385,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     }
 }
 
-impl<'a, K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
+impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
     type Item = K;
 
     type IntoIter = OwningIter<K, S>;
