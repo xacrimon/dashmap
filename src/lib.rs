@@ -270,7 +270,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         hasher: S,
         shard_amount: usize,
     ) -> Self {
-        assert!(shard_amount > 0);
+        assert!(shard_amount > 1);
         assert!(shard_amount.is_power_of_two());
 
         let shift = util::ptr_size_bits() - ncb(shard_amount);
