@@ -1,4 +1,4 @@
-use crate::{DashMap, DashSet};
+use crate::{mapref, setref, DashMap, DashSet};
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
 use core::marker::PhantomData;
@@ -155,4 +155,61 @@ where
 
         seq.end()
     }
+}
+
+macro_rules! serialize_impl {
+    () => {
+        fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
+        where
+            Ser: serde::Serializer,
+        {
+            std::ops::Deref::deref(self).serialize(serializer)
+        }
+    };
+}
+
+// Map
+impl<'a, K: Eq + Hash, V: Serialize, S: BuildHasher> Serialize
+    for mapref::multiple::RefMulti<'a, K, V, S>
+{
+    serialize_impl! {}
+}
+
+impl<'a, K: Eq + Hash, V: Serialize, S: BuildHasher> Serialize
+    for mapref::multiple::RefMutMulti<'a, K, V, S>
+{
+    serialize_impl! {}
+}
+
+impl<'a, K: Eq + Hash, V: Serialize, S: BuildHasher> Serialize for mapref::one::Ref<'a, K, V, S> {
+    serialize_impl! {}
+}
+
+impl<'a, K: Eq + Hash, V: Serialize, S: BuildHasher> Serialize
+    for mapref::one::RefMut<'a, K, V, S>
+{
+    serialize_impl! {}
+}
+
+impl<'a, K: Eq + Hash, V, T: Serialize, S: BuildHasher> Serialize
+    for mapref::one::MappedRef<'a, K, V, T, S>
+{
+    serialize_impl! {}
+}
+
+impl<'a, K: Eq + Hash, V, T: Serialize, S: BuildHasher> Serialize
+    for mapref::one::MappedRefMut<'a, K, V, T, S>
+{
+    serialize_impl! {}
+}
+
+// Set
+impl<'a, V: Hash + Eq + Serialize, S: BuildHasher> Serialize
+    for setref::multiple::RefMulti<'a, V, S>
+{
+    serialize_impl! {}
+}
+
+impl<'a, V: Hash + Eq + Serialize, S: BuildHasher> Serialize for setref::one::Ref<'a, V, S> {
+    serialize_impl! {}
 }
