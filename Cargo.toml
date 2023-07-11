@@ -1,6 +1,6 @@
 [package]
 name = "dashmap"
-version = "5.4.0"
+version = "5.5.0"
 authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
 edition = "2018"
 rust-version = "1.64"
