@@ -82,6 +82,33 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
             Entry::Vacant(entry) => Ok(entry.insert(value()?)),
         }
     }
+
+    /// Sets the value of the entry, and returns a reference to the inserted value.
+    pub fn insert(self, value: V) -> RefMut<'a, K, V, S> {
+        match self {
+            Entry::Occupied(mut entry) => {
+                entry.insert(value);
+                entry.into_ref()
+            }
+            Entry::Vacant(entry) => entry.insert(value),
+        }
+    }
+
+    /// Sets the value of the entry, and returns an OccupiedEntry.
+    ///
+    /// If you are not interested in the occupied entry,
+    /// consider [`insert`] as it doesn't need to clone the key.
+    /// 
+    /// [`insert`]: Entry::insert
+    pub fn insert_entry(self, value: V) -> OccupiedEntry<'a, K, V, S> where K: Clone {
+        match self {
+            Entry::Occupied(mut entry) => {
+                entry.insert(value);
+                entry
+            }
+            Entry::Vacant(entry) => entry.insert_entry(value),
+        }
+    }
 }
 
 pub struct VacantEntry<'a, K, V, S = RandomState> {
@@ -112,6 +139,21 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
             let r = RefMut::new(self.shard, k, v);
 
             mem::forget(c);
+
+            r
+        }
+    }
+
+    /// Sets the value of the entry with the VacantEntry’s key, and returns an OccupiedEntry.
+    pub fn insert_entry(mut self, value: V) -> OccupiedEntry<'a, K, V, S> where K: Clone {
+        unsafe {
+            self.shard.insert(self.key.clone(), SharedValue::new(value));
+
+            let (k, v) = self.shard.get_key_value(&self.key).unwrap();
+
+            let kptr: *const K = k;
+            let vptr: *mut V = v.as_ptr();
+            let r = OccupiedEntry::new(self.shard, self.key, (kptr, vptr));
 
             r
         }
@@ -185,5 +227,50 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
         let (k, v) = self.shard.remove_entry(key).unwrap();
         self.shard.insert(nk, SharedValue::new(value));
         (k, v.into_inner())
+    }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+    use crate::DashMap;
+
+    use super::*;
+
+    #[test]
+    fn test_insert_entry_into_vacant() {
+        let map: DashMap<u32, u32> = DashMap::new();
+
+        let entry = map.entry(1);
+
+        assert!(matches!(entry, Entry::Vacant(_)));
+        
+        let entry = entry.insert_entry(2);
+
+        assert_eq!(*entry.get(), 2);
+
+        drop(entry);
+
+        assert_eq!(*map.get(&1).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_insert_entry_into_occupied() {
+        let map: DashMap<u32, u32> = DashMap::new();
+
+        map.insert(1, 1000);
+
+        let entry = map.entry(1);
+
+        assert!(matches!(&entry, Entry::Occupied(entry) if *entry.get() == 1000));
+        
+        let entry = entry.insert_entry(2);
+
+        assert_eq!(*entry.get(), 2);
+
+        drop(entry);
+
+        assert_eq!(*map.get(&1).unwrap(), 2);
     }
 }
