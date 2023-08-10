@@ -75,22 +75,6 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     }
 }
 
-unsafe impl<K, V, S> Send for OwningIter<K, V, S>
-where
-    K: Eq + Hash + Send,
-    V: Send,
-    S: BuildHasher + Clone + Send,
-{
-}
-
-unsafe impl<K, V, S> Sync for OwningIter<K, V, S>
-where
-    K: Eq + Hash + Sync,
-    V: Sync,
-    S: BuildHasher + Clone + Sync,
-{
-}
-
 type GuardIter<'a, K, V, S> = (
     Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
     hash_map::Iter<'a, K, SharedValue<V>>,
