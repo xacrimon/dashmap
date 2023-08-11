@@ -10,11 +10,7 @@ pub struct DashMapVisitor<K, V, S> {
     marker: PhantomData<fn() -> DashMap<K, V, S>>,
 }
 
-impl<K, V, S> DashMapVisitor<K, V, S>
-where
-    K: Eq + Hash,
-    S: BuildHasher + Clone,
-{
+impl<K, V, S> DashMapVisitor<K, V, S> {
     fn new() -> Self {
         DashMapVisitor {
             marker: PhantomData,
@@ -87,11 +83,7 @@ pub struct DashSetVisitor<K, S> {
     marker: PhantomData<fn() -> DashSet<K, S>>,
 }
 
-impl<K, S> DashSetVisitor<K, S>
-where
-    K: Eq + Hash,
-    S: BuildHasher + Clone,
-{
+impl<K, S> DashSetVisitor<K, S> {
     fn new() -> Self {
         DashSetVisitor {
             marker: PhantomData,

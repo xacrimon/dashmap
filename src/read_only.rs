@@ -12,7 +12,7 @@ pub struct ReadOnlyView<K, V, S = RandomState> {
     pub(crate) map: DashMap<K, V, S>,
 }
 
-impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for ReadOnlyView<K, V, S> {
+impl<K: Clone, V: Clone, S: Clone> Clone for ReadOnlyView<K, V, S> {
     fn clone(&self) -> Self {
         Self {
             map: self.map.clone(),
@@ -20,9 +20,7 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for ReadOnlyView<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debug
-    for ReadOnlyView<K, V, S>
-{
+impl<K: fmt::Debug, V: fmt::Debug, S> fmt::Debug for ReadOnlyView<K, V, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.map.fmt(f)
     }
@@ -39,7 +37,7 @@ impl<K, V, S> ReadOnlyView<K, V, S> {
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S> {
+impl<'a, K: 'a, V: 'a, S> ReadOnlyView<K, V, S> {
     /// Returns the number of elements in the map.
     pub fn len(&self) -> usize {
         self.map.len()
@@ -58,8 +56,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// Returns `true` if the map contains a value for the specified key.
     pub fn contains_key<Q>(&'a self, key: &Q) -> bool
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         let hash = self.map.hash_usize(&key);
 
@@ -73,8 +72,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// Returns a reference to the value corresponding to the key.
     pub fn get<Q>(&'a self, key: &Q) -> Option<&'a V>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         let hash = self.map.hash_usize(&key);
 
@@ -88,8 +88,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// Returns the key-value pair corresponding to the supplied key.
     pub fn get_key_value<Q>(&'a self, key: &Q) -> Option<(&'a K, &'a V)>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         let hash = self.map.hash_usize(&key);
 
