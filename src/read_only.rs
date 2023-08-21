@@ -61,13 +61,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.map.hash_usize(&key);
-
-        let idx = self.map.determine_shard(hash);
-
-        let shard = unsafe { self.map._get_read_shard(idx) };
-
-        shard.contains_key(key)
+        self.get(key).is_some()
     }
 
     /// Returns a reference to the value corresponding to the key.
@@ -76,13 +70,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.map.hash_usize(&key);
-
-        let idx = self.map.determine_shard(hash);
-
-        let shard = unsafe { self.map._get_read_shard(idx) };
-
-        shard.get(key).map(|v| v.get())
+        self.get_key_value(key).map(|(_k, v)| v)
     }
 
     /// Returns the key-value pair corresponding to the supplied key.
@@ -91,13 +79,16 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.map.hash_usize(&key);
+        let hash = self.map.hash_u64(&key);
 
-        let idx = self.map.determine_shard(hash);
+        let idx = self.map.determine_shard(hash as usize);
 
         let shard = unsafe { self.map._get_read_shard(idx) };
 
-        shard.get_key_value(key).map(|(k, v)| (k, v.get()))
+        shard
+            .raw_entry()
+            .from_key_hashed_nocheck(hash, key)
+            .map(|(k, v)| (k, v.get()))
     }
 
     fn shard_read_iter(&'a self) -> impl Iterator<Item = &'a HashMap<K, V, S>> + 'a {
