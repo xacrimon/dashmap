@@ -960,7 +960,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         if let RawEntryMut::Occupied(entry) =
             shard.raw_entry_mut().from_key_hashed_nocheck(hash, key)
         {
-            if f(&entry.key(), &entry.get().get()) {
+            if f(entry.key(), entry.get().get()) {
                 let (k, v) = entry.remove_entry();
                 Some((k, v.into_inner()))
             } else {
