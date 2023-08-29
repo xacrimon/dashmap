@@ -71,7 +71,7 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
-version = "5.5.2"
+version = "5.5.3"
 dependencies = [
  "arbitrary",
  "cfg-if",
