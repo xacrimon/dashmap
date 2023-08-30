@@ -2,9 +2,9 @@ use crate::lock::RwLock;
 use crate::t::Map;
 use crate::{DashMap, HashMap};
 use cfg_if::cfg_if;
-use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
+use hashbrown::Equivalent;
 use std::collections::hash_map::RandomState;
 
 /// A read-only view into a `DashMap`. Allows to obtain raw references to the stored values.
@@ -58,8 +58,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// Returns `true` if the map contains a value for the specified key.
     pub fn contains_key<Q>(&'a self, key: &Q) -> bool
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.map.hash_usize(&key);
 
@@ -73,8 +72,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// Returns a reference to the value corresponding to the key.
     pub fn get<Q>(&'a self, key: &Q) -> Option<&'a V>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.map.hash_usize(&key);
 
@@ -88,8 +86,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// Returns the key-value pair corresponding to the supplied key.
     pub fn get_key_value<Q>(&'a self, key: &Q) -> Option<(&'a K, &'a V)>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.map.hash_usize(&key);
 
