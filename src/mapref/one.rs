@@ -1,6 +1,5 @@
 use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
-use core::hash::{BuildHasher, Hash};
 use core::ops::{Deref, DerefMut};
 use std::collections::hash_map::RandomState;
 use std::fmt::{Debug, Formatter};
@@ -11,10 +10,10 @@ pub struct Ref<'a, K, V, S = RandomState> {
     v: *const V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for Ref<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for Ref<'a, K, V, S> {}
+unsafe impl<'a, K: Sync, V: Sync, S> Send for Ref<'a, K, V, S> {} // TODO: typo? Shouldn't the impl contraits be Send not Sync?
+unsafe impl<'a, K: Sync, V: Sync, S> Sync for Ref<'a, K, V, S> {}
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
+impl<'a, K, V, S> Ref<'a, K, V, S> {
     pub(crate) unsafe fn new(
         guard: RwLockReadGuard<'a, HashMap<K, V, S>>,
         k: *const K,
@@ -66,7 +65,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, V: Debug, S: BuildHasher> Debug for Ref<'a, K, V, S> {
+impl<'a, K: Debug, V: Debug, S> Debug for Ref<'a, K, V, S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Ref")
             .field("k", &self.k)
@@ -75,7 +74,7 @@ impl<'a, K: Eq + Hash + Debug, V: Debug, S: BuildHasher> Debug for Ref<'a, K, V,
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for Ref<'a, K, V, S> {
+impl<'a, K, V, S> Deref for Ref<'a, K, V, S> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -89,10 +88,10 @@ pub struct RefMut<'a, K, V, S = RandomState> {
     v: *mut V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for RefMut<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for RefMut<'a, K, V, S> {}
+unsafe impl<'a, K: Sync, V: Sync, S> Send for RefMut<'a, K, V, S> {}
+unsafe impl<'a, K: Sync, V: Sync, S> Sync for RefMut<'a, K, V, S> {}
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
+impl<'a, K, V, S> RefMut<'a, K, V, S> {
     pub(crate) unsafe fn new(
         guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
         k: *const K,
@@ -154,7 +153,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, V: Debug, S: BuildHasher> Debug for RefMut<'a, K, V, S> {
+impl<'a, K: Debug, V: Debug, S> Debug for RefMut<'a, K, V, S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RefMut")
             .field("k", &self.k)
@@ -163,7 +162,7 @@ impl<'a, K: Eq + Hash + Debug, V: Debug, S: BuildHasher> Debug for RefMut<'a, K,
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMut<'a, K, V, S> {
+impl<'a, K, V, S> Deref for RefMut<'a, K, V, S> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -171,7 +170,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMut<'a, K, V, S> {
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> DerefMut for RefMut<'a, K, V, S> {
+impl<'a, K, V, S> DerefMut for RefMut<'a, K, V, S> {
     fn deref_mut(&mut self) -> &mut V {
         self.value_mut()
     }
@@ -183,7 +182,7 @@ pub struct MappedRef<'a, K, V, T, S = RandomState> {
     v: *const T,
 }
 
-impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRef<'a, K, V, T, S> {
+impl<'a, K, V, T, S> MappedRef<'a, K, V, T, S> {
     pub fn key(&self) -> &K {
         self.pair().0
     }
@@ -224,7 +223,7 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRef<'a, K, V, T, S> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, V, T: Debug, S: BuildHasher> Debug for MappedRef<'a, K, V, T, S> {
+impl<'a, K: Debug, V, T: Debug, S> Debug for MappedRef<'a, K, V, T, S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MappedRef")
             .field("k", &self.k)
@@ -233,7 +232,7 @@ impl<'a, K: Eq + Hash + Debug, V, T: Debug, S: BuildHasher> Debug for MappedRef<
     }
 }
 
-impl<'a, K: Eq + Hash, V, T, S: BuildHasher> Deref for MappedRef<'a, K, V, T, S> {
+impl<'a, K, V, T, S> Deref for MappedRef<'a, K, V, T, S> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -241,15 +240,13 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> Deref for MappedRef<'a, K, V, T, S>
     }
 }
 
-impl<'a, K: Eq + Hash, V, T: std::fmt::Display> std::fmt::Display for MappedRef<'a, K, V, T> {
+impl<'a, K, V, T: std::fmt::Display> std::fmt::Display for MappedRef<'a, K, V, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self.value(), f)
     }
 }
 
-impl<'a, K: Eq + Hash, V, T: AsRef<TDeref>, TDeref: ?Sized> AsRef<TDeref>
-    for MappedRef<'a, K, V, T>
-{
+impl<'a, K, V, T: AsRef<TDeref>, TDeref: ?Sized> AsRef<TDeref> for MappedRef<'a, K, V, T> {
     fn as_ref(&self) -> &TDeref {
         self.value().as_ref()
     }
@@ -261,7 +258,7 @@ pub struct MappedRefMut<'a, K, V, T, S = RandomState> {
     v: *mut T,
 }
 
-impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRefMut<'a, K, V, T, S> {
+impl<'a, K, V, T, S> MappedRefMut<'a, K, V, T, S> {
     pub fn key(&self) -> &K {
         self.pair().0
     }
@@ -311,7 +308,7 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRefMut<'a, K, V, T, S> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, V, T: Debug, S: BuildHasher> Debug for MappedRefMut<'a, K, V, T, S> {
+impl<'a, K: Debug, V, T: Debug, S> Debug for MappedRefMut<'a, K, V, T, S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MappedRefMut")
             .field("k", &self.k)
@@ -320,7 +317,7 @@ impl<'a, K: Eq + Hash + Debug, V, T: Debug, S: BuildHasher> Debug for MappedRefM
     }
 }
 
-impl<'a, K: Eq + Hash, V, T, S: BuildHasher> Deref for MappedRefMut<'a, K, V, T, S> {
+impl<'a, K, V, T, S> Deref for MappedRefMut<'a, K, V, T, S> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -328,7 +325,7 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> Deref for MappedRefMut<'a, K, V, T,
     }
 }
 
-impl<'a, K: Eq + Hash, V, T, S: BuildHasher> DerefMut for MappedRefMut<'a, K, V, T, S> {
+impl<'a, K, V, T, S> DerefMut for MappedRefMut<'a, K, V, T, S> {
     fn deref_mut(&mut self) -> &mut T {
         self.value_mut()
     }

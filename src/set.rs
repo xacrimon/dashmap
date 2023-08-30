@@ -20,13 +20,13 @@ pub struct DashSet<K, S = RandomState> {
     pub(crate) inner: DashMap<K, (), S>,
 }
 
-impl<K: Eq + Hash + fmt::Debug, S: BuildHasher + Clone> fmt::Debug for DashSet<K, S> {
+impl<K: fmt::Debug, S> fmt::Debug for DashSet<K, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.inner, f)
     }
 }
 
-impl<K: Eq + Hash + Clone, S: Clone> Clone for DashSet<K, S> {
+impl<K: Clone, S: Clone> Clone for DashSet<K, S> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -40,7 +40,6 @@ impl<K: Eq + Hash + Clone, S: Clone> Clone for DashSet<K, S> {
 
 impl<K, S> Default for DashSet<K, S>
 where
-    K: Eq + Hash,
     S: Default + BuildHasher + Clone,
 {
     fn default() -> Self {
@@ -48,7 +47,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
+impl<'a, K: 'a> DashSet<K, RandomState> {
     /// Creates a new DashSet with a capacity of 0.
     ///
     /// # Examples
@@ -79,7 +78,7 @@ impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
+impl<'a, K: 'a, S> DashSet<K, S> {
     /// Creates a new DashMap with a capacity of 0 and the provided hasher.
     ///
     /// # Examples
@@ -92,7 +91,10 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// let games = DashSet::with_hasher(s);
     /// games.insert("Veloren");
     /// ```
-    pub fn with_hasher(hasher: S) -> Self {
+    pub fn with_hasher(hasher: S) -> Self
+    where
+        S: Clone,
+    {
         Self::with_capacity_and_hasher(0, hasher)
     }
 
@@ -109,7 +111,10 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// numbers.insert(2);
     /// numbers.insert(8);
     /// ```
-    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self
+    where
+        S: Clone,
+    {
         Self {
             inner: DashMap::with_capacity_and_hasher(capacity, hasher),
         }
@@ -117,7 +122,10 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
 
     /// Hash a given item to produce a usize.
     /// Uses the provided or default HashBuilder.
-    pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
+    pub fn hash_usize<T: Hash>(&self, item: &T) -> usize
+    where
+        S: BuildHasher,
+    {
         self.inner.hash_usize(item)
     }
 
@@ -163,6 +171,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             where
                 K: Borrow<Q>,
                 Q: Hash + Eq + ?Sized,
+                S: BuildHasher
             {
                 self.inner.determine_map(key)
             }
@@ -201,7 +210,11 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// let set = DashSet::new();
     /// set.insert("I am the key!");
     /// ```
-    pub fn insert(&self, key: K) -> bool {
+    pub fn insert(&self, key: K) -> bool
+    where
+        K: Hash + Eq,
+        S: BuildHasher,
+    {
         self.inner.insert(key, ()).is_none()
     }
 
@@ -218,8 +231,9 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// ```
     pub fn remove<Q>(&self, key: &Q) -> Option<K>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self.inner.remove(key).map(|(k, _)| k)
     }
@@ -245,8 +259,9 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// ```
     pub fn remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K) -> bool) -> Option<K>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         // TODO: Don't create another closure around f
         self.inner.remove_if(key, |k, _| f(k)).map(|(k, _)| k)
@@ -282,14 +297,19 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// ```
     pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, S>>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self.inner.get(key).map(Ref::new)
     }
 
     /// Remove excess capacity to reduce memory usage.
-    pub fn shrink_to_fit(&self) {
+    pub fn shrink_to_fit(&self)
+    where
+        K: Hash + Eq,
+        S: BuildHasher,
+    {
         self.inner.shrink_to_fit()
     }
 
@@ -378,14 +398,15 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// ```
     pub fn contains<Q>(&self, key: &Q) -> bool
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self.inner.contains_key(key)
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
+impl<K, S: Clone> IntoIterator for DashSet<K, S> {
     type Item = K;
 
     type IntoIter = OwningIter<K, S>;
@@ -395,7 +416,7 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for DashSet<K, S> {
+impl<K: Eq + Hash, S: BuildHasher> Extend<K> for DashSet<K, S> {
     fn extend<T: IntoIterator<Item = K>>(&mut self, iter: T) {
         let iter = iter.into_iter().map(|k| (k, ()));
 

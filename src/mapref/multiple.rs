@@ -1,7 +1,5 @@
 use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
-use core::hash::BuildHasher;
-use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
 use std::collections::hash_map::RandomState;
 use std::sync::Arc;
@@ -12,10 +10,10 @@ pub struct RefMulti<'a, K, V, S = RandomState> {
     v: *const V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for RefMulti<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for RefMulti<'a, K, V, S> {}
+unsafe impl<'a, K: Sync, V: Sync, S> Send for RefMulti<'a, K, V, S> {}
+unsafe impl<'a, K: Sync, V: Sync, S> Sync for RefMulti<'a, K, V, S> {}
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMulti<'a, K, V, S> {
+impl<'a, K, V, S> RefMulti<'a, K, V, S> {
     pub(crate) unsafe fn new(
         guard: Arc<RwLockReadGuard<'a, HashMap<K, V, S>>>,
         k: *const K,
@@ -41,7 +39,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMulti<'a, K, V, S> {
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMulti<'a, K, V, S> {
+impl<'a, K, V, S> Deref for RefMulti<'a, K, V, S> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -55,10 +53,10 @@ pub struct RefMutMulti<'a, K, V, S = RandomState> {
     v: *mut V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for RefMutMulti<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for RefMutMulti<'a, K, V, S> {}
+unsafe impl<'a, K: Sync, V: Sync, S> Send for RefMutMulti<'a, K, V, S> {}
+unsafe impl<'a, K: Sync, V: Sync, S> Sync for RefMutMulti<'a, K, V, S> {}
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
+impl<'a, K, V, S> RefMutMulti<'a, K, V, S> {
     pub(crate) unsafe fn new(
         guard: Arc<RwLockWriteGuard<'a, HashMap<K, V, S>>>,
         k: *const K,
@@ -92,7 +90,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMutMulti<'a, K, V, S> {
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMutMulti<'a, K, V, S> {
+impl<'a, K, V, S> Deref for RefMutMulti<'a, K, V, S> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -100,7 +98,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMutMulti<'a, K, V, S> {
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> DerefMut for RefMutMulti<'a, K, V, S> {
+impl<'a, K, V, S> DerefMut for RefMutMulti<'a, K, V, S> {
     fn deref_mut(&mut self) -> &mut V {
         self.value_mut()
     }

@@ -91,7 +91,21 @@ pub struct DashMap<K, V, S = RandomState> {
     hasher: S,
 }
 
-impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
+impl<'a, K: 'a + fmt::Debug, V: 'a + fmt::Debug, S: 'a> fmt::Debug for DashMap<K, V, S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut pmap = f.debug_map();
+
+        for r in self {
+            let (k, v) = r.pair();
+
+            pmap.entry(k, v);
+        }
+
+        pmap.finish()
+    }
+}
+
+impl<K: Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
     fn clone(&self) -> Self {
         let mut inner_shards = Vec::new();
 
@@ -111,7 +125,6 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
 
 impl<K, V, S> Default for DashMap<K, V, S>
 where
-    K: Eq + Hash,
     S: Default + BuildHasher + Clone,
 {
     fn default() -> Self {
@@ -119,7 +132,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
+impl<'a, K: 'a, V: 'a> DashMap<K, V, RandomState> {
     /// Creates a new DashMap with a capacity of 0.
     ///
     /// # Examples
@@ -190,7 +203,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
+impl<'a, K: 'a, V: 'a, S> DashMap<K, V, S> {
     /// Wraps this `DashMap` into a read-only view. This view allows to obtain raw references to the stored values.
     pub fn into_read_only(self) -> ReadOnlyView<K, V, S> {
         ReadOnlyView::new(self)
@@ -208,7 +221,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// let reviews = DashMap::with_hasher(s);
     /// reviews.insert("Veloren", "What a fantastic game!");
     /// ```
-    pub fn with_hasher(hasher: S) -> Self {
+    pub fn with_hasher(hasher: S) -> Self
+    where
+        S: Clone,
+    {
         Self::with_capacity_and_hasher(0, hasher)
     }
 
@@ -225,7 +241,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
-    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self
+    where
+        S: Clone,
+    {
         Self::with_capacity_and_hasher_and_shard_amount(capacity, hasher, default_shard_amount())
     }
 
@@ -245,7 +264,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
-    pub fn with_hasher_and_shard_amount(hasher: S, shard_amount: usize) -> Self {
+    pub fn with_hasher_and_shard_amount(hasher: S, shard_amount: usize) -> Self
+    where
+        S: Clone,
+    {
         Self::with_capacity_and_hasher_and_shard_amount(0, hasher, shard_amount)
     }
 
@@ -269,7 +291,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         mut capacity: usize,
         hasher: S,
         shard_amount: usize,
-    ) -> Self {
+    ) -> Self
+    where
+        S: Clone,
+    {
         assert!(shard_amount > 1);
         assert!(shard_amount.is_power_of_two());
 
@@ -294,7 +319,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     /// Hash a given item to produce a usize.
     /// Uses the provided or default HashBuilder.
-    pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
+    pub fn hash_usize<T: Hash>(&self, item: &T) -> usize
+    where
+        S: BuildHasher,
+    {
         let mut hasher = self.hasher.build_hasher();
 
         item.hash(&mut hasher);
@@ -389,6 +417,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             where
                 K: Borrow<Q>,
                 Q: Hash + Eq + ?Sized,
+                S: BuildHasher,
             {
                 let hash = self.hash_usize(&key);
                 self.determine_shard(hash)
@@ -455,7 +484,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// let map = DashMap::new();
     /// map.insert("I am the key!", "And I am the value!");
     /// ```
-    pub fn insert(&self, key: K, value: V) -> Option<V> {
+    pub fn insert(&self, key: K, value: V) -> Option<V>
+    where
+        K: Hash + Eq,
+        S: BuildHasher,
+    {
         self._insert(key, value)
     }
 
@@ -474,8 +507,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self._remove(key)
     }
@@ -503,16 +537,18 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self._remove_if(key, f)
     }
 
     pub fn remove_if_mut<Q>(&self, key: &Q, f: impl FnOnce(&K, &mut V) -> bool) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self._remove_if_mut(key, f)
     }
@@ -567,8 +603,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V, S>>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self._get(key)
     }
@@ -589,8 +626,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V, S>>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self._get_mut(key)
     }
@@ -616,8 +654,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn try_get<Q>(&'a self, key: &Q) -> TryResult<Ref<'a, K, V, S>>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self._try_get(key)
     }
@@ -644,8 +683,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn try_get_mut<Q>(&'a self, key: &Q) -> TryResult<RefMut<'a, K, V, S>>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self._try_get_mut(key)
     }
@@ -653,7 +693,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Remove excess capacity to reduce memory usage.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
-    pub fn shrink_to_fit(&self) {
+    pub fn shrink_to_fit(&self)
+    where
+        K: Hash + Eq,
+        S: BuildHasher,
+    {
         self._shrink_to_fit();
     }
 
@@ -759,8 +803,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// If the given closure panics, then `alter` will abort the process
     pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self._alter(key, f);
     }
@@ -810,8 +855,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// If the given closure panics, then `view` will abort the process
     pub fn view<Q, R>(&self, key: &Q, f: impl FnOnce(&K, &V) -> R) -> Option<R>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self._view(key, f)
     }
@@ -831,8 +877,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self._contains_key(key)
     }
@@ -841,7 +888,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// See the documentation on `dashmap::mapref::entry` for more details.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
-    pub fn entry(&'a self, key: K) -> Entry<'a, K, V, S> {
+    pub fn entry(&'a self, key: K) -> Entry<'a, K, V, S>
+    where
+        K: Hash + Eq,
+        S: BuildHasher,
+    {
         self._entry(key)
     }
 
@@ -849,7 +900,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// See the documentation on `dashmap::mapref::entry` for more details.
     ///
     /// Returns None if the shard is currently locked.
-    pub fn try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>> {
+    pub fn try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>>
+    where
+        K: Hash + Eq,
+        S: BuildHasher,
+    {
         self._try_entry(key)
     }
 
@@ -861,7 +916,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     ///
     /// If the capacity overflows, or the allocator reports a failure, then an error is returned.
     // TODO: return std::collections::TryReserveError once std::collections::TryReserveErrorKind stabilises.
-    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>
+    where
+        K: Hash + Eq,
+        S: BuildHasher,
+    {
         for shard in self.shards.iter() {
             shard
                 .write()
@@ -872,9 +931,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
-    for DashMap<K, V, S>
-{
+impl<'a, K: 'a, V: 'a, S: 'a> Map<'a, K, V, S> for DashMap<K, V, S> {
     fn _shard_count(&self) -> usize {
         self.shards.len()
     }
@@ -915,7 +972,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         self.shards.get_unchecked(i).try_write()
     }
 
-    fn _insert(&self, key: K, value: V) -> Option<V> {
+    fn _insert(&self, key: K, value: V) -> Option<V>
+    where
+        K: Hash + Eq,
+        S: BuildHasher,
+    {
         let hash = self.hash_usize(&key);
 
         let idx = self.determine_shard(hash);
@@ -929,8 +990,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         let hash = self.hash_usize(&key);
 
@@ -943,8 +1005,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         let hash = self.hash_usize(&key);
 
@@ -970,8 +1033,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _remove_if_mut<Q>(&self, key: &Q, f: impl FnOnce(&K, &mut V) -> bool) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         let hash = self.hash_usize(&key);
 
@@ -1005,8 +1069,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V, S>>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         let hash = self.hash_usize(&key);
 
@@ -1027,8 +1092,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V, S>>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         let hash = self.hash_usize(&key);
 
@@ -1049,8 +1115,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _try_get<Q>(&'a self, key: &Q) -> TryResult<Ref<'a, K, V, S>>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         let hash = self.hash_usize(&key);
 
@@ -1074,8 +1141,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _try_get_mut<Q>(&'a self, key: &Q) -> TryResult<RefMut<'a, K, V, S>>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         let hash = self.hash_usize(&key);
 
@@ -1097,7 +1165,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         }
     }
 
-    fn _shrink_to_fit(&self) {
+    fn _shrink_to_fit(&self)
+    where
+        K: Hash + Eq,
+        S: BuildHasher,
+    {
         self.shards.iter().for_each(|s| s.write().shrink_to_fit());
     }
 
@@ -1117,8 +1189,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         if let Some(mut r) = self.get_mut(key) {
             util::map_in_place_2(r.pair_mut(), f);
@@ -1135,8 +1208,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _view<Q, R>(&self, key: &Q, f: impl FnOnce(&K, &V) -> R) -> Option<R>
     where
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
         Q: Hash + Eq + ?Sized,
+        S: BuildHasher,
     {
         self.get(key).map(|r| {
             let (k, v) = r.pair();
@@ -1144,7 +1218,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         })
     }
 
-    fn _entry(&'a self, key: K) -> Entry<'a, K, V, S> {
+    fn _entry(&'a self, key: K) -> Entry<'a, K, V, S>
+    where
+        K: Hash + Eq,
+        S: BuildHasher,
+    {
         let hash = self.hash_usize(&key);
 
         let idx = self.determine_shard(hash);
@@ -1162,7 +1240,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         }
     }
 
-    fn _try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>> {
+    fn _try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>>
+    where
+        K: Hash + Eq,
+        S: BuildHasher,
+    {
         let hash = self.hash_usize(&key);
 
         let idx = self.determine_shard(hash);
@@ -1188,28 +1270,15 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         }
     }
 
-    fn _hasher(&self) -> S {
+    fn _hasher(&self) -> S
+    where
+        S: Clone,
+    {
         self.hasher.clone()
     }
 }
 
-impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debug
-    for DashMap<K, V, S>
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut pmap = f.debug_map();
-
-        for r in self {
-            let (k, v) = r.pair();
-
-            pmap.entry(k, v);
-        }
-
-        pmap.finish()
-    }
-}
-
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> Shl<(K, V)> for &'a DashMap<K, V, S> {
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher> Shl<(K, V)> for &'a DashMap<K, V, S> {
     type Output = Option<V>;
 
     fn shl(self, pair: (K, V)) -> Self::Output {
@@ -1265,7 +1334,7 @@ where
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> {
+impl<K, V, S: Clone> IntoIterator for DashMap<K, V, S> {
     type Item = (K, V);
 
     type IntoIter = OwningIter<K, V, S>;
@@ -1275,7 +1344,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> 
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a DashMap<K, V, S> {
+impl<'a, K, V, S> IntoIterator for &'a DashMap<K, V, S> {
     type Item = RefMulti<'a, K, V, S>;
 
     type IntoIter = Iter<'a, K, V, S, DashMap<K, V, S>>;
@@ -1285,7 +1354,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a DashMap<K
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> Extend<(K, V)> for DashMap<K, V, S> {
+impl<K: Hash + Eq, V, S: BuildHasher> Extend<(K, V)> for DashMap<K, V, S> {
     fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, intoiter: I) {
         for pair in intoiter.into_iter() {
             self.insert(pair.0, pair.1);
@@ -1352,7 +1421,6 @@ mod tests {
     #[test]
     fn test_more_complex_values() {
         #[derive(Hash, PartialEq, Debug, Clone)]
-
         struct T0 {
             s: String,
             u: u8,
