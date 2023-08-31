@@ -12,7 +12,7 @@ use core::hash::{BuildHasher, Hash};
 use core::iter::FromIterator;
 use std::collections::hash_map::RandomState;
 
-/// DashSet is a thin wrapper around [`DashMap`] using `()` as the value type. It uses
+/// `DashSet` is a thin wrapper around [`DashMap`] using `()` as the value type. It uses
 /// methods and types which are more convenient to work with on a set.
 ///
 /// [`DashMap`]: struct.DashMap.html
@@ -49,7 +49,7 @@ where
 }
 
 impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
-    /// Creates a new DashSet with a capacity of 0.
+    /// Creates a new `DashSet` with a capacity of 0.
     ///
     /// # Examples
     ///
@@ -63,7 +63,7 @@ impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
         Self::with_hasher(RandomState::default())
     }
 
-    /// Creates a new DashMap with a specified starting capacity.
+    /// Creates a new `DashMap` with a specified starting capacity.
     ///
     /// # Examples
     ///
@@ -80,7 +80,7 @@ impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
 }
 
 impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
-    /// Creates a new DashMap with a capacity of 0 and the provided hasher.
+    /// Creates a new `DashMap` with a capacity of 0 and the provided hasher.
     ///
     /// # Examples
     ///
@@ -96,7 +96,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
         Self::with_capacity_and_hasher(0, hasher)
     }
 
-    /// Creates a new DashMap with a specified starting capacity and hasher.
+    /// Creates a new `DashMap` with a specified starting capacity and hasher.
     ///
     /// # Examples
     ///
@@ -116,7 +116,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     }
 
     /// Hash a given item to produce a usize.
-    /// Uses the provided or default HashBuilder.
+    /// Uses the provided or default `HashBuilder`.
     pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
         self.inner.hash_usize(item)
     }
@@ -252,7 +252,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
         self.inner.remove_if(key, |k, _| f(k)).map(|(k, _)| k)
     }
 
-    /// Creates an iterator over a DashMap yielding immutable references.
+    /// Creates an iterator over a `DashMap` yielding immutable references.
     ///
     /// # Examples
     ///
