@@ -10,7 +10,7 @@ use hashbrown::hash_map;
 use std::collections::hash_map::RandomState;
 use std::sync::Arc;
 
-/// Iterator over a DashMap yielding key value pairs.
+/// Iterator over a `DashMap` yielding key value pairs.
 ///
 /// # Examples
 ///
@@ -101,7 +101,7 @@ type GuardIterMut<'a, K, V, S> = (
     hash_map::IterMut<'a, K, SharedValue<V>>,
 );
 
-/// Iterator over a DashMap yielding immutable references.
+/// Iterator over a `DashMap` yielding immutable references.
 ///
 /// # Examples
 ///
@@ -184,7 +184,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
     }
 }
 
-/// Iterator over a DashMap yielding mutable references.
+/// Iterator over a `DashMap` yielding mutable references.
 ///
 /// # Examples
 ///

@@ -94,7 +94,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
         }
     }
 
-    /// Sets the value of the entry, and returns an OccupiedEntry.
+    /// Sets the value of the entry, and returns an `OccupiedEntry`.
     ///
     /// If you are not interested in the occupied entry,
     /// consider [`insert`] as it doesn't need to clone the key.
@@ -147,7 +147,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
         }
     }
 
-    /// Sets the value of the entry with the VacantEntry’s key, and returns an OccupiedEntry.
+    /// Sets the value of the entry with the VacantEntry’s key, and returns an `OccupiedEntry`.
     pub fn insert_entry(mut self, value: V) -> OccupiedEntry<'a, K, V, S>
     where
         K: Clone,
