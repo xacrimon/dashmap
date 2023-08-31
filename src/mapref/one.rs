@@ -140,7 +140,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
     where
         F: FnOnce(&mut V) -> Option<&mut T>,
     {
-        let v = match f(unsafe { &mut *(self.v as *mut _) }) {
+        let v = match f(unsafe { &mut *self.v.cast() }) {
             Some(v) => v,
             None => return Err(self),
         };
@@ -297,7 +297,7 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRefMut<'a, K, V, T, S> {
     where
         F: FnOnce(&mut T) -> Option<&mut T2>,
     {
-        let v = match f(unsafe { &mut *(self.v as *mut _) }) {
+        let v = match f(unsafe { &mut *self.v.cast() }) {
             Some(v) => v,
             None => return Err(self),
         };
