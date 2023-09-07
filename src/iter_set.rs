@@ -1,5 +1,6 @@
 use crate::setref::multiple::RefMulti;
 use crate::t::Map;
+use crate::DashMap;
 use core::hash::{BuildHasher, Hash};
 
 pub struct OwningIter<K, S> {
@@ -34,8 +35,16 @@ where
 {
 }
 
-pub struct Iter<'a, K, S, M> {
+pub struct Iter<'a, K, S, M = DashMap<K, (), S>> {
     inner: crate::iter::Iter<'a, K, (), S, M>,
+}
+
+impl<'i, K, S, M> Clone for Iter<'i, K, S, M> {
+    fn clone(&self) -> Self {
+        Iter {
+            inner: Clone::clone(&self.inner),
+        }
+    }
 }
 
 unsafe impl<'a, 'i, K, S, M> Send for Iter<'i, K, S, M>
