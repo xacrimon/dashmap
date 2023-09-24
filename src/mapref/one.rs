@@ -3,7 +3,7 @@ use crate::HashMap;
 use core::hash::{BuildHasher, Hash};
 use core::ops::{Deref, DerefMut};
 use std::collections::hash_map::RandomState;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 pub struct Ref<'a, K, V, S = RandomState> {
     _guard: RwLockReadGuard<'a, HashMap<K, V, S>>,
@@ -241,14 +241,14 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> Deref for MappedRef<'a, K, V, T, S>
     }
 }
 
-impl<'a, K: Eq + Hash, V, T: std::fmt::Display> std::fmt::Display for MappedRef<'a, K, V, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.value(), f)
+impl<'a, K: Eq + Hash, V, T: Display, S: BuildHasher> Display for MappedRef<'a, K, V, T, S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self.value(), f)
     }
 }
 
-impl<'a, K: Eq + Hash, V, T: AsRef<TDeref>, TDeref: ?Sized> AsRef<TDeref>
-    for MappedRef<'a, K, V, T>
+impl<'a, K: Eq + Hash, V, T: AsRef<TDeref>, TDeref: ?Sized, S: BuildHasher> AsRef<TDeref>
+    for MappedRef<'a, K, V, T, S>
 {
     fn as_ref(&self) -> &TDeref {
         self.value().as_ref()
