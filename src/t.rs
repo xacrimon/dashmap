@@ -16,17 +16,17 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
     /// # Safety
     ///
     /// The index must not be out of bounds.
-    unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V, S>;
+    unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V>;
 
     /// # Safety
     ///
     /// The index must not be out of bounds.
-    unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, S>>;
+    unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V>>;
 
     /// # Safety
     ///
     /// The index must not be out of bounds.
-    unsafe fn _yield_write_shard(&'a self, i: usize) -> RwLockWriteGuard<'a, HashMap<K, V, S>>;
+    unsafe fn _yield_write_shard(&'a self, i: usize) -> RwLockWriteGuard<'a, HashMap<K, V>>;
 
     /// # Safety
     ///
@@ -34,7 +34,7 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
     unsafe fn _try_yield_read_shard(
         &'a self,
         i: usize,
-    ) -> Option<RwLockReadGuard<'a, HashMap<K, V, S>>>;
+    ) -> Option<RwLockReadGuard<'a, HashMap<K, V>>>;
 
     /// # Safety
     ///
@@ -42,7 +42,7 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
     unsafe fn _try_yield_write_shard(
         &'a self,
         i: usize,
-    ) -> Option<RwLockWriteGuard<'a, HashMap<K, V, S>>>;
+    ) -> Option<RwLockWriteGuard<'a, HashMap<K, V>>>;
 
     fn _insert(&self, key: K, value: V) -> Option<V>;
 
@@ -69,22 +69,22 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
     where
         Self: Sized;
 
-    fn _get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V, S>>
+    fn _get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V>>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized;
 
-    fn _get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V, S>>
+    fn _get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V>>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized;
 
-    fn _try_get<Q>(&'a self, key: &Q) -> TryResult<Ref<'a, K, V, S>>
+    fn _try_get<Q>(&'a self, key: &Q) -> TryResult<Ref<'a, K, V>>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized;
 
-    fn _try_get_mut<Q>(&'a self, key: &Q) -> TryResult<RefMut<'a, K, V, S>>
+    fn _try_get_mut<Q>(&'a self, key: &Q) -> TryResult<RefMut<'a, K, V>>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized;
@@ -109,9 +109,9 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized;
 
-    fn _entry(&'a self, key: K) -> Entry<'a, K, V, S>;
+    fn _entry(&'a self, key: K) -> Entry<'a, K, V>;
 
-    fn _try_entry(&'a self, key: K) -> Option<Entry<'a, K, V, S>>;
+    fn _try_entry(&'a self, key: K) -> Option<Entry<'a, K, V>>;
 
     fn _hasher(&self) -> S;
 

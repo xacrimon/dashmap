@@ -10,7 +10,7 @@ where
     V: Send,
     S: Send + Clone + BuildHasher,
 {
-    type Iter = super::map::OwningIter<K, V, S>;
+    type Iter = super::map::OwningIter<K, V>;
     type Item = (K, V);
 
     fn into_par_iter(self) -> Self::Iter {
@@ -27,8 +27,8 @@ where
     V: Send + Sync,
     S: Send + Sync + Clone + BuildHasher,
 {
-    type Iter = Iter<'a, K, V, S>;
-    type Item = RefMulti<'a, K, V, S>;
+    type Iter = Iter<'a, K, V>;
+    type Item = RefMulti<'a, K, V>;
 
     fn into_par_iter(self) -> Self::Iter {
         Iter {
