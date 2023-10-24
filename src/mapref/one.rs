@@ -1,22 +1,21 @@
 use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::HashMap;
-use core::hash::{BuildHasher, Hash};
+use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
-use std::collections::hash_map::RandomState;
 use std::fmt::{Debug, Formatter};
 
-pub struct Ref<'a, K, V, S = RandomState> {
-    _guard: RwLockReadGuard<'a, HashMap<K, V, S>>,
+pub struct Ref<'a, K, V> {
+    _guard: RwLockReadGuard<'a, HashMap<K, V>>,
     k: *const K,
     v: *const V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for Ref<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for Ref<'a, K, V, S> {}
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for Ref<'a, K, V> {}
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for Ref<'a, K, V> {}
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
+impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
     pub(crate) unsafe fn new(
-        guard: RwLockReadGuard<'a, HashMap<K, V, S>>,
+        guard: RwLockReadGuard<'a, HashMap<K, V>>,
         k: *const K,
         v: *const V,
     ) -> Self {
@@ -39,7 +38,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
         unsafe { (&*self.k, &*self.v) }
     }
 
-    pub fn map<F, T>(self, f: F) -> MappedRef<'a, K, V, T, S>
+    pub fn map<F, T>(self, f: F) -> MappedRef<'a, K, V, T>
     where
         F: FnOnce(&V) -> &T,
     {
@@ -50,7 +49,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
         }
     }
 
-    pub fn try_map<F, T>(self, f: F) -> Result<MappedRef<'a, K, V, T, S>, Self>
+    pub fn try_map<F, T>(self, f: F) -> Result<MappedRef<'a, K, V, T>, Self>
     where
         F: FnOnce(&V) -> Option<&T>,
     {
@@ -66,7 +65,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Ref<'a, K, V, S> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, V: Debug, S: BuildHasher> Debug for Ref<'a, K, V, S> {
+impl<'a, K: Eq + Hash + Debug, V: Debug> Debug for Ref<'a, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Ref")
             .field("k", &self.k)
@@ -75,7 +74,7 @@ impl<'a, K: Eq + Hash + Debug, V: Debug, S: BuildHasher> Debug for Ref<'a, K, V,
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for Ref<'a, K, V, S> {
+impl<'a, K: Eq + Hash, V> Deref for Ref<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -83,18 +82,18 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for Ref<'a, K, V, S> {
     }
 }
 
-pub struct RefMut<'a, K, V, S = RandomState> {
-    guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
+pub struct RefMut<'a, K, V> {
+    guard: RwLockWriteGuard<'a, HashMap<K, V>>,
     k: *const K,
     v: *mut V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for RefMut<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for RefMut<'a, K, V, S> {}
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMut<'a, K, V> {}
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMut<'a, K, V> {}
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
+impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
     pub(crate) unsafe fn new(
-        guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
+        guard: RwLockWriteGuard<'a, HashMap<K, V>>,
         k: *const K,
         v: *mut V,
     ) -> Self {
@@ -121,11 +120,11 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
         unsafe { (&*self.k, &mut *self.v) }
     }
 
-    pub fn downgrade(self) -> Ref<'a, K, V, S> {
+    pub fn downgrade(self) -> Ref<'a, K, V> {
         unsafe { Ref::new(RwLockWriteGuard::downgrade(self.guard), self.k, self.v) }
     }
 
-    pub fn map<F, T>(self, f: F) -> MappedRefMut<'a, K, V, T, S>
+    pub fn map<F, T>(self, f: F) -> MappedRefMut<'a, K, V, T>
     where
         F: FnOnce(&mut V) -> &mut T,
     {
@@ -136,7 +135,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
         }
     }
 
-    pub fn try_map<F, T>(self, f: F) -> Result<MappedRefMut<'a, K, V, T, S>, Self>
+    pub fn try_map<F, T>(self, f: F) -> Result<MappedRefMut<'a, K, V, T>, Self>
     where
         F: FnOnce(&mut V) -> Option<&mut T>,
     {
@@ -154,7 +153,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> RefMut<'a, K, V, S> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, V: Debug, S: BuildHasher> Debug for RefMut<'a, K, V, S> {
+impl<'a, K: Eq + Hash + Debug, V: Debug> Debug for RefMut<'a, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RefMut")
             .field("k", &self.k)
@@ -163,7 +162,7 @@ impl<'a, K: Eq + Hash + Debug, V: Debug, S: BuildHasher> Debug for RefMut<'a, K,
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMut<'a, K, V, S> {
+impl<'a, K: Eq + Hash, V> Deref for RefMut<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -171,19 +170,19 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Deref for RefMut<'a, K, V, S> {
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> DerefMut for RefMut<'a, K, V, S> {
+impl<'a, K: Eq + Hash, V> DerefMut for RefMut<'a, K, V> {
     fn deref_mut(&mut self) -> &mut V {
         self.value_mut()
     }
 }
 
-pub struct MappedRef<'a, K, V, T, S = RandomState> {
-    _guard: RwLockReadGuard<'a, HashMap<K, V, S>>,
+pub struct MappedRef<'a, K, V, T> {
+    _guard: RwLockReadGuard<'a, HashMap<K, V>>,
     k: *const K,
     v: *const T,
 }
 
-impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRef<'a, K, V, T, S> {
+impl<'a, K: Eq + Hash, V, T> MappedRef<'a, K, V, T> {
     pub fn key(&self) -> &K {
         self.pair().0
     }
@@ -196,7 +195,7 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRef<'a, K, V, T, S> {
         unsafe { (&*self.k, &*self.v) }
     }
 
-    pub fn map<F, T2>(self, f: F) -> MappedRef<'a, K, V, T2, S>
+    pub fn map<F, T2>(self, f: F) -> MappedRef<'a, K, V, T2>
     where
         F: FnOnce(&T) -> &T2,
     {
@@ -207,7 +206,7 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRef<'a, K, V, T, S> {
         }
     }
 
-    pub fn try_map<F, T2>(self, f: F) -> Result<MappedRef<'a, K, V, T2, S>, Self>
+    pub fn try_map<F, T2>(self, f: F) -> Result<MappedRef<'a, K, V, T2>, Self>
     where
         F: FnOnce(&T) -> Option<&T2>,
     {
@@ -224,7 +223,7 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRef<'a, K, V, T, S> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, V, T: Debug, S: BuildHasher> Debug for MappedRef<'a, K, V, T, S> {
+impl<'a, K: Eq + Hash + Debug, V, T: Debug> Debug for MappedRef<'a, K, V, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MappedRef")
             .field("k", &self.k)
@@ -233,7 +232,7 @@ impl<'a, K: Eq + Hash + Debug, V, T: Debug, S: BuildHasher> Debug for MappedRef<
     }
 }
 
-impl<'a, K: Eq + Hash, V, T, S: BuildHasher> Deref for MappedRef<'a, K, V, T, S> {
+impl<'a, K: Eq + Hash, V, T> Deref for MappedRef<'a, K, V, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -255,13 +254,13 @@ impl<'a, K: Eq + Hash, V, T: AsRef<TDeref>, TDeref: ?Sized> AsRef<TDeref>
     }
 }
 
-pub struct MappedRefMut<'a, K, V, T, S = RandomState> {
-    _guard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
+pub struct MappedRefMut<'a, K, V, T> {
+    _guard: RwLockWriteGuard<'a, HashMap<K, V>>,
     k: *const K,
     v: *mut T,
 }
 
-impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRefMut<'a, K, V, T, S> {
+impl<'a, K: Eq + Hash, V, T> MappedRefMut<'a, K, V, T> {
     pub fn key(&self) -> &K {
         self.pair().0
     }
@@ -282,7 +281,7 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRefMut<'a, K, V, T, S> {
         unsafe { (&*self.k, &mut *self.v) }
     }
 
-    pub fn map<F, T2>(self, f: F) -> MappedRefMut<'a, K, V, T2, S>
+    pub fn map<F, T2>(self, f: F) -> MappedRefMut<'a, K, V, T2>
     where
         F: FnOnce(&mut T) -> &mut T2,
     {
@@ -293,7 +292,7 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRefMut<'a, K, V, T, S> {
         }
     }
 
-    pub fn try_map<F, T2>(self, f: F) -> Result<MappedRefMut<'a, K, V, T2, S>, Self>
+    pub fn try_map<F, T2>(self, f: F) -> Result<MappedRefMut<'a, K, V, T2>, Self>
     where
         F: FnOnce(&mut T) -> Option<&mut T2>,
     {
@@ -311,7 +310,7 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> MappedRefMut<'a, K, V, T, S> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, V, T: Debug, S: BuildHasher> Debug for MappedRefMut<'a, K, V, T, S> {
+impl<'a, K: Eq + Hash + Debug, V, T: Debug> Debug for MappedRefMut<'a, K, V, T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MappedRefMut")
             .field("k", &self.k)
@@ -320,7 +319,7 @@ impl<'a, K: Eq + Hash + Debug, V, T: Debug, S: BuildHasher> Debug for MappedRefM
     }
 }
 
-impl<'a, K: Eq + Hash, V, T, S: BuildHasher> Deref for MappedRefMut<'a, K, V, T, S> {
+impl<'a, K: Eq + Hash, V, T> Deref for MappedRefMut<'a, K, V, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -328,7 +327,7 @@ impl<'a, K: Eq + Hash, V, T, S: BuildHasher> Deref for MappedRefMut<'a, K, V, T,
     }
 }
 
-impl<'a, K: Eq + Hash, V, T, S: BuildHasher> DerefMut for MappedRefMut<'a, K, V, T, S> {
+impl<'a, K: Eq + Hash, V, T> DerefMut for MappedRefMut<'a, K, V, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.value_mut()
     }

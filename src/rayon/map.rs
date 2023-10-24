@@ -1,11 +1,9 @@
 use crate::lock::RwLock;
 use crate::mapref::multiple::{RefMulti, RefMutMulti};
-use crate::util;
 use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
 use rayon::iter::plumbing::UnindexedConsumer;
 use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, ParallelIterator};
-use std::collections::hash_map::RandomState;
 use std::sync::Arc;
 
 impl<K, V, S> ParallelExtend<(K, V)> for DashMap<K, V, S>
@@ -69,7 +67,7 @@ where
     V: Send,
     S: Send + Clone + BuildHasher,
 {
-    type Iter = OwningIter<K, V, S>;
+    type Iter = OwningIter<K, V>;
     type Item = (K, V);
 
     fn into_par_iter(self) -> Self::Iter {
@@ -79,15 +77,14 @@ where
     }
 }
 
-pub struct OwningIter<K, V, S = RandomState> {
-    pub(super) shards: Box<[RwLock<HashMap<K, V, S>>]>,
+pub struct OwningIter<K, V> {
+    pub(super) shards: Box<[RwLock<HashMap<K, V>>]>,
 }
 
-impl<K, V, S> ParallelIterator for OwningIter<K, V, S>
+impl<K, V> ParallelIterator for OwningIter<K, V>
 where
     K: Send + Eq + Hash,
     V: Send,
-    S: Send + Clone + BuildHasher,
 {
     type Item = (K, V);
 
@@ -114,8 +111,8 @@ where
     V: Send + Sync,
     S: Send + Sync + Clone + BuildHasher,
 {
-    type Iter = Iter<'a, K, V, S>;
-    type Item = RefMulti<'a, K, V, S>;
+    type Iter = Iter<'a, K, V>;
+    type Item = RefMulti<'a, K, V>;
 
     fn into_par_iter(self) -> Self::Iter {
         Iter {
@@ -124,17 +121,16 @@ where
     }
 }
 
-pub struct Iter<'a, K, V, S = RandomState> {
-    pub(super) shards: &'a [RwLock<HashMap<K, V, S>>],
+pub struct Iter<'a, K, V> {
+    pub(super) shards: &'a [RwLock<HashMap<K, V>>],
 }
 
-impl<'a, K, V, S> ParallelIterator for Iter<'a, K, V, S>
+impl<'a, K, V> ParallelIterator for Iter<'a, K, V>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
 {
-    type Item = RefMulti<'a, K, V, S>;
+    type Item = RefMulti<'a, K, V>;
 
     fn drive_unindexed<C>(self, consumer: C) -> C::Result
     where
@@ -142,14 +138,12 @@ where
     {
         self.shards
             .into_par_iter()
-            .flat_map_iter(|shard| {
-                let guard = shard.read();
-                let sref: &'a HashMap<K, V, S> = unsafe { util::change_lifetime_const(&*guard) };
-
-                let guard = Arc::new(guard);
-                sref.iter().map(move |(k, v)| {
+            .flat_map_iter(|shard| unsafe {
+                let guard = Arc::new(shard.read());
+                guard.iter().map(move |b| {
                     let guard = Arc::clone(&guard);
-                    unsafe { RefMulti::new(guard, k, v.get()) }
+                    let (k, v) = b.as_ref();
+                    RefMulti::new(guard, k, v.get())
                 })
             })
             .drive_unindexed(consumer)
@@ -157,14 +151,13 @@ where
 }
 
 // This impl also enables `IntoParallelRefMutIterator::par_iter_mut`
-impl<'a, K, V, S> IntoParallelIterator for &'a mut DashMap<K, V, S>
+impl<'a, K, V> IntoParallelIterator for &'a mut DashMap<K, V>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
 {
-    type Iter = IterMut<'a, K, V, S>;
-    type Item = RefMutMulti<'a, K, V, S>;
+    type Iter = IterMut<'a, K, V>;
+    type Item = RefMutMulti<'a, K, V>;
 
     fn into_par_iter(self) -> Self::Iter {
         IterMut {
@@ -177,27 +170,25 @@ impl<K, V, S> DashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
 {
     // Unlike `IntoParallelRefMutIterator::par_iter_mut`, we only _need_ `&self`.
-    pub fn par_iter_mut(&self) -> IterMut<'_, K, V, S> {
+    pub fn par_iter_mut(&self) -> IterMut<'_, K, V> {
         IterMut {
             shards: &self.shards,
         }
     }
 }
 
-pub struct IterMut<'a, K, V, S = RandomState> {
-    shards: &'a [RwLock<HashMap<K, V, S>>],
+pub struct IterMut<'a, K, V> {
+    shards: &'a [RwLock<HashMap<K, V>>],
 }
 
-impl<'a, K, V, S> ParallelIterator for IterMut<'a, K, V, S>
+impl<'a, K, V> ParallelIterator for IterMut<'a, K, V>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
 {
-    type Item = RefMutMulti<'a, K, V, S>;
+    type Item = RefMutMulti<'a, K, V>;
 
     fn drive_unindexed<C>(self, consumer: C) -> C::Result
     where
@@ -205,15 +196,12 @@ where
     {
         self.shards
             .into_par_iter()
-            .flat_map_iter(|shard| {
-                let mut guard = shard.write();
-                let sref: &'a mut HashMap<K, V, S> =
-                    unsafe { util::change_lifetime_mut(&mut *guard) };
-
-                let guard = Arc::new(guard);
-                sref.iter_mut().map(move |(k, v)| {
+            .flat_map_iter(|shard| unsafe {
+                let guard = Arc::new(shard.write());
+                guard.iter().map(move |b| {
                     let guard = Arc::clone(&guard);
-                    unsafe { RefMutMulti::new(guard, k, v.get_mut()) }
+                    let (k, v) = b.as_mut();
+                    RefMutMulti::new(guard, k, v.get_mut())
                 })
             })
             .drive_unindexed(consumer)

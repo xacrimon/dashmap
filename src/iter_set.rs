@@ -63,7 +63,7 @@ impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iter<'
 impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iterator
     for Iter<'a, K, S, M>
 {
-    type Item = RefMulti<'a, K, S>;
+    type Item = RefMulti<'a, K>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(RefMulti::new)
