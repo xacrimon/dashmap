@@ -243,13 +243,9 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
                 if let Some((k, v)) = current.1.next() {
                     let guard = current.0.clone();
 
-                    unsafe {
-                        let k = util::change_lifetime_const(k);
+                    let v = v.get_mut();
 
-                        let v = &mut *v.as_ptr();
-
-                        return Some(RefMutMulti::new(guard, k, v));
-                    }
+                    return Some(unsafe { RefMutMulti::new(guard, k, v) });
                 }
             }
 

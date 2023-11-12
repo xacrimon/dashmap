@@ -1,12 +1,11 @@
 use super::one::RefMut;
 use crate::lock::RwLockWriteGuard;
-use crate::util;
 use crate::util::SharedValue;
 use crate::HashMap;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 use core::ptr;
-use std::collections::hash_map::RandomState;
+use std::{collections::hash_map::RandomState, mem::ManuallyDrop};
 
 pub enum Entry<'a, K, V, S = RandomState> {
     Occupied(OccupiedEntry<'a, K, V, S>),
@@ -129,21 +128,18 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
 
     pub fn insert(mut self, value: V) -> RefMut<'a, K, V, S> {
         unsafe {
-            let c: K = ptr::read(&self.key);
+            // Use ManuallyDrop here instead of ptr::read because it doesn't cause a double drop if we unexpectedly panic.
+            let c = ManuallyDrop::new(ptr::read(&self.key));
 
             self.shard.insert(self.key, SharedValue::new(value));
 
-            let (k, v) = self.shard.get_key_value(&c).unwrap();
+            let (k, v) = self.shard.get_key_value_mut(&*c).unwrap();
 
-            let k = util::change_lifetime_const(k);
+            let k: *const K = k;
 
-            let v = &mut *v.as_ptr();
+            let v: *mut V = v.get_mut();
 
-            let r = RefMut::new(self.shard, k, v);
-
-            mem::forget(c);
-
-            r
+            RefMut::new(self.shard, k, v)
         }
     }
 
@@ -155,10 +151,10 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
         unsafe {
             self.shard.insert(self.key.clone(), SharedValue::new(value));
 
-            let (k, v) = self.shard.get_key_value(&self.key).unwrap();
+            let (k, v) = self.shard.get_key_value_mut(&self.key).unwrap();
 
             let kptr: *const K = k;
-            let vptr: *mut V = v.as_ptr();
+            let vptr: *mut V = v.get_mut();
             OccupiedEntry::new(self.shard, self.key, (kptr, vptr))
         }
     }
