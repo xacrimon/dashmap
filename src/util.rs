@@ -1,6 +1,5 @@
 //! This module is full of hackery and dark magic.
 //! Either spend a day fixing it and quietly submit a PR or don't mention it to anybody.
-use core::cell::UnsafeCell;
 use core::{mem, ptr};
 
 pub const fn ptr_size_bits() -> usize {
@@ -45,16 +44,14 @@ pub unsafe fn change_lifetime_mut<'a, 'b, T>(x: &'a mut T) -> &'b mut T {
 /// This type is meant to be an implementation detail, but must be exposed due to the `Dashmap::shards`
 #[repr(transparent)]
 pub struct SharedValue<T> {
-    value: UnsafeCell<T>,
+    value: T,
 }
 
 impl<T: Clone> Clone for SharedValue<T> {
     fn clone(&self) -> Self {
         let inner = self.get().clone();
 
-        Self {
-            value: UnsafeCell::new(inner),
-        }
+        Self { value: inner }
     }
 }
 
@@ -65,29 +62,22 @@ unsafe impl<T: Sync> Sync for SharedValue<T> {}
 impl<T> SharedValue<T> {
     /// Create a new `SharedValue<T>`
     pub const fn new(value: T) -> Self {
-        Self {
-            value: UnsafeCell::new(value),
-        }
+        Self { value }
     }
 
     /// Get a shared reference to `T`
     pub fn get(&self) -> &T {
-        unsafe { &*self.value.get() }
+        &self.value
     }
 
     /// Get an unique reference to `T`
     pub fn get_mut(&mut self) -> &mut T {
-        unsafe { &mut *self.value.get() }
+        &mut self.value
     }
 
     /// Unwraps the value
     pub fn into_inner(self) -> T {
-        self.value.into_inner()
-    }
-
-    /// Get a mutable raw pointer to the underlying value
-    pub(crate) fn as_ptr(&self) -> *mut T {
-        self.value.get()
+        self.value
     }
 }
 

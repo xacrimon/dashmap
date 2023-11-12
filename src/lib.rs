@@ -953,15 +953,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let mut shard = unsafe { self._yield_write_shard(idx) };
 
         if let Some((kptr, vptr)) = shard.get_key_value(key) {
-            unsafe {
-                let kptr: *const K = kptr;
-                let vptr: *mut V = vptr.as_ptr();
-
-                if f(&*kptr, &mut *vptr) {
-                    shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
-                } else {
-                    None
-                }
+            if f(kptr, vptr.get()) {
+                shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
+            } else {
+                None
             }
         } else {
             None
@@ -979,16 +974,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         let mut shard = unsafe { self._yield_write_shard(idx) };
 
-        if let Some((kptr, vptr)) = shard.get_key_value(key) {
-            unsafe {
-                let kptr: *const K = kptr;
-                let vptr: *mut V = vptr.as_ptr();
-
-                if f(&*kptr, &mut *vptr) {
-                    shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
-                } else {
-                    None
-                }
+        if let Some((kptr, vptr)) = shard.get_key_value_mut(key) {
+            if f(kptr, vptr.get_mut()) {
+                shard.remove_entry(key).map(|(k, v)| (k, v.into_inner()))
+            } else {
+                None
             }
         } else {
             None
@@ -1034,14 +1024,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         let idx = self.determine_shard(hash);
 
-        let shard = unsafe { self._yield_write_shard(idx) };
+        let mut shard = unsafe { self._yield_write_shard(idx) };
 
-        if let Some((kptr, vptr)) = shard.get_key_value(key) {
-            unsafe {
-                let kptr: *const K = kptr;
-                let vptr: *mut V = vptr.as_ptr();
-                Some(RefMut::new(shard, kptr, vptr))
-            }
+        if let Some((kptr, vptr)) = shard.get_key_value_mut(key) {
+            let kptr: *const K = kptr;
+            let vptr: *mut V = vptr.get_mut();
+            Some(unsafe { RefMut::new(shard, kptr, vptr) })
         } else {
             None
         }
@@ -1081,17 +1069,15 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         let idx = self.determine_shard(hash);
 
-        let shard = match unsafe { self._try_yield_write_shard(idx) } {
+        let mut shard = match unsafe { self._try_yield_write_shard(idx) } {
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
 
-        if let Some((kptr, vptr)) = shard.get_key_value(key) {
-            unsafe {
-                let kptr: *const K = kptr;
-                let vptr: *mut V = vptr.as_ptr();
-                TryResult::Present(RefMut::new(shard, kptr, vptr))
-            }
+        if let Some((kptr, vptr)) = shard.get_key_value_mut(key) {
+            let kptr: *const K = kptr;
+            let vptr: *mut V = vptr.get_mut();
+            TryResult::Present(unsafe { RefMut::new(shard, kptr, vptr) })
         } else {
             TryResult::Absent
         }
@@ -1149,14 +1135,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         let idx = self.determine_shard(hash);
 
-        let shard = unsafe { self._yield_write_shard(idx) };
+        let mut shard = unsafe { self._yield_write_shard(idx) };
 
-        if let Some((kptr, vptr)) = shard.get_key_value(&key) {
-            unsafe {
-                let kptr: *const K = kptr;
-                let vptr: *mut V = vptr.as_ptr();
-                Entry::Occupied(OccupiedEntry::new(shard, key, (kptr, vptr)))
-            }
+        if let Some((kptr, vptr)) = shard.get_key_value_mut(&key) {
+            let kptr: *const K = kptr;
+            let vptr: *mut V = vptr.get_mut();
+            Entry::Occupied(unsafe { OccupiedEntry::new(shard, key, (kptr, vptr)) })
         } else {
             unsafe { Entry::Vacant(VacantEntry::new(shard, key)) }
         }
@@ -1167,22 +1151,18 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         let idx = self.determine_shard(hash);
 
-        let shard = match unsafe { self._try_yield_write_shard(idx) } {
+        let mut shard = match unsafe { self._try_yield_write_shard(idx) } {
             Some(shard) => shard,
             None => return None,
         };
 
-        if let Some((kptr, vptr)) = shard.get_key_value(&key) {
-            unsafe {
-                let kptr: *const K = kptr;
-                let vptr: *mut V = vptr.as_ptr();
+        if let Some((kptr, vptr)) = shard.get_key_value_mut(&key) {
+            let kptr: *const K = kptr;
+            let vptr: *mut V = vptr.get_mut();
 
-                Some(Entry::Occupied(OccupiedEntry::new(
-                    shard,
-                    key,
-                    (kptr, vptr),
-                )))
-            }
+            Some(Entry::Occupied(unsafe {
+                OccupiedEntry::new(shard, key, (kptr, vptr))
+            }))
         } else {
             unsafe { Some(Entry::Vacant(VacantEntry::new(shard, key))) }
         }
