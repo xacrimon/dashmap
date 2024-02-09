@@ -42,6 +42,7 @@ use once_cell::sync::OnceCell;
 pub use read_only::ReadOnlyView;
 pub use set::DashSet;
 use std::collections::hash_map::RandomState;
+use std::ptr;
 pub use t::Map;
 use try_result::TryResult;
 
@@ -573,6 +574,25 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._get(key)
     }
 
+    /// Get an immutable reference to an entry in the map, inserting the value if it doesn't exist.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding a mutable reference into the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let youtubers = DashMap::new();
+    /// youtubers.get_or_insert("Bosnian Bill", |_| 457000);
+    /// assert_eq!(*youtubers.get("Bosnian Bill").unwrap(), 457000);
+    /// youtubers.get_or_insert("Bosnian Bill", |_| 458000);
+    /// assert_eq!(*youtubers.get("Bosnian Bill").unwrap(), 457000);
+    /// ```
+    pub fn get_or_insert(&'a self, key: K, value: impl FnOnce(&K) -> V) -> Ref<'a, K, V, S> {
+        self._get_or_insert(key, value)
+    }
+
     /// Get a mutable reference to an entry in the map
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
@@ -1025,6 +1045,37 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         }
     }
 
+    fn _get_or_insert(&'a self, key: K, value: impl FnOnce(&K) -> V) -> Ref<'a, K, V, S> {
+        let hash = self.hash_usize(&key);
+
+        let idx = self.determine_shard(hash);
+
+        let shard = unsafe { self._yield_read_shard(idx) };
+
+        if let Some((kptr, vptr)) = shard.get_key_value(&key) {
+            unsafe {
+                let kptr: *const K = kptr;
+                let vptr: *const V = vptr.get();
+                Ref::new(shard, kptr, vptr)
+            }
+        } else {
+            drop(shard);
+
+            unsafe {
+                let c: K = ptr::read(&key);
+                let mut shard = self._yield_write_shard(idx);
+
+                shard.insert(key, SharedValue::new(value(&c)));
+
+                let (k, v) = shard.get_key_value(&c).unwrap();
+
+                let k = util::change_lifetime_const(k);
+                let v: *const V = v.get();
+
+                Ref::new(RwLockWriteGuard::downgrade(shard), k, v)
+            }
+        }
+    }
     fn _get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V, S>>
     where
         K: Borrow<Q>,
@@ -1441,6 +1492,22 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_try_get_or_insert() {
+        let map = DashMap::new();
+        map.get_or_insert("Johnny", |_| 21);
+
+        assert_eq!(*map.try_get("Johnny").unwrap(), 21);
+
+        map.get_or_insert("Johnny", |_| 22);
+
+        assert_eq!(*map.try_get("Johnny").unwrap(), 21);
+
+        let _result1_locking = map.get_mut("Johnny");
+
+        let result2 = map.try_get("Johnny");
+        assert!(result2.is_locked());
+    }
     #[test]
     fn test_try_reserve() {
         let mut map: DashMap<i32, i32> = DashMap::new();
