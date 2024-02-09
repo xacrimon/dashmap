@@ -74,6 +74,8 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized;
 
+    fn _get_or_insert(&'a self, key: K, value: impl FnOnce(&K) -> V) -> Ref<'a, K, V, S>;
+
     fn _get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V, S>>
     where
         K: Borrow<Q>,
