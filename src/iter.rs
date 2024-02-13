@@ -25,7 +25,7 @@ use std::sync::Arc;
 /// ```
 pub struct OwningIter<K, V, S = RandomState> {
     map: DashMap<K, V, S>,
-    shard_i: usize,
+    shard_i: u32,
     current: Option<GuardOwningIter<K, V>>,
 }
 
@@ -114,7 +114,7 @@ type GuardIterMut<'a, K, V, S> = (
 /// ```
 pub struct Iter<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     map: &'a M,
-    shard_i: usize,
+    shard_i: u32,
     current: Option<GuardIter<'a, K, V, S>>,
 }
 
@@ -198,7 +198,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 /// ```
 pub struct IterMut<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     map: &'a M,
-    shard_i: usize,
+    shard_i: u32,
     current: Option<GuardIterMut<'a, K, V, S>>,
 }
 

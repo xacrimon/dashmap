@@ -3,8 +3,8 @@
 use core::cell::UnsafeCell;
 use core::{mem, ptr};
 
-pub const fn ptr_size_bits() -> usize {
-    mem::size_of::<usize>() * 8
+pub const fn ptr_size_bits() -> u16 {
+    (mem::size_of::<usize>() * 8) as _
 }
 
 pub fn map_in_place_2<T, U, F: FnOnce(U, T) -> T>((k, v): (U, &mut T), f: F) {

@@ -41,7 +41,9 @@ use mapref::one::{Ref, RefMut};
 use once_cell::sync::OnceCell;
 pub use read_only::ReadOnlyView;
 pub use set::DashSet;
+use small_fixed_array::{FixedArray, ValidLength as _};
 use std::collections::hash_map::RandomState;
+use std::convert::{TryFrom as _, TryInto as _};
 pub use t::Map;
 use try_result::TryResult;
 
@@ -70,8 +72,8 @@ fn default_shard_amount() -> usize {
     })
 }
 
-fn ncb(shard_amount: usize) -> usize {
-    shard_amount.trailing_zeros() as usize
+fn ncb(shard_amount: usize) -> u16 {
+    shard_amount.trailing_zeros() as _
 }
 
 /// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
@@ -86,24 +88,28 @@ fn ncb(shard_amount: usize) -> usize {
 /// Documentation mentioning locking behaviour acts in the reference frame of the calling thread.
 /// This means that it is safe to ignore it across multiple threads.
 pub struct DashMap<K, V, S = RandomState> {
-    shift: usize,
-    shards: Box<[RwLock<HashMap<K, V, S>>]>,
+    shift: u16,
+    shards: FixedArray<RwLock<HashMap<K, V, S>>>,
     hasher: S,
 }
 
 impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
     fn clone(&self) -> Self {
-        let mut inner_shards = Vec::new();
+        let mut inner_shards = Vec::with_capacity(self.shards.len() as usize);
 
         for shard in self.shards.iter() {
             let shard = shard.read();
-
             inner_shards.push(RwLock::new((*shard).clone()));
         }
 
+        let shards = inner_shards
+            .into_boxed_slice()
+            .try_into()
+            .unwrap_or_else(|_| panic!("size should not change so cannot overflow"));
+
         Self {
+            shards,
             shift: self.shift,
-            shards: inner_shards.into_boxed_slice(),
             hasher: self.hasher.clone(),
         }
     }
@@ -281,9 +287,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let cps = capacity / shard_amount;
 
-        let shards = (0..shard_amount)
+        let shards: Box<[_]> = (0..shard_amount)
             .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, hasher.clone())))
             .collect();
+
+        let shards = FixedArray::try_from(shards)
+            .unwrap_or_else(|_| panic!("cannot store more than 4 billion shards"));
 
         Self {
             shift,
@@ -295,11 +304,15 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Hash a given item to produce a usize.
     /// Uses the provided or default HashBuilder.
     pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
+        self.hash_u64(item) as usize
+    }
+
+    fn hash_u64<T: Hash>(&self, item: &T) -> u64 {
         let mut hasher = self.hasher.build_hasher();
 
         item.hash(&mut hasher);
 
-        hasher.finish() as usize
+        hasher.finish()
     }
 
     cfg_if! {
@@ -333,7 +346,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// use dashmap::SharedValue;
             ///
             /// let mut map = DashMap::<i32, &'static str>::new();
-            /// let shard_ind = map.determine_map(&42);
+            /// let shard_ind = map.determine_map(&42) as usize;
             /// map.shards_mut()[shard_ind].get_mut().insert(42, SharedValue::new("forty two"));
             /// assert_eq!(*map.get(&42).unwrap(), "forty two");
             /// ```
@@ -348,7 +361,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             ///
             /// See [`DashMap::shards()`] and [`DashMap::shards_mut()`] for more information.
             pub fn into_shards(self) -> Box<[RwLock<HashMap<K, V, S>>]> {
-                self.shards
+                self.shards.into_boxed_slice()
             }
         } else {
             #[allow(dead_code)]
@@ -363,7 +376,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
             #[allow(dead_code)]
             pub(crate) fn into_shards(self) -> Box<[RwLock<HashMap<K, V, S>>]> {
-                self.shards
+                self.shards.into_boxed_slice()
             }
         }
     }
@@ -385,7 +398,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// map.insert("coca-cola", 1.4);
             /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
             /// ```
-            pub fn determine_map<Q>(&self, key: &Q) -> usize
+            pub fn determine_map<Q>(&self, key: &Q) -> u32
             where
                 K: Borrow<Q>,
                 Q: Hash + Eq + ?Sized,
@@ -411,16 +424,18 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// let key = "key";
             /// let hash = map.hash_usize(&key);
             /// println!("hash is stored in shard: {}", map.determine_shard(hash));
+            /// panic!()
             /// ```
-            pub fn determine_shard(&self, hash: usize) -> usize {
+            pub fn determine_shard(&self, hash: usize) -> u32 {
                 // Leave the high 7 bits for the HashBrown SIMD tag.
-                (hash << 7) >> self.shift
+                ((hash << 7) >> self.shift) as u32
             }
         } else {
 
-            pub(crate) fn determine_shard(&self, hash: usize) -> usize {
+            pub(crate) fn determine_shard(&self, hash: usize) -> u32 {
                 // Leave the high 7 bits for the HashBrown SIMD tag.
-                (hash << 7) >> self.shift
+                ((hash << 7) >> self.shift) as u32
+
             }
         }
     }
@@ -875,44 +890,44 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     for DashMap<K, V, S>
 {
-    fn _shard_count(&self) -> usize {
+    fn _shard_count(&self) -> u32 {
         self.shards.len()
     }
 
-    unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V, S> {
+    unsafe fn _get_read_shard(&'a self, i: u32) -> &'a HashMap<K, V, S> {
         debug_assert!(i < self.shards.len());
 
-        &*self.shards.get_unchecked(i).data_ptr()
+        &*self.shards.get_unchecked(i.to_usize()).data_ptr()
     }
 
-    unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, S>> {
+    unsafe fn _yield_read_shard(&'a self, i: u32) -> RwLockReadGuard<'a, HashMap<K, V, S>> {
         debug_assert!(i < self.shards.len());
 
-        self.shards.get_unchecked(i).read()
+        self.shards.get_unchecked(i.to_usize()).read()
     }
 
-    unsafe fn _yield_write_shard(&'a self, i: usize) -> RwLockWriteGuard<'a, HashMap<K, V, S>> {
+    unsafe fn _yield_write_shard(&'a self, i: u32) -> RwLockWriteGuard<'a, HashMap<K, V, S>> {
         debug_assert!(i < self.shards.len());
 
-        self.shards.get_unchecked(i).write()
+        self.shards.get_unchecked(i.to_usize()).write()
     }
 
     unsafe fn _try_yield_read_shard(
         &'a self,
-        i: usize,
+        i: u32,
     ) -> Option<RwLockReadGuard<'a, HashMap<K, V, S>>> {
         debug_assert!(i < self.shards.len());
 
-        self.shards.get_unchecked(i).try_read()
+        self.shards.get_unchecked(i.to_usize()).try_read()
     }
 
     unsafe fn _try_yield_write_shard(
         &'a self,
-        i: usize,
+        i: u32,
     ) -> Option<RwLockWriteGuard<'a, HashMap<K, V, S>>> {
         debug_assert!(i < self.shards.len());
 
-        self.shards.get_unchecked(i).try_write()
+        self.shards.get_unchecked(i.to_usize()).try_write()
     }
 
     fn _insert(&self, key: K, value: V) -> Option<V> {

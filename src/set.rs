@@ -159,7 +159,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             /// set.insert("coca-cola");
             /// println!("coca-cola is stored in shard: {}", set.determine_map("coca-cola"));
             /// ```
-            pub fn determine_map<Q>(&self, key: &Q) -> usize
+            pub fn determine_map<Q>(&self, key: &Q) -> u32
             where
                 K: Borrow<Q>,
                 Q: Hash + Eq + ?Sized,
@@ -185,7 +185,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             /// let hash = set.hash_usize(&key);
             /// println!("hash is stored in shard: {}", set.determine_shard(hash));
             /// ```
-            pub fn determine_shard(&self, hash: usize) -> usize {
+            pub fn determine_shard(&self, hash: usize) -> u32 {
                 self.inner.determine_shard(hash)
             }
         }
