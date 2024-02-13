@@ -5,6 +5,7 @@ use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
 use rayon::iter::plumbing::UnindexedConsumer;
 use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, ParallelIterator};
+use small_fixed_array::FixedArray;
 use std::collections::hash_map::RandomState;
 use std::sync::Arc;
 
@@ -80,7 +81,7 @@ where
 }
 
 pub struct OwningIter<K, V, S = RandomState> {
-    pub(super) shards: Box<[RwLock<HashMap<K, V, S>>]>,
+    pub(super) shards: FixedArray<RwLock<HashMap<K, V, S>>>,
 }
 
 impl<K, V, S> ParallelIterator for OwningIter<K, V, S>

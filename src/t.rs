@@ -11,29 +11,29 @@ use core::hash::{BuildHasher, Hash};
 
 /// Implementation detail that is exposed due to generic constraints in public types.
 pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
-    fn _shard_count(&self) -> usize;
+    fn _shard_count(&self) -> u32;
 
     /// # Safety
     ///
     /// The index must not be out of bounds.
-    unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V, S>;
+    unsafe fn _get_read_shard(&'a self, i: u32) -> &'a HashMap<K, V, S>;
 
     /// # Safety
     ///
     /// The index must not be out of bounds.
-    unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V, S>>;
+    unsafe fn _yield_read_shard(&'a self, i: u32) -> RwLockReadGuard<'a, HashMap<K, V, S>>;
 
     /// # Safety
     ///
     /// The index must not be out of bounds.
-    unsafe fn _yield_write_shard(&'a self, i: usize) -> RwLockWriteGuard<'a, HashMap<K, V, S>>;
+    unsafe fn _yield_write_shard(&'a self, i: u32) -> RwLockWriteGuard<'a, HashMap<K, V, S>>;
 
     /// # Safety
     ///
     /// The index must not be out of bounds.
     unsafe fn _try_yield_read_shard(
         &'a self,
-        i: usize,
+        i: u32,
     ) -> Option<RwLockReadGuard<'a, HashMap<K, V, S>>>;
 
     /// # Safety
@@ -41,7 +41,7 @@ pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
     /// The index must not be out of bounds.
     unsafe fn _try_yield_write_shard(
         &'a self,
-        i: usize,
+        i: u32,
     ) -> Option<RwLockWriteGuard<'a, HashMap<K, V, S>>>;
 
     fn _insert(&self, key: K, value: V) -> Option<V>;

@@ -81,6 +81,7 @@ dependencies = [
  "parking_lot_core",
  "rayon",
  "serde",
+ "small-fixed-array",
 ]
 
 [[package]]
@@ -229,6 +230,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "small-fixed-array"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2782e69a974e738ea1ef568e884347d8174a41789fe459ee73517c8acf8c9ea5"
 
 [[package]]
 name = "smallvec"
