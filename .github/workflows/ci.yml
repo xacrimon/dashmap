@@ -49,7 +49,7 @@ jobs:
           # --
           # install cross
           echo "installing cross"
-          cargo install cross
+          cargo install cross --locked --version 0.2.5
           # --
       - name: test
         run: cross test --target ${{ matrix.target }}
