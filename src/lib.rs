@@ -29,12 +29,12 @@ use crate::lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 pub use crate::lock::{RawRwLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use cfg_if::cfg_if;
-use crossbeam_utils::CachePadded;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash, Hasher};
 use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
+use crossbeam_utils::CachePadded;
 use iter::{Iter, IterMut, OwningIter};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
@@ -283,7 +283,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         let cps = capacity / shard_amount;
 
         let shards = (0..shard_amount)
-            .map(|_| CachePadded::new(RwLock::new(HashMap::with_capacity_and_hasher(cps, hasher.clone()))))
+            .map(|_| {
+                CachePadded::new(RwLock::new(HashMap::with_capacity_and_hasher(
+                    cps,
+                    hasher.clone(),
+                )))
+            })
             .collect();
 
         Self {
