@@ -18,22 +18,6 @@ pub fn map_in_place_2<T, U, F: FnOnce(U, T) -> T>((k, v): (U, &mut T), f: F) {
     }
 }
 
-/// # Safety
-///
-/// Requires that you ensure the reference does not become invalid.
-/// The object has to outlive the reference.
-pub unsafe fn change_lifetime_const<'a, 'b, T>(x: &'a T) -> &'b T {
-    &*(x as *const T)
-}
-
-/// # Safety
-///
-/// Requires that you ensure the reference does not become invalid.
-/// The object has to outlive the reference.
-pub unsafe fn change_lifetime_mut<'a, 'b, T>(x: &'a mut T) -> &'b mut T {
-    &mut *(x as *mut T)
-}
-
 /// A simple wrapper around `T`
 ///
 /// This is to prevent UB when using `HashMap::get_key_value`, because

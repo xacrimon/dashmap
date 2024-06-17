@@ -1,19 +1,16 @@
 use super::one::RefMut;
 use crate::lock::RwLockWriteGuard;
-use crate::util;
 use crate::util::SharedValue;
 use crate::HashMap;
-use core::hash::{BuildHasher, Hash};
+use core::hash::Hash;
 use core::mem;
-use core::ptr;
-use std::collections::hash_map::RandomState;
 
-pub enum Entry<'a, K, V, S = RandomState> {
-    Occupied(OccupiedEntry<'a, K, V, S>),
-    Vacant(VacantEntry<'a, K, V, S>),
+pub enum Entry<'a, K, V> {
+    Occupied(OccupiedEntry<'a, K, V>),
+    Vacant(VacantEntry<'a, K, V>),
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
+impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
     /// Apply a function to the stored value if it exists.
     pub fn and_modify(self, f: impl FnOnce(&mut V)) -> Self {
         match self {
@@ -45,7 +42,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
 
     /// Return a mutable reference to the element if it exists,
     /// otherwise insert the default and return a mutable reference to that.
-    pub fn or_default(self) -> RefMut<'a, K, V, S>
+    pub fn or_default(self) -> RefMut<'a, K, V>
     where
         V: Default,
     {
@@ -57,7 +54,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
 
     /// Return a mutable reference to the element if it exists,
     /// otherwise a provided value and return a mutable reference to that.
-    pub fn or_insert(self, value: V) -> RefMut<'a, K, V, S> {
+    pub fn or_insert(self, value: V) -> RefMut<'a, K, V> {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
             Entry::Vacant(entry) => entry.insert(value),
@@ -66,7 +63,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
 
     /// Return a mutable reference to the element if it exists,
     /// otherwise insert the result of a provided function and return a mutable reference to that.
-    pub fn or_insert_with(self, value: impl FnOnce() -> V) -> RefMut<'a, K, V, S> {
+    pub fn or_insert_with(self, value: impl FnOnce() -> V) -> RefMut<'a, K, V> {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
             Entry::Vacant(entry) => entry.insert(value()),
@@ -76,7 +73,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     pub fn or_try_insert_with<E>(
         self,
         value: impl FnOnce() -> Result<V, E>,
-    ) -> Result<RefMut<'a, K, V, S>, E> {
+    ) -> Result<RefMut<'a, K, V>, E> {
         match self {
             Entry::Occupied(entry) => Ok(entry.into_ref()),
             Entry::Vacant(entry) => Ok(entry.insert(value()?)),
@@ -84,7 +81,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     }
 
     /// Sets the value of the entry, and returns a reference to the inserted value.
-    pub fn insert(self, value: V) -> RefMut<'a, K, V, S> {
+    pub fn insert(self, value: V) -> RefMut<'a, K, V> {
         match self {
             Entry::Occupied(mut entry) => {
                 entry.insert(value);
@@ -100,7 +97,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     /// consider [`insert`] as it doesn't need to clone the key.
     ///
     /// [`insert`]: Entry::insert
-    pub fn insert_entry(self, value: V) -> OccupiedEntry<'a, K, V, S>
+    pub fn insert_entry(self, value: V) -> OccupiedEntry<'a, K, V>
     where
         K: Clone,
     {
@@ -114,52 +111,58 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> Entry<'a, K, V, S> {
     }
 }
 
-pub struct VacantEntry<'a, K, V, S = RandomState> {
-    shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
+pub struct VacantEntry<'a, K, V> {
+    shard: RwLockWriteGuard<'a, HashMap<K, V>>,
     key: K,
+    hash: u64,
+    slot: hashbrown::raw::InsertSlot,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for VacantEntry<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for VacantEntry<'a, K, V, S> {}
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for VacantEntry<'a, K, V> {}
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for VacantEntry<'a, K, V> {}
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
-    pub(crate) unsafe fn new(shard: RwLockWriteGuard<'a, HashMap<K, V, S>>, key: K) -> Self {
-        Self { shard, key }
+impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
+    pub(crate) unsafe fn new(
+        shard: RwLockWriteGuard<'a, HashMap<K, V>>,
+        key: K,
+        hash: u64,
+        slot: hashbrown::raw::InsertSlot,
+    ) -> Self {
+        Self {
+            shard,
+            key,
+            hash,
+            slot,
+        }
     }
 
-    pub fn insert(mut self, value: V) -> RefMut<'a, K, V, S> {
+    pub fn insert(mut self, value: V) -> RefMut<'a, K, V> {
         unsafe {
-            let c: K = ptr::read(&self.key);
+            let occupied = self.shard.insert_in_slot(
+                self.hash,
+                self.slot,
+                (self.key, SharedValue::new(value)),
+            );
 
-            self.shard.insert(self.key, SharedValue::new(value));
+            let (k, v) = occupied.as_ref();
 
-            let (k, v) = self.shard.get_key_value(&c).unwrap();
-
-            let k = util::change_lifetime_const(k);
-
-            let v = &mut *v.as_ptr();
-
-            let r = RefMut::new(self.shard, k, v);
-
-            mem::forget(c);
-
-            r
+            RefMut::new(self.shard, k, v.as_ptr())
         }
     }
 
     /// Sets the value of the entry with the VacantEntry’s key, and returns an OccupiedEntry.
-    pub fn insert_entry(mut self, value: V) -> OccupiedEntry<'a, K, V, S>
+    pub fn insert_entry(mut self, value: V) -> OccupiedEntry<'a, K, V>
     where
         K: Clone,
     {
         unsafe {
-            self.shard.insert(self.key.clone(), SharedValue::new(value));
+            let bucket = self.shard.insert_in_slot(
+                self.hash,
+                self.slot,
+                (self.key.clone(), SharedValue::new(value)),
+            );
 
-            let (k, v) = self.shard.get_key_value(&self.key).unwrap();
-
-            let kptr: *const K = k;
-            let vptr: *mut V = v.as_ptr();
-            OccupiedEntry::new(self.shard, self.key, (kptr, vptr))
+            OccupiedEntry::new(self.shard, self.key, bucket)
         }
     }
 
@@ -172,38 +175,41 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> VacantEntry<'a, K, V, S> {
     }
 }
 
-pub struct OccupiedEntry<'a, K, V, S = RandomState> {
-    shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
-    elem: (*const K, *mut V),
+pub struct OccupiedEntry<'a, K, V> {
+    shard: RwLockWriteGuard<'a, HashMap<K, V>>,
+    bucket: hashbrown::raw::Bucket<(K, SharedValue<V>)>,
     key: K,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Send for OccupiedEntry<'a, K, V, S> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync, S: BuildHasher> Sync for OccupiedEntry<'a, K, V, S> {}
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for OccupiedEntry<'a, K, V> {}
+unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for OccupiedEntry<'a, K, V> {}
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
+impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     pub(crate) unsafe fn new(
-        shard: RwLockWriteGuard<'a, HashMap<K, V, S>>,
+        shard: RwLockWriteGuard<'a, HashMap<K, V>>,
         key: K,
-        elem: (*const K, *mut V),
+        bucket: hashbrown::raw::Bucket<(K, SharedValue<V>)>,
     ) -> Self {
-        Self { shard, elem, key }
+        Self { shard, bucket, key }
     }
 
     pub fn get(&self) -> &V {
-        unsafe { &*self.elem.1 }
+        unsafe { self.bucket.as_ref().1.get() }
     }
 
     pub fn get_mut(&mut self) -> &mut V {
-        unsafe { &mut *self.elem.1 }
+        unsafe { self.bucket.as_mut().1.get_mut() }
     }
 
     pub fn insert(&mut self, value: V) -> V {
         mem::replace(self.get_mut(), value)
     }
 
-    pub fn into_ref(self) -> RefMut<'a, K, V, S> {
-        unsafe { RefMut::new(self.shard, self.elem.0, self.elem.1) }
+    pub fn into_ref(self) -> RefMut<'a, K, V> {
+        unsafe {
+            let (k, v) = self.bucket.as_ref();
+            RefMut::new(self.shard, k, v.as_ptr())
+        }
     }
 
     pub fn into_key(self) -> K {
@@ -211,25 +217,24 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> OccupiedEntry<'a, K, V, S> {
     }
 
     pub fn key(&self) -> &K {
-        unsafe { &*self.elem.0 }
+        unsafe { &self.bucket.as_ref().0 }
     }
 
     pub fn remove(mut self) -> V {
-        let key = unsafe { &*self.elem.0 };
-        self.shard.remove(key).unwrap().into_inner()
+        let ((_k, v), _) = unsafe { self.shard.remove(self.bucket) };
+        v.into_inner()
     }
 
     pub fn remove_entry(mut self) -> (K, V) {
-        let key = unsafe { &*self.elem.0 };
-        let (k, v) = self.shard.remove_entry(key).unwrap();
+        let ((k, v), _) = unsafe { self.shard.remove(self.bucket) };
         (k, v.into_inner())
     }
 
-    pub fn replace_entry(mut self, value: V) -> (K, V) {
-        let nk = self.key;
-        let key = unsafe { &*self.elem.0 };
-        let (k, v) = self.shard.remove_entry(key).unwrap();
-        self.shard.insert(nk, SharedValue::new(value));
+    pub fn replace_entry(self, value: V) -> (K, V) {
+        let (k, v) = mem::replace(
+            unsafe { self.bucket.as_mut() },
+            (self.key, SharedValue::new(value)),
+        );
         (k, v.into_inner())
     }
 }
