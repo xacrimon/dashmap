@@ -36,7 +36,7 @@ use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use crossbeam_utils::CachePadded;
 use iter::{Iter, IterMut, OwningIter};
-use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
+pub use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
 use once_cell::sync::OnceCell;
