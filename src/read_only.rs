@@ -62,13 +62,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.map.hash_usize(&key);
-
-        let idx = self.map.determine_shard(hash);
-
-        let shard = unsafe { self.map._get_read_shard(idx) };
-
-        shard.contains_key(key)
+        self.get(key).is_some()
     }
 
     /// Returns a reference to the value corresponding to the key.
@@ -77,13 +71,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.map.hash_usize(&key);
-
-        let idx = self.map.determine_shard(hash);
-
-        let shard = unsafe { self.map._get_read_shard(idx) };
-
-        shard.get(key).map(|v| v.get())
+        self.get_key_value(key).map(|(_k, v)| v)
     }
 
     /// Returns the key-value pair corresponding to the supplied key.
@@ -92,37 +80,39 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.map.hash_usize(&key);
+        let hash = self.map.hash_u64(&key);
 
-        let idx = self.map.determine_shard(hash);
+        let idx = self.map.determine_shard(hash as usize);
 
         let shard = unsafe { self.map._get_read_shard(idx) };
 
-        shard.get_key_value(key).map(|(k, v)| (k, v.get()))
-    }
-
-    fn shard_read_iter(&'a self) -> impl Iterator<Item = &'a HashMap<K, V, S>> + 'a {
-        (0..self.map._shard_count())
-            .map(move |shard_i| unsafe { self.map._get_read_shard(shard_i) })
+        shard.find(hash, |(k, _v)| key == k.borrow()).map(|b| {
+            let (k, v) = unsafe { b.as_ref() };
+            (k, v.get())
+        })
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order. The iterator element type is `(&'a K, &'a V)`.
     pub fn iter(&'a self) -> impl Iterator<Item = (&'a K, &'a V)> + 'a {
-        self.shard_read_iter()
-            .flat_map(|shard| shard.iter())
-            .map(|(k, v)| (k, v.get()))
+        unsafe {
+            (0..self.map._shard_count())
+                .map(move |shard_i| self.map._get_read_shard(shard_i))
+                .flat_map(|shard| shard.iter())
+                .map(|b| {
+                    let (k, v) = b.as_ref();
+                    (k, v.get())
+                })
+        }
     }
 
     /// An iterator visiting all keys in arbitrary order. The iterator element type is `&'a K`.
     pub fn keys(&'a self) -> impl Iterator<Item = &'a K> + 'a {
-        self.shard_read_iter().flat_map(|shard| shard.keys())
+        self.iter().map(|(k, _v)| k)
     }
 
     /// An iterator visiting all values in arbitrary order. The iterator element type is `&'a V`.
     pub fn values(&'a self) -> impl Iterator<Item = &'a V> + 'a {
-        self.shard_read_iter()
-            .flat_map(|shard| shard.values())
-            .map(|v| v.get())
+        self.iter().map(|(_k, v)| v)
     }
 
     cfg_if! {
@@ -140,12 +130,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
             /// let map = DashMap::<(), ()>::new().into_read_only();
             /// println!("Amount of shards: {}", map.shards().len());
             /// ```
-            pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V, S>>>] {
+            pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
                 &self.map.shards
             }
         } else {
             #[allow(dead_code)]
-            pub(crate) fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V, S>>>] {
+            pub(crate) fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
                 &self.map.shards
             }
         }

@@ -138,7 +138,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             /// let set = DashSet::<()>::new();
             /// println!("Amount of shards: {}", set.shards().len());
             /// ```
-            pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, (), S>>>] {
+            pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, ()>>>] {
                 self.inner.shards()
             }
         }
@@ -282,7 +282,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// youtubers.insert("Bosnian Bill");
     /// assert_eq!(*youtubers.get("Bosnian Bill").unwrap(), "Bosnian Bill");
     /// ```
-    pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, S>>
+    pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K>>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
