@@ -5,6 +5,7 @@ use cfg_if::cfg_if;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
+use crossbeam_utils::CachePadded;
 use std::collections::hash_map::RandomState;
 
 /// A read-only view into a `DashMap`. Allows to obtain raw references to the stored values.
@@ -139,12 +140,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
             /// let map = DashMap::<(), ()>::new().into_read_only();
             /// println!("Amount of shards: {}", map.shards().len());
             /// ```
-            pub fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
+            pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V, S>>>] {
                 &self.map.shards
             }
         } else {
             #[allow(dead_code)]
-            pub(crate) fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
+            pub(crate) fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V, S>>>] {
                 &self.map.shards
             }
         }

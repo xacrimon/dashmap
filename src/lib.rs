@@ -34,6 +34,7 @@ use core::fmt;
 use core::hash::{BuildHasher, Hash, Hasher};
 use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
+use crossbeam_utils::CachePadded;
 use iter::{Iter, IterMut, OwningIter};
 use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
@@ -87,7 +88,7 @@ fn ncb(shard_amount: usize) -> usize {
 /// This means that it is safe to ignore it across multiple threads.
 pub struct DashMap<K, V, S = RandomState> {
     shift: usize,
-    shards: Box<[RwLock<HashMap<K, V, S>>]>,
+    shards: Box<[CachePadded<RwLock<HashMap<K, V, S>>>]>,
     hasher: S,
 }
 
@@ -98,7 +99,7 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
         for shard in self.shards.iter() {
             let shard = shard.read();
 
-            inner_shards.push(RwLock::new((*shard).clone()));
+            inner_shards.push(CachePadded::new(RwLock::new((*shard).clone())));
         }
 
         Self {
@@ -282,7 +283,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         let cps = capacity / shard_amount;
 
         let shards = (0..shard_amount)
-            .map(|_| RwLock::new(HashMap::with_capacity_and_hasher(cps, hasher.clone())))
+            .map(|_| {
+                CachePadded::new(RwLock::new(HashMap::with_capacity_and_hasher(
+                    cps,
+                    hasher.clone(),
+                )))
+            })
             .collect();
 
         Self {
@@ -317,7 +323,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// let map = DashMap::<(), ()>::new();
             /// println!("Amount of shards: {}", map.shards().len());
             /// ```
-            pub fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
+            pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V, S>>>] {
                 &self.shards
             }
 
@@ -337,7 +343,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// map.shards_mut()[shard_ind].get_mut().insert(42, SharedValue::new("forty two"));
             /// assert_eq!(*map.get(&42).unwrap(), "forty two");
             /// ```
-            pub fn shards_mut(&mut self) -> &mut [RwLock<HashMap<K, V, S>>] {
+            pub fn shards_mut(&mut self) -> &mut [CachePadded<RwLock<HashMap<K, V, S>>>] {
                 &mut self.shards
             }
 
@@ -347,22 +353,22 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// Requires the `raw-api` feature to be enabled.
             ///
             /// See [`DashMap::shards()`] and [`DashMap::shards_mut()`] for more information.
-            pub fn into_shards(self) -> Box<[RwLock<HashMap<K, V, S>>]> {
+            pub fn into_shards(self) -> Box<[CachePadded<RwLock<HashMap<K, V, S>>>]> {
                 self.shards
             }
         } else {
             #[allow(dead_code)]
-            pub(crate) fn shards(&self) -> &[RwLock<HashMap<K, V, S>>] {
+            pub(crate) fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V, S>>>] {
                 &self.shards
             }
 
             #[allow(dead_code)]
-            pub(crate) fn shards_mut(&mut self) -> &mut [RwLock<HashMap<K, V, S>>] {
+            pub(crate) fn shards_mut(&mut self) -> &mut [CachePadded<RwLock<HashMap<K, V, S>>>] {
                 &mut self.shards
             }
 
             #[allow(dead_code)]
-            pub(crate) fn into_shards(self) -> Box<[RwLock<HashMap<K, V, S>>]> {
+            pub(crate) fn into_shards(self) -> Box<[CachePadded<RwLock<HashMap<K, V, S>>>]> {
                 self.shards
             }
         }

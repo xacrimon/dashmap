@@ -75,6 +75,7 @@ version = "5.5.3"
 dependencies = [
  "arbitrary",
  "cfg-if",
+ "crossbeam-utils",
  "hashbrown",
  "lock_api",
  "once_cell",

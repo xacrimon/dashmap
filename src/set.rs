@@ -10,6 +10,8 @@ use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
 use core::iter::FromIterator;
+#[cfg(feature = "raw-api")]
+use crossbeam_utils::CachePadded;
 use std::collections::hash_map::RandomState;
 
 /// DashSet is a thin wrapper around [`DashMap`] using `()` as the value type. It uses
@@ -136,7 +138,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             /// let set = DashSet::<()>::new();
             /// println!("Amount of shards: {}", set.shards().len());
             /// ```
-            pub fn shards(&self) -> &[RwLock<HashMap<K, (), S>>] {
+            pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, (), S>>>] {
                 self.inner.shards()
             }
         }

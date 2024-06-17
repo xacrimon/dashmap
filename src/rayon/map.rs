@@ -3,6 +3,7 @@ use crate::mapref::multiple::{RefMulti, RefMutMulti};
 use crate::util;
 use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
+use crossbeam_utils::CachePadded;
 use rayon::iter::plumbing::UnindexedConsumer;
 use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, ParallelIterator};
 use std::collections::hash_map::RandomState;
@@ -80,7 +81,7 @@ where
 }
 
 pub struct OwningIter<K, V, S = RandomState> {
-    pub(super) shards: Box<[RwLock<HashMap<K, V, S>>]>,
+    pub(super) shards: Box<[CachePadded<RwLock<HashMap<K, V, S>>>]>,
 }
 
 impl<K, V, S> ParallelIterator for OwningIter<K, V, S>
@@ -99,6 +100,7 @@ where
             .into_par_iter()
             .flat_map_iter(|shard| {
                 shard
+                    .into_inner()
                     .into_inner()
                     .into_iter()
                     .map(|(k, v)| (k, v.into_inner()))
@@ -125,7 +127,7 @@ where
 }
 
 pub struct Iter<'a, K, V, S = RandomState> {
-    pub(super) shards: &'a [RwLock<HashMap<K, V, S>>],
+    pub(super) shards: &'a [CachePadded<RwLock<HashMap<K, V, S>>>],
 }
 
 impl<'a, K, V, S> ParallelIterator for Iter<'a, K, V, S>
@@ -188,7 +190,7 @@ where
 }
 
 pub struct IterMut<'a, K, V, S = RandomState> {
-    shards: &'a [RwLock<HashMap<K, V, S>>],
+    shards: &'a [CachePadded<RwLock<HashMap<K, V, S>>>],
 }
 
 impl<'a, K, V, S> ParallelIterator for IterMut<'a, K, V, S>
