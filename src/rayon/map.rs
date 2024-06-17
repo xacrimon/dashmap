@@ -78,13 +78,8 @@ where
     }
 }
 
-<<<<<<< HEAD
-pub struct OwningIter<K, V, S = RandomState> {
-    pub(super) shards: Box<[CachePadded<RwLock<HashMap<K, V, S>>>]>,
-=======
 pub struct OwningIter<K, V> {
-    pub(super) shards: Box<[RwLock<HashMap<K, V>>]>,
->>>>>>> 0f95f5932e22db2408ec4fc758cb41b57750ea85
+    pub(super) shards: Box<[CachePadded<RwLock<HashMap<K, V>>>]>,
 }
 
 impl<K, V> ParallelIterator for OwningIter<K, V>
@@ -128,13 +123,8 @@ where
     }
 }
 
-<<<<<<< HEAD
-pub struct Iter<'a, K, V, S = RandomState> {
-    pub(super) shards: &'a [CachePadded<RwLock<HashMap<K, V, S>>>],
-=======
 pub struct Iter<'a, K, V> {
-    pub(super) shards: &'a [RwLock<HashMap<K, V>>],
->>>>>>> 0f95f5932e22db2408ec4fc758cb41b57750ea85
+    pub(super) shards: &'a [CachePadded<RwLock<HashMap<K, V>>>],
 }
 
 impl<'a, K, V> ParallelIterator for Iter<'a, K, V>
@@ -191,13 +181,8 @@ where
     }
 }
 
-<<<<<<< HEAD
-pub struct IterMut<'a, K, V, S = RandomState> {
-    shards: &'a [CachePadded<RwLock<HashMap<K, V, S>>>],
-=======
 pub struct IterMut<'a, K, V> {
-    shards: &'a [RwLock<HashMap<K, V>>],
->>>>>>> 0f95f5932e22db2408ec4fc758cb41b57750ea85
+    shards: &'a [CachePadded<RwLock<HashMap<K, V>>>],
 }
 
 impl<'a, K, V> ParallelIterator for IterMut<'a, K, V>

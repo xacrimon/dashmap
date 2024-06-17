@@ -336,10 +336,19 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// ```
             /// use dashmap::DashMap;
             /// use dashmap::SharedValue;
+            /// use std::hash::{Hash, Hasher, BuildHasher};
             ///
             /// let mut map = DashMap::<i32, &'static str>::new();
             /// let shard_ind = map.determine_map(&42);
-            /// map.shards_mut()[shard_ind].get_mut().insert(42, SharedValue::new("forty two"));
+            /// let mut factory = map.hasher().clone();
+            /// let hasher = |tuple: &(i32, SharedValue<&'static str>)| {
+            ///     let mut hasher = factory.build_hasher();
+            ///     tuple.0.hash(&mut hasher);
+            ///     hasher.finish()
+            /// };
+            /// let data = (42, SharedValue::new("forty two"));
+            /// let hash = hasher(&data);
+            /// map.shards_mut()[shard_ind].get_mut().insert(hash, data, hasher);
             /// assert_eq!(*map.get(&42).unwrap(), "forty two");
             /// ```
             pub fn shards_mut(&mut self) -> &mut [CachePadded<RwLock<HashMap<K, V>>>] {
