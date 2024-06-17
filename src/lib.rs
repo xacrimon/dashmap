@@ -75,14 +75,14 @@ fn ncb(shard_amount: usize) -> usize {
     shard_amount.trailing_zeros() as usize
 }
 
-/// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
+/// `DashMap` is an implementation of a concurrent associative array/hashmap in Rust.
 ///
-/// DashMap tries to implement an easy to use API similar to `std::collections::HashMap`
+/// `DashMap` tries to implement an easy to use API similar to `std::collections::HashMap`
 /// with some slight changes to handle concurrency.
 ///
-/// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V, S>>`.
+/// `DashMap` tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V, S>>`.
 /// To accomplish this, all methods take `&self` instead of modifying methods taking `&mut self`.
-/// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
+/// This allows you to put a `DashMap` in an `Arc<T>` and share it between threads while being able to modify it.
 ///
 /// Documentation mentioning locking behaviour acts in the reference frame of the calling thread.
 /// This means that it is safe to ignore it across multiple threads.
@@ -121,7 +121,7 @@ where
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
-    /// Creates a new DashMap with a capacity of 0.
+    /// Creates a new `DashMap` with a capacity of 0.
     ///
     /// # Examples
     ///
@@ -135,7 +135,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
         DashMap::with_hasher(RandomState::default())
     }
 
-    /// Creates a new DashMap with a specified starting capacity.
+    /// Creates a new `DashMap` with a specified starting capacity.
     ///
     /// # Examples
     ///
@@ -150,10 +150,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
         DashMap::with_capacity_and_hasher(capacity, RandomState::default())
     }
 
-    /// Creates a new DashMap with a specified shard amount
+    /// Creates a new `DashMap` with a specified shard amount
     ///
-    /// shard_amount should greater than 0 and be a power of two.
-    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    /// `shard_amount` should greater than 0 and be a power of two.
+    /// If a `shard_amount` which is not a power of two is provided, the function will panic.
     ///
     /// # Examples
     ///
@@ -168,10 +168,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
         Self::with_capacity_and_hasher_and_shard_amount(0, RandomState::default(), shard_amount)
     }
 
-    /// Creates a new DashMap with a specified capacity and shard amount.
+    /// Creates a new `DashMap` with a specified capacity and shard amount.
     ///
-    /// shard_amount should greater than 0 and be a power of two.
-    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    /// `shard_amount` should greater than 0 and be a power of two.
+    /// If a `shard_amount` which is not a power of two is provided, the function will panic.
     ///
     /// # Examples
     ///
@@ -197,7 +197,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         ReadOnlyView::new(self)
     }
 
-    /// Creates a new DashMap with a capacity of 0 and the provided hasher.
+    /// Creates a new `DashMap` with a capacity of 0 and the provided hasher.
     ///
     /// # Examples
     ///
@@ -213,7 +213,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         Self::with_capacity_and_hasher(0, hasher)
     }
 
-    /// Creates a new DashMap with a specified starting capacity and hasher.
+    /// Creates a new `DashMap` with a specified starting capacity and hasher.
     ///
     /// # Examples
     ///
@@ -230,10 +230,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         Self::with_capacity_and_hasher_and_shard_amount(capacity, hasher, default_shard_amount())
     }
 
-    /// Creates a new DashMap with a specified hasher and shard amount
+    /// Creates a new `DashMap` with a specified hasher and shard amount
     ///
-    /// shard_amount should be greater than 0 and a power of two.
-    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    /// `shard_amount` should be greater than 0 and a power of two.
+    /// If a `shard_amount` which is not a power of two is provided, the function will panic.
     ///
     /// # Examples
     ///
@@ -250,10 +250,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         Self::with_capacity_and_hasher_and_shard_amount(0, hasher, shard_amount)
     }
 
-    /// Creates a new DashMap with a specified starting capacity, hasher and shard_amount.
+    /// Creates a new `DashMap` with a specified starting capacity, hasher and `shard_amount`.
     ///
-    /// shard_amount should greater than 0 and be a power of two.
-    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    /// `shard_amount` should greater than 0 and be a power of two.
+    /// If a `shard_amount` which is not a power of two is provided, the function will panic.
     ///
     /// # Examples
     ///
@@ -299,7 +299,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Hash a given item to produce a usize.
-    /// Uses the provided or default HashBuilder.
+    /// Uses the provided or default `HashBuilder`.
     pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
         let mut hasher = self.hasher.build_hasher();
 
@@ -523,7 +523,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._remove_if_mut(key, f)
     }
 
-    /// Creates an iterator over a DashMap yielding immutable references.
+    /// Creates an iterator over a `DashMap` yielding immutable references.
     ///
     /// **Locking behaviour:** May deadlock if called when holding a mutable reference into the map.
     ///
@@ -540,7 +540,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._iter()
     }
 
-    /// Iterator over a DashMap yielding mutable references.
+    /// Iterator over a `DashMap` yielding mutable references.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
     ///
@@ -602,7 +602,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Get an immutable reference to an entry in the map, if the shard is not locked.
-    /// If the shard is locked, the function will return [TryResult::Locked].
+    /// If the shard is locked, the function will return [`TryResult::Locked`].
     ///
     /// # Examples
     ///
@@ -629,7 +629,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Get a mutable reference to an entry in the map, if the shard is not locked.
-    /// If the shard is locked, the function will return [TryResult::Locked].
+    /// If the shard is locked, the function will return [`TryResult::Locked`].
     ///
     /// # Examples
     ///
