@@ -116,9 +116,13 @@ pub struct Iter<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     marker: PhantomData<S>,
 }
 
-impl<'i, K: Clone + Hash + Eq, V: Clone, S: Clone + BuildHasher> Clone for Iter<'i, K, V, S> {
+impl<'i, K, V, S, M> Clone for Iter<'i, K, V, S, M> {
     fn clone(&self) -> Self {
-        Iter::new(self.map)
+        Iter {
+            map: self.map,
+            shard_i: self.shard_i,
+            current: self.current.clone(),
+        }
     }
 }
 
