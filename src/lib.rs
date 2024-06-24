@@ -1110,7 +1110,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _shrink_to_fit(&self) {
         self.shards.iter().for_each(|s| {
-            s.write().shrink_to(self.len(), |(k, _v)| {
+            let mut shard = s.write();
+            let size = shard.len();
+            shard.shrink_to(size, |(k, _v)| {
                 let mut hasher = self.hasher.build_hasher();
                 k.hash(&mut hasher);
                 hasher.finish()
