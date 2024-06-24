@@ -667,6 +667,19 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Remove excess capacity to reduce memory usage.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    /// use dashmap::try_result::TryResult;
+    ///
+    /// let map = DashMap::new();
+    /// map.insert("Johnny", 21);
+    /// assert!(map.capacity() > 0);
+    /// map.remove("Johnny");
+    /// map.shrink_to_fit();
+    /// assert_eq!(map.capacity(), 0);
+    /// ```
     pub fn shrink_to_fit(&self) {
         self._shrink_to_fit();
     }
