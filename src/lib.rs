@@ -94,7 +94,7 @@ pub struct DashMap<K, V, S = RandomState> {
 
 impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
     fn clone(&self) -> Self {
-        let mut inner_shards = Vec::new();
+        let mut inner_shards = Vec::with_capacity(self.shards.len());
 
         for shard in self.shards.iter() {
             let shard = shard.read();
@@ -282,9 +282,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let cps = capacity / shard_amount;
 
-        let shards = (0..shard_amount)
-            .map(|_| CachePadded::new(RwLock::new(HashMap::with_capacity(cps))))
-            .collect();
+        let shards = vec![CachePadded::new(RwLock::new(HashMap::with_capacity(cps))); shard_amount]
+            .into_boxed_slice();
 
         Self {
             shift,
