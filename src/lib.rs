@@ -283,7 +283,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let shards = {
             let mut shards = Vec::with_capacity(shard_amount);
-            shards.resize_with(shard_amount, || CachePadded::new(RwLock::new(HashMap::with_capacity(cps))));
+            shards.resize_with(shard_amount, || {
+                CachePadded::new(RwLock::new(HashMap::with_capacity(cps)))
+            });
             shards.into_boxed_slice()
         };
 
