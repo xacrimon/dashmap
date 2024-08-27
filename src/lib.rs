@@ -1346,6 +1346,45 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone + Default> FromIterator<(K, V)> for
     }
 }
 
+#[cfg(feature = "typesize")]
+impl<K, V, S> typesize::TypeSize for DashMap<K, V, S>
+where
+    K: typesize::TypeSize + Eq + Hash,
+    V: typesize::TypeSize,
+    S: typesize::TypeSize + Clone + BuildHasher,
+{
+    fn extra_size(&self) -> usize {
+        let shards_extra_size: usize = self
+            .shards
+            .iter()
+            .map(|shard_lock| {
+                let shard = shard_lock.read();
+                let hashtable_size = shard.allocation_info().1.size();
+
+                // Safety: The iterator is dropped before the HashTable
+                let iter = unsafe { shard.iter() };
+                let entry_size_iter = iter.map(|bucket| {
+                    // Safety: The iterator returns buckets with valid pointers to entries
+                    let (key, value) = unsafe { bucket.as_ref() };
+                    key.extra_size() + value.get().extra_size()
+                });
+
+                core::mem::size_of::<CachePadded<RwLock<HashMap<K, V>>>>()
+                    + hashtable_size
+                    + entry_size_iter.sum::<usize>()
+            })
+            .sum();
+
+        self.hasher.extra_size() + shards_extra_size
+    }
+
+    typesize::if_typesize_details! {
+        fn get_collection_item_count(&self) -> Option<usize> {
+            Some(self.len())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::DashMap;
