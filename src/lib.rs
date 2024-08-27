@@ -98,7 +98,6 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
 
         for shard in self.shards.iter() {
             let shard = shard.read();
-
             inner_shards.push(CachePadded::new(RwLock::new((*shard).clone())));
         }
 
@@ -282,8 +281,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let cps = capacity / shard_amount;
 
-        let shards = vec![CachePadded::new(RwLock::new(HashMap::with_capacity(cps))); shard_amount]
-            .into_boxed_slice();
+        let shards = {
+            let mut shards = Vec::with_capacity(shard_amount);
+            shards.resize_with(shard_amount, || CachePadded::new(RwLock::new(HashMap::with_capacity(cps))));
+            shards.into_boxed_slice()
+        };
 
         Self {
             shift,
