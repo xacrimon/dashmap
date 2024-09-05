@@ -94,17 +94,13 @@ pub struct DashMap<K, V, S = RandomState> {
 
 impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
     fn clone(&self) -> Self {
-        let mut inner_shards = Vec::new();
-
-        for shard in self.shards.iter() {
-            let shard = shard.read();
-
-            inner_shards.push(CachePadded::new(RwLock::new((*shard).clone())));
+        fn clone_rwlock<T: Clone>(lock: &CachePadded<RwLock<T>>) -> CachePadded<RwLock<T>> {
+            CachePadded::new(RwLock::new(lock.read().clone()))
         }
 
         Self {
             shift: self.shift,
-            shards: inner_shards.into_boxed_slice(),
+            shards: self.shards.iter().map(clone_rwlock).collect(),
             hasher: self.hasher.clone(),
         }
     }
