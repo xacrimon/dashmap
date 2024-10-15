@@ -160,10 +160,10 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
-                if let Some((k, v)) = current.1.next() {
+                if let Some(data) = current.1.next() {
                     return unsafe {
                         let guard = current.0.clone();
-                        Some(RefMulti::new(guard, k, v.get()))
+                        Some(RefMulti::new(guard, data))
                     };
                 }
             }
@@ -244,10 +244,10 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
-                if let Some((k, v)) = current.1.next() {
+                if let Some(data) = current.1.next() {
                     return unsafe {
                         let guard = current.0.clone();
-                        Some(RefMutMulti::new(guard, k, v.get_mut()))
+                        Some(RefMutMulti::new(guard, data))
                     };
                 }
             }

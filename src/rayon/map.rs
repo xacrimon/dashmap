@@ -148,9 +148,9 @@ where
                 let guard = unsafe { GuardRead(rwlock.raw()) };
 
                 let guard = Arc::new(guard);
-                data.iter().map(move |(k, v)| {
+                data.iter().map(move |data| {
                     let guard = Arc::clone(&guard);
-                    unsafe { RefMulti::new(guard, k, v.get()) }
+                    unsafe { RefMulti::new(guard, data) }
                 })
             })
             .drive_unindexed(consumer)
@@ -209,9 +209,9 @@ where
                 let guard = unsafe { GuardWrite(rwlock.raw()) };
 
                 let guard = Arc::new(guard);
-                data.iter_mut().map(move |(k, v)| {
+                data.iter_mut().map(move |data| {
                     let guard = Arc::clone(&guard);
-                    unsafe { RefMutMulti::new(guard, k, v.get_mut()) }
+                    unsafe { RefMutMulti::new(guard, data) }
                 })
             })
             .drive_unindexed(consumer)

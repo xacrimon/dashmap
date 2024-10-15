@@ -1,3 +1,4 @@
+use crate::util::SharedValue;
 use crate::{GuardRead, GuardWrite};
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
@@ -5,19 +6,17 @@ use std::sync::Arc;
 
 pub struct RefMulti<'a, K, V> {
     _guard: Arc<GuardRead<'a>>,
-    k: *const K,
-    v: *const V,
+    data: &'a (K, SharedValue<V>),
 }
 
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMulti<'a, K, V> {}
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMulti<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
-    pub(crate) unsafe fn new(guard: Arc<GuardRead<'a>>, k: *const K, v: *const V) -> Self {
+    pub(crate) unsafe fn new(guard: Arc<GuardRead<'a>>, data: &'a (K, SharedValue<V>)) -> Self {
         Self {
             _guard: guard,
-            k,
-            v,
+            data,
         }
     }
 
@@ -30,7 +29,7 @@ impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        unsafe { (&*self.k, &*self.v) }
+        (&self.data.0, self.data.1.get())
     }
 }
 
@@ -44,19 +43,20 @@ impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
 
 pub struct RefMutMulti<'a, K, V> {
     _guard: Arc<GuardWrite<'a>>,
-    k: *const K,
-    v: *mut V,
+    data: &'a mut (K, SharedValue<V>),
 }
 
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMutMulti<'a, K, V> {}
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMutMulti<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
-    pub(crate) unsafe fn new(guard: Arc<GuardWrite<'a>>, k: *const K, v: *mut V) -> Self {
+    pub(crate) unsafe fn new(
+        guard: Arc<GuardWrite<'a>>,
+        data: &'a mut (K, SharedValue<V>),
+    ) -> Self {
         Self {
             _guard: guard,
-            k,
-            v,
+            data,
         }
     }
 
@@ -73,11 +73,11 @@ impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        unsafe { (&*self.k, &*self.v) }
+        (&self.data.0, self.data.1.get())
     }
 
     pub fn pair_mut(&mut self) -> (&K, &mut V) {
-        unsafe { (&*self.k, &mut *self.v) }
+        (&self.data.0, self.data.1.get_mut())
     }
 }
 

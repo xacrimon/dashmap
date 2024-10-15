@@ -106,8 +106,7 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
     }
 
     pub fn pair_mut(&mut self) -> (&K, &mut V) {
-        let (k, v) = &mut *self.data;
-        (k, v.get_mut())
+        (&self.data.0, self.data.1.get_mut())
     }
 
     pub fn downgrade(self) -> Ref<'a, K, V> {
@@ -270,7 +269,7 @@ impl<'a, K: Eq + Hash, T> MappedRefMut<'a, K, T> {
     }
 
     pub fn pair_mut(&mut self) -> (&K, &mut T) {
-        (self.k, &mut *self.v)
+        (self.k, self.v)
     }
 
     pub fn map<F, T2>(self, f: F) -> MappedRefMut<'a, K, T2>
