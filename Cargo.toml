@@ -14,7 +14,6 @@ keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
 [features]
-default = []
 raw-api = []
 typesize = ["dep:typesize"]
 inline = ["hashbrown/inline-more"]
