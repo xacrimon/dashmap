@@ -72,11 +72,6 @@ impl<T> SharedValue<T> {
     pub fn into_inner(self) -> T {
         self.value.into_inner()
     }
-
-    /// Get a mutable raw pointer to the underlying value
-    pub(crate) fn as_ptr(&self) -> *mut T {
-        self.value.get()
-    }
 }
 
 struct AbortOnPanic;

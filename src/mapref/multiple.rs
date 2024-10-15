@@ -1,11 +1,10 @@
-use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
-use crate::HashMap;
+use crate::{GuardRead, GuardWrite};
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 pub struct RefMulti<'a, K, V> {
-    _guard: Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
+    _guard: Arc<GuardRead<'a>>,
     k: *const K,
     v: *const V,
 }
@@ -14,11 +13,7 @@ unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMulti<'a, K, V> {}
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMulti<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
-    pub(crate) unsafe fn new(
-        guard: Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
-        k: *const K,
-        v: *const V,
-    ) -> Self {
+    pub(crate) unsafe fn new(guard: Arc<GuardRead<'a>>, k: *const K, v: *const V) -> Self {
         Self {
             _guard: guard,
             k,
@@ -48,7 +43,7 @@ impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
 }
 
 pub struct RefMutMulti<'a, K, V> {
-    _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
+    _guard: Arc<GuardWrite<'a>>,
     k: *const K,
     v: *mut V,
 }
@@ -57,11 +52,7 @@ unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMutMulti<'a, K, V> {}
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMutMulti<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
-    pub(crate) unsafe fn new(
-        guard: Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
-        k: *const K,
-        v: *mut V,
-    ) -> Self {
+    pub(crate) unsafe fn new(guard: Arc<GuardWrite<'a>>, k: *const K, v: *mut V) -> Self {
         Self {
             _guard: guard,
             k,
