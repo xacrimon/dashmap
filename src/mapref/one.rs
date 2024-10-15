@@ -171,8 +171,8 @@ impl<'a, K: Eq + Hash, V> DerefMut for RefMut<'a, K, V> {
 
 pub struct MappedRef<'a, K, T> {
     _guard: GuardRead<'a>,
-    k: *const K,
-    v: *const T,
+    k: &'a K,
+    v: &'a T,
 }
 
 impl<'a, K: Eq + Hash, T> MappedRef<'a, K, T> {
@@ -185,7 +185,7 @@ impl<'a, K: Eq + Hash, T> MappedRef<'a, K, T> {
     }
 
     pub fn pair(&self) -> (&K, &T) {
-        unsafe { (&*self.k, &*self.v) }
+        (self.k, self.v)
     }
 
     pub fn map<F, T2>(self, f: F) -> MappedRef<'a, K, T2>
@@ -195,7 +195,7 @@ impl<'a, K: Eq + Hash, T> MappedRef<'a, K, T> {
         MappedRef {
             _guard: self._guard,
             k: self.k,
-            v: f(unsafe { &*self.v }),
+            v: f(self.v),
         }
     }
 
@@ -203,7 +203,7 @@ impl<'a, K: Eq + Hash, T> MappedRef<'a, K, T> {
     where
         F: FnOnce(&T) -> Option<&T2>,
     {
-        let v = match f(unsafe { &*self.v }) {
+        let v = match f(self.v) {
             Some(v) => v,
             None => return Err(self),
         };
