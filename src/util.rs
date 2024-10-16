@@ -2,6 +2,11 @@
 //! Either spend a day fixing it and quietly submit a PR or don't mention it to anybody.
 use core::cell::UnsafeCell;
 use core::{mem, ptr};
+use std::mem::ManuallyDrop;
+
+use lock_api::{RawRwLock as _, RawRwLockDowngrade};
+
+use crate::lock::{RawRwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub const fn ptr_size_bits() -> usize {
     mem::size_of::<usize>() * 8
@@ -82,4 +87,51 @@ impl Drop for AbortOnPanic {
             std::process::abort()
         }
     }
+}
+
+/// A RwLockReadGuard, without the data
+pub(crate) struct GuardRead<'a>(&'a RawRwLock);
+
+impl<'a> Drop for GuardRead<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            self.0.unlock_shared();
+        }
+    }
+}
+
+/// Separates the data from the RwLock ReadGuard
+pub(crate) fn split_read_guard<T>(guard: RwLockReadGuard<'_, T>) -> (GuardRead<'_>, &T) {
+    let rwlock = RwLockReadGuard::rwlock(&ManuallyDrop::new(guard));
+
+    let data = unsafe { &*rwlock.data_ptr() };
+    let guard = unsafe { GuardRead(rwlock.raw()) };
+    (guard, data)
+}
+
+/// A RwLockWriteGuard, without the data
+pub(crate) struct GuardWrite<'a>(&'a RawRwLock);
+
+impl<'a> Drop for GuardWrite<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            self.0.unlock_exclusive();
+        }
+    }
+}
+
+impl<'a> GuardWrite<'a> {
+    pub(crate) unsafe fn downgrade(self) -> GuardRead<'a> {
+        self.0.downgrade();
+        GuardRead(self.0)
+    }
+}
+
+/// Separates the data from the RwLock WriteGuard
+pub(crate) fn split_write_guard<T>(guard: RwLockWriteGuard<'_, T>) -> (GuardWrite<'_>, &mut T) {
+    let rwlock = RwLockWriteGuard::rwlock(&ManuallyDrop::new(guard));
+
+    let data = unsafe { &mut *rwlock.data_ptr() };
+    let guard = unsafe { GuardWrite(rwlock.raw()) };
+    (guard, data)
 }

@@ -22,10 +22,10 @@ pub mod rayon {
     pub mod set;
 }
 
-#[cfg(not(feature = "raw-api"))]
-use crate::lock::{RawRwLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 #[cfg(feature = "raw-api")]
 pub use crate::lock::{RawRwLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
+#[cfg(not(feature = "raw-api"))]
+use crate::lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use cfg_if::cfg_if;
 use core::borrow::Borrow;
@@ -35,7 +35,6 @@ use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use crossbeam_utils::CachePadded;
 use iter::{Iter, IterMut, OwningIter};
-use lock_api::RawRwLock as _;
 pub use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
@@ -43,35 +42,15 @@ use once_cell::sync::OnceCell;
 pub use read_only::ReadOnlyView;
 pub use set::DashSet;
 use std::collections::hash_map::RandomState;
-use std::mem::ManuallyDrop;
 pub use t::Map;
 use try_result::TryResult;
+use util::{split_read_guard, split_write_guard};
 
 cfg_if! {
     if #[cfg(feature = "raw-api")] {
         pub use util::SharedValue;
     } else {
         use util::SharedValue;
-    }
-}
-
-struct GuardRead<'a>(&'a RawRwLock);
-
-impl<'a> Drop for GuardRead<'a> {
-    fn drop(&mut self) {
-        unsafe {
-            self.0.unlock_shared();
-        }
-    }
-}
-
-struct GuardWrite<'a>(&'a RawRwLock);
-
-impl<'a> Drop for GuardWrite<'a> {
-    fn drop(&mut self) {
-        unsafe {
-            self.0.unlock_exclusive();
-        }
     }
 }
 
@@ -1065,13 +1044,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let idx = self.determine_shard(hash as usize);
 
         let shard = unsafe { self._yield_read_shard(idx) };
+        let (guard, data) = split_read_guard(shard);
 
-        let rwlock = RwLockReadGuard::rwlock(&ManuallyDrop::new(shard));
-
-        let data = unsafe { &mut *rwlock.data_ptr() };
-        let guard = unsafe { GuardRead(rwlock.raw()) };
-
-        data.find_mut(hash, |(k, _v)| key == k.borrow())
+        data.find(hash, |(k, _v)| key == k.borrow())
             .map(|data| unsafe { Ref::new(guard, data) })
     }
 
@@ -1085,11 +1060,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let idx = self.determine_shard(hash as usize);
 
         let shard = unsafe { self._yield_write_shard(idx) };
-
-        let rwlock = RwLockWriteGuard::rwlock(&ManuallyDrop::new(shard));
-
-        let data = unsafe { &mut *rwlock.data_ptr() };
-        let guard = unsafe { GuardWrite(rwlock.raw()) };
+        let (guard, data) = split_write_guard(shard);
 
         data.find_mut(hash, |(k, _v)| key == k.borrow())
             .map(|data| unsafe { RefMut::new(guard, data) })
@@ -1109,12 +1080,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             None => return TryResult::Locked,
         };
 
-        let rwlock = RwLockReadGuard::rwlock(&ManuallyDrop::new(shard));
+        let (guard, data) = split_read_guard(shard);
 
-        let data = unsafe { &mut *rwlock.data_ptr() };
-        let guard = unsafe { GuardRead(rwlock.raw()) };
-
-        match data.find_mut(hash, |(k, _v)| key == k.borrow()) {
+        match data.find(hash, |(k, _v)| key == k.borrow()) {
             Some(data) => TryResult::Present(unsafe { Ref::new(guard, data) }),
             None => TryResult::Absent,
         }
@@ -1134,10 +1102,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             None => return TryResult::Locked,
         };
 
-        let rwlock = RwLockWriteGuard::rwlock(&ManuallyDrop::new(shard));
-
-        let data = unsafe { &mut *rwlock.data_ptr() };
-        let guard = unsafe { GuardWrite(rwlock.raw()) };
+        let (guard, data) = split_write_guard(shard);
 
         match data.find_mut(hash, |(k, _v)| key == k.borrow()) {
             Some(data) => TryResult::Present(unsafe { RefMut::new(guard, data) }),
@@ -1203,10 +1168,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let idx = self.determine_shard(hash as usize);
 
         let shard = unsafe { self._yield_write_shard(idx) };
-        let rwlock = RwLockWriteGuard::rwlock(&ManuallyDrop::new(shard));
-
-        let data = unsafe { &mut *rwlock.data_ptr() };
-        let guard = unsafe { GuardWrite(rwlock.raw()) };
+        let (guard, data) = split_write_guard(shard);
 
         match data.entry(
             hash,
@@ -1236,10 +1198,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             None => return None,
         };
 
-        let rwlock = RwLockWriteGuard::rwlock(&ManuallyDrop::new(shard));
-
-        let data = unsafe { &mut *rwlock.data_ptr() };
-        let guard = unsafe { GuardWrite(rwlock.raw()) };
+        let (guard, data) = split_write_guard(shard);
 
         match data.entry(
             hash,

@@ -1,6 +1,5 @@
 use super::one::RefMut;
-use crate::util::SharedValue;
-use crate::GuardWrite;
+use crate::util::{GuardWrite, SharedValue};
 use core::hash::Hash;
 use core::mem;
 use hashbrown::hash_table;

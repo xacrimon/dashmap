@@ -1,5 +1,4 @@
-use crate::util::SharedValue;
-use crate::{GuardRead, GuardWrite};
+use crate::util::{GuardRead, GuardWrite, SharedValue};
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
 use std::sync::Arc;

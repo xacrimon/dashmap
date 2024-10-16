@@ -1,10 +1,8 @@
-use lock_api::RawRwLockDowngrade;
-
-use crate::{GuardRead, GuardWrite, SharedValue};
+use crate::util::{GuardRead, GuardWrite};
+use crate::SharedValue;
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
 use std::fmt::{Debug, Formatter};
-use std::mem::ManuallyDrop;
 use std::ptr::addr_of;
 
 pub struct Ref<'a, K, V> {
@@ -110,11 +108,7 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
     }
 
     pub fn downgrade(self) -> Ref<'a, K, V> {
-        unsafe {
-            let guard = ManuallyDrop::new(self.guard);
-            guard.0.downgrade();
-            Ref::new(GuardRead(guard.0), &*addr_of!(*self.data))
-        }
+        unsafe { Ref::new(self.guard.downgrade(), &*addr_of!(*self.data)) }
     }
 
     pub fn map<F, T>(self, f: F) -> MappedRefMut<'a, K, T>

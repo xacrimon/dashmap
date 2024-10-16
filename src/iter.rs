@@ -1,13 +1,11 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
-use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::t::Map;
-use crate::util::SharedValue;
-use crate::{DashMap, GuardRead, GuardWrite};
+use crate::util::{split_read_guard, split_write_guard, GuardRead, GuardWrite, SharedValue};
+use crate::DashMap;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 use std::collections::hash_map::RandomState;
 use std::marker::PhantomData;
-use std::mem::ManuallyDrop;
 use std::sync::Arc;
 
 /// Iterator over a DashMap yielding key value pairs.
@@ -173,13 +171,9 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
             }
 
             let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+            let (guard, data) = split_read_guard(guard);
 
-            let rwlock = RwLockReadGuard::rwlock(&ManuallyDrop::new(guard));
-
-            let data = unsafe { &mut *rwlock.data_ptr() };
-            let rwlock = unsafe { rwlock.raw() };
-
-            self.current = Some((Arc::new(GuardRead(rwlock)), data.iter()));
+            self.current = Some((Arc::new(guard), data.iter()));
 
             self.shard_i += 1;
         }
@@ -257,13 +251,9 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
             }
 
             let guard = unsafe { self.map._yield_write_shard(self.shard_i) };
+            let (guard, data) = split_write_guard(guard);
 
-            let rwlock = RwLockWriteGuard::rwlock(&ManuallyDrop::new(guard));
-
-            let data = unsafe { &mut *rwlock.data_ptr() };
-            let rwlock = unsafe { rwlock.raw() };
-
-            self.current = Some((Arc::new(GuardWrite(rwlock)), data.iter_mut()));
+            self.current = Some((Arc::new(guard), data.iter_mut()));
 
             self.shard_i += 1;
         }

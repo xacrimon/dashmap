@@ -1,12 +1,11 @@
-use crate::lock::{RwLock, RwLockWriteGuard};
+use crate::lock::RwLock;
 use crate::mapref::multiple::{RefMulti, RefMutMulti};
-use crate::{DashMap, GuardRead, GuardWrite, HashMap};
+use crate::util::{split_read_guard, split_write_guard};
+use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
 use crossbeam_utils::CachePadded;
-use lock_api::RwLockReadGuard;
 use rayon::iter::plumbing::UnindexedConsumer;
 use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, ParallelIterator};
-use std::mem::ManuallyDrop;
 use std::sync::Arc;
 
 impl<K, V, S> ParallelExtend<(K, V)> for DashMap<K, V, S>
@@ -143,11 +142,9 @@ where
         self.shards
             .into_par_iter()
             .flat_map_iter(|shard| {
-                let rwlock = RwLockReadGuard::rwlock(&ManuallyDrop::new(shard.read()));
-                let data = unsafe { &mut *rwlock.data_ptr() };
-                let guard = unsafe { GuardRead(rwlock.raw()) };
-
+                let (guard, data) = split_read_guard(shard.read());
                 let guard = Arc::new(guard);
+
                 data.iter().map(move |data| {
                     let guard = Arc::clone(&guard);
                     unsafe { RefMulti::new(guard, data) }
@@ -204,11 +201,9 @@ where
         self.shards
             .into_par_iter()
             .flat_map_iter(|shard| {
-                let rwlock = RwLockWriteGuard::rwlock(&ManuallyDrop::new(shard.write()));
-                let data = unsafe { &mut *rwlock.data_ptr() };
-                let guard = unsafe { GuardWrite(rwlock.raw()) };
-
+                let (guard, data) = split_write_guard(shard.write());
                 let guard = Arc::new(guard);
+
                 data.iter_mut().map(move |data| {
                     let guard = Arc::clone(&guard);
                     unsafe { RefMutMulti::new(guard, data) }
