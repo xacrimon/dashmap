@@ -1,4 +1,4 @@
-use crate::lock::RwLock;
+use crate::lock::{RwLock, RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::mapref::multiple::{RefMulti, RefMutMulti};
 use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
@@ -135,8 +135,9 @@ where
         self.shards
             .into_par_iter()
             .flat_map_iter(|shard| unsafe {
-                let guard = Arc::new(shard.read());
-                guard.iter().map(move |b| {
+                let (guard, shard) = RwLockReadGuardDetached::detach_from(shard.read());
+                let guard = Arc::new(guard);
+                shard.iter().map(move |b| {
                     let guard = Arc::clone(&guard);
                     let (k, v) = b.as_ref();
                     RefMulti::new(guard, k, v)
@@ -193,8 +194,9 @@ where
         self.shards
             .into_par_iter()
             .flat_map_iter(|shard| unsafe {
-                let guard = Arc::new(shard.write());
-                guard.iter().map(move |b| {
+                let (guard, shard) = RwLockWriteGuardDetached::detach_from(shard.write());
+                let guard = Arc::new(guard);
+                shard.iter().map(move |b| {
                     let guard = Arc::clone(&guard);
                     let (k, v) = b.as_mut();
                     RefMutMulti::new(guard, k, v)

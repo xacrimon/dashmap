@@ -185,11 +185,11 @@ impl<K: Eq + Hash, V: Serialize> Serialize for mapref::one::RefMut<'_, K, V> {
     serialize_impl! {}
 }
 
-impl<K: Eq + Hash, V, T: Serialize> Serialize for mapref::one::MappedRef<'_, K, V, T> {
+impl<K: Eq + Hash, T: Serialize> Serialize for mapref::one::MappedRef<'_, K, T> {
     serialize_impl! {}
 }
 
-impl<K: Eq + Hash, V, T: Serialize> Serialize for mapref::one::MappedRefMut<'_, K, V, T> {
+impl<K: Eq + Hash, T: Serialize> Serialize for mapref::one::MappedRefMut<'_, K, T> {
     serialize_impl! {}
 }
 

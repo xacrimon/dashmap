@@ -1,5 +1,5 @@
 use super::one::RefMut;
-use crate::lock::RwLockWriteGuard;
+use crate::lock::RwLockWriteGuardDetached;
 use crate::HashMap;
 use core::hash::Hash;
 use core::mem;
@@ -111,31 +111,31 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
 }
 
 pub struct VacantEntry<'a, K, V> {
-    shard: RwLockWriteGuard<'a, HashMap<K, V>>,
+    guard: RwLockWriteGuardDetached<'a>,
+    shard: &'a mut HashMap<K, V>,
     key: K,
     hash: u64,
     slot: hashbrown::raw::InsertSlot,
 }
 
-unsafe impl<K: Eq + Hash + Sync, V: Sync> Send for VacantEntry<'_, K, V> {}
-unsafe impl<K: Eq + Hash + Sync, V: Sync> Sync for VacantEntry<'_, K, V> {}
-
 impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     pub(crate) unsafe fn new(
-        shard: RwLockWriteGuard<'a, HashMap<K, V>>,
+        guard: RwLockWriteGuardDetached<'a>,
         key: K,
         hash: u64,
         slot: hashbrown::raw::InsertSlot,
+        shard: &'a mut HashMap<K, V>,
     ) -> Self {
         Self {
-            shard,
+            guard,
             key,
             hash,
             slot,
+            shard,
         }
     }
 
-    pub fn insert(mut self, value: V) -> RefMut<'a, K, V> {
+    pub fn insert(self, value: V) -> RefMut<'a, K, V> {
         unsafe {
             let occupied = self
                 .shard
@@ -143,12 +143,12 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
 
             let (k, v) = occupied.as_mut();
 
-            RefMut::new(self.shard, k, v)
+            RefMut::new(self.guard, k, v)
         }
     }
 
     /// Sets the value of the entry with the VacantEntry’s key, and returns an OccupiedEntry.
-    pub fn insert_entry(mut self, value: V) -> OccupiedEntry<'a, K, V>
+    pub fn insert_entry(self, value: V) -> OccupiedEntry<'a, K, V>
     where
         K: Clone,
     {
@@ -157,7 +157,7 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
                 .shard
                 .insert_in_slot(self.hash, self.slot, (self.key.clone(), value));
 
-            OccupiedEntry::new(self.shard, self.key, bucket)
+            OccupiedEntry::new(self.guard, self.key, bucket, self.shard)
         }
     }
 
@@ -171,21 +171,25 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
 }
 
 pub struct OccupiedEntry<'a, K, V> {
-    shard: RwLockWriteGuard<'a, HashMap<K, V>>,
+    guard: RwLockWriteGuardDetached<'a>,
+    shard: &'a mut HashMap<K, V>,
     bucket: hashbrown::raw::Bucket<(K, V)>,
     key: K,
 }
 
-unsafe impl<K: Eq + Hash + Sync, V: Sync> Send for OccupiedEntry<'_, K, V> {}
-unsafe impl<K: Eq + Hash + Sync, V: Sync> Sync for OccupiedEntry<'_, K, V> {}
-
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     pub(crate) unsafe fn new(
-        shard: RwLockWriteGuard<'a, HashMap<K, V>>,
+        guard: RwLockWriteGuardDetached<'a>,
         key: K,
         bucket: hashbrown::raw::Bucket<(K, V)>,
+        shard: &'a mut HashMap<K, V>,
     ) -> Self {
-        Self { shard, bucket, key }
+        Self {
+            guard,
+            bucket,
+            key,
+            shard,
+        }
     }
 
     pub fn get(&self) -> &V {
@@ -203,7 +207,7 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     pub fn into_ref(self) -> RefMut<'a, K, V> {
         unsafe {
             let (k, v) = self.bucket.as_mut();
-            RefMut::new(self.shard, k, v)
+            RefMut::new(self.guard, k, v)
         }
     }
 
@@ -215,12 +219,12 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
         unsafe { &self.bucket.as_ref().0 }
     }
 
-    pub fn remove(mut self) -> V {
+    pub fn remove(self) -> V {
         let ((_k, v), _) = unsafe { self.shard.remove(self.bucket) };
         v
     }
 
-    pub fn remove_entry(mut self) -> (K, V) {
+    pub fn remove_entry(self) -> (K, V) {
         let ((k, v), _) = unsafe { self.shard.remove(self.bucket) };
         (k, v)
     }

@@ -20,47 +20,17 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> Iterator for OwningIter<K, S> {
     }
 }
 
-unsafe impl<K, S> Send for OwningIter<K, S>
-where
-    K: Eq + Hash + Send,
-    S: BuildHasher + Clone + Send,
-{
-}
-
-unsafe impl<K, S> Sync for OwningIter<K, S>
-where
-    K: Eq + Hash + Sync,
-    S: BuildHasher + Clone + Sync,
-{
-}
-
 pub struct Iter<'a, K, S, M> {
     inner: crate::iter::Iter<'a, K, (), S, M>,
 }
 
-unsafe impl<'a, K, S, M> Send for Iter<'_, K, S, M>
-where
-    K: 'a + Eq + Hash + Send,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, (), S>,
-{
-}
-
-unsafe impl<'a, K, S, M> Sync for Iter<'_, K, S, M>
-where
-    K: 'a + Eq + Hash + Sync,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, (), S>,
-{
-}
-
-impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iter<'a, K, S, M> {
+impl<'a, K: 'a + Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iter<'a, K, S, M> {
     pub(crate) fn new(inner: crate::iter::Iter<'a, K, (), S, M>) -> Self {
         Self { inner }
     }
 }
 
-impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iterator
+impl<'a, K: 'a + Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iterator
     for Iter<'a, K, S, M>
 {
     type Item = RefMulti<'a, K>;
