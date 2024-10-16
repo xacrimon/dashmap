@@ -1,6 +1,5 @@
 use super::one::RefMut;
 use crate::lock::RwLockWriteGuard;
-use crate::util::SharedValue;
 use crate::HashMap;
 use core::hash::Hash;
 use core::mem;
@@ -138,15 +137,13 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
 
     pub fn insert(mut self, value: V) -> RefMut<'a, K, V> {
         unsafe {
-            let occupied = self.shard.insert_in_slot(
-                self.hash,
-                self.slot,
-                (self.key, SharedValue::new(value)),
-            );
+            let occupied = self
+                .shard
+                .insert_in_slot(self.hash, self.slot, (self.key, value));
 
-            let (k, v) = occupied.as_ref();
+            let (k, v) = occupied.as_mut();
 
-            RefMut::new(self.shard, k, v.as_ptr())
+            RefMut::new(self.shard, k, v)
         }
     }
 
@@ -156,11 +153,9 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
         K: Clone,
     {
         unsafe {
-            let bucket = self.shard.insert_in_slot(
-                self.hash,
-                self.slot,
-                (self.key.clone(), SharedValue::new(value)),
-            );
+            let bucket = self
+                .shard
+                .insert_in_slot(self.hash, self.slot, (self.key.clone(), value));
 
             OccupiedEntry::new(self.shard, self.key, bucket)
         }
@@ -177,7 +172,7 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
 
 pub struct OccupiedEntry<'a, K, V> {
     shard: RwLockWriteGuard<'a, HashMap<K, V>>,
-    bucket: hashbrown::raw::Bucket<(K, SharedValue<V>)>,
+    bucket: hashbrown::raw::Bucket<(K, V)>,
     key: K,
 }
 
@@ -188,17 +183,17 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     pub(crate) unsafe fn new(
         shard: RwLockWriteGuard<'a, HashMap<K, V>>,
         key: K,
-        bucket: hashbrown::raw::Bucket<(K, SharedValue<V>)>,
+        bucket: hashbrown::raw::Bucket<(K, V)>,
     ) -> Self {
         Self { shard, bucket, key }
     }
 
     pub fn get(&self) -> &V {
-        unsafe { self.bucket.as_ref().1.get() }
+        unsafe { &self.bucket.as_ref().1 }
     }
 
     pub fn get_mut(&mut self) -> &mut V {
-        unsafe { self.bucket.as_mut().1.get_mut() }
+        unsafe { &mut self.bucket.as_mut().1 }
     }
 
     pub fn insert(&mut self, value: V) -> V {
@@ -207,8 +202,8 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
 
     pub fn into_ref(self) -> RefMut<'a, K, V> {
         unsafe {
-            let (k, v) = self.bucket.as_ref();
-            RefMut::new(self.shard, k, v.as_ptr())
+            let (k, v) = self.bucket.as_mut();
+            RefMut::new(self.shard, k, v)
         }
     }
 
@@ -222,20 +217,17 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
 
     pub fn remove(mut self) -> V {
         let ((_k, v), _) = unsafe { self.shard.remove(self.bucket) };
-        v.into_inner()
+        v
     }
 
     pub fn remove_entry(mut self) -> (K, V) {
         let ((k, v), _) = unsafe { self.shard.remove(self.bucket) };
-        (k, v.into_inner())
+        (k, v)
     }
 
     pub fn replace_entry(self, value: V) -> (K, V) {
-        let (k, v) = mem::replace(
-            unsafe { self.bucket.as_mut() },
-            (self.key, SharedValue::new(value)),
-        );
-        (k, v.into_inner())
+        let (k, v) = mem::replace(unsafe { self.bucket.as_mut() }, (self.key, value));
+        (k, v)
     }
 }
 

@@ -1,7 +1,6 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
 use crate::t::Map;
-use crate::util::SharedValue;
 use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
 use core::mem;
@@ -38,7 +37,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> OwningIter<K, V, S> {
     }
 }
 
-type GuardOwningIter<K, V> = hashbrown::raw::RawIntoIter<(K, SharedValue<V>)>;
+type GuardOwningIter<K, V> = hashbrown::raw::RawIntoIter<(K, V)>;
 
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     type Item = (K, V);
@@ -47,7 +46,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
         loop {
             if let Some(current) = self.current.as_mut() {
                 if let Some((k, v)) = current.next() {
-                    return Some((k, v.into_inner()));
+                    return Some((k, v));
                 }
             }
 
@@ -55,7 +54,6 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
                 return None;
             }
 
-            //let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
             let mut shard_wl = unsafe { self.map._yield_write_shard(self.shard_i) };
 
             let map = mem::take(&mut *shard_wl);
@@ -64,7 +62,6 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
 
             let iter = map.into_iter();
 
-            //unsafe { ptr::write(&mut self.current, Some((arcee, iter))); }
             self.current = Some(iter);
 
             self.shard_i += 1;
@@ -90,12 +87,12 @@ where
 
 type GuardIter<'a, K, V> = (
     Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
-    hashbrown::raw::RawIter<(K, SharedValue<V>)>,
+    hashbrown::raw::RawIter<(K, V)>,
 );
 
 type GuardIterMut<'a, K, V> = (
     Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
-    hashbrown::raw::RawIter<(K, SharedValue<V>)>,
+    hashbrown::raw::RawIter<(K, V)>,
 );
 
 /// Iterator over a DashMap yielding immutable references.
@@ -163,7 +160,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
                     return unsafe {
                         let (k, v) = b.as_ref();
                         let guard = current.0.clone();
-                        Some(RefMulti::new(guard, k, v.get()))
+                        Some(RefMulti::new(guard, k, v))
                     };
                 }
             }
@@ -245,7 +242,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
                     return unsafe {
                         let (k, v) = b.as_mut();
                         let guard = current.0.clone();
-                        Some(RefMutMulti::new(guard, k, v.get_mut()))
+                        Some(RefMutMulti::new(guard, k, v))
                     };
                 }
             }
