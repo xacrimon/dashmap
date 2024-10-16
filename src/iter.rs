@@ -125,6 +125,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
             if let Some(current) = self.current.as_mut() {
                 if let Some(data) = current.1.next() {
                     let guard = current.0.clone();
+                    // Safety: The guard still protects the data
                     return unsafe { Some(RefMulti::new(guard, data)) };
                 }
             }
@@ -187,6 +188,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
             if let Some(current) = self.current.as_mut() {
                 if let Some(data) = current.1.next() {
                     let guard = current.0.clone();
+                    // Safety: The guard still protects the data
                     return unsafe { Some(RefMutMulti::new(guard, data)) };
                 }
             }

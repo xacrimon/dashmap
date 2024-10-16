@@ -1,6 +1,6 @@
 use crate::lock::{RwLock, RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::mapref::multiple::{RefMulti, RefMutMulti};
-use crate::{DashMap, HashMap};
+use crate::{DashMap, HashMap, Shard};
 use core::hash::{BuildHasher, Hash};
 use crossbeam_utils::CachePadded;
 use rayon::iter::plumbing::UnindexedConsumer;
@@ -79,7 +79,7 @@ where
 }
 
 pub struct OwningIter<K, V> {
-    pub(super) shards: Box<[CachePadded<RwLock<HashMap<K, V>>>]>,
+    pub(super) shards: Box<[Shard<K, V>]>,
 }
 
 impl<K, V> ParallelIterator for OwningIter<K, V>
@@ -118,7 +118,7 @@ where
 }
 
 pub struct Iter<'a, K, V> {
-    pub(super) shards: &'a [CachePadded<RwLock<HashMap<K, V>>>],
+    pub(super) shards: &'a [Shard<K, V>],
 }
 
 impl<'a, K, V> ParallelIterator for Iter<'a, K, V>

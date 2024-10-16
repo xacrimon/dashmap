@@ -7,6 +7,7 @@ use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde::Deserializer;
 
 pub struct DashMapVisitor<K, V, S> {
+    #[allow(clippy::type_complexity)]
     marker: PhantomData<fn() -> DashMap<K, V, S>>,
 }
 

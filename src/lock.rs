@@ -82,7 +82,9 @@ unsafe impl lock_api::RawRwLockDowngrade for RawRwLock {
             .state
             .fetch_and(ONE_READER | WRITERS_PARKED, Ordering::Release);
         if state & READERS_PARKED != 0 {
-            parking_lot_core::unpark_all((self as *const _ as usize) + 1, UnparkToken(0));
+            unsafe {
+                parking_lot_core::unpark_all((self as *const _ as usize) + 1, UnparkToken(0));
+            }
         }
     }
 }

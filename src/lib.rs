@@ -1,4 +1,4 @@
-#![allow(clippy::type_complexity)]
+#![warn(unsafe_op_in_unsafe_fn, unused_unsafe, clippy::missing_safety_doc)]
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary;
@@ -47,6 +47,7 @@ pub use t::Map;
 use try_result::TryResult;
 
 pub(crate) type HashMap<K, V> = hashbrown::HashTable<(K, V)>;
+pub(crate) type Shard<K, V> = CachePadded<RwLock<HashMap<K, V>>>;
 
 // Temporary reimplementation of [`std::collections::TryReserveError`]
 // util [`std::collections::TryReserveError`] stabilises.
@@ -80,7 +81,7 @@ fn ncb(shard_amount: usize) -> usize {
 /// This means that it is safe to ignore it across multiple threads.
 pub struct DashMap<K, V, S = RandomState> {
     shift: usize,
-    shards: Box<[CachePadded<RwLock<HashMap<K, V>>>]>,
+    shards: Box<[Shard<K, V>]>,
     hasher: S,
 }
 
@@ -314,7 +315,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// let map = DashMap::<(), ()>::new();
             /// println!("Amount of shards: {}", map.shards().len());
             /// ```
-            pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
+            pub fn shards(&self) -> &[Shard<K, V>] {
                 &self.shards
             }
 
@@ -343,7 +344,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// map.shards_mut()[shard_ind].get_mut().insert_unique(hash, data, hasher);
             /// assert_eq!(*map.get(&42).unwrap(), "forty two");
             /// ```
-            pub fn shards_mut(&mut self) -> &mut [CachePadded<RwLock<HashMap<K, V>>>] {
+            pub fn shards_mut(&mut self) -> &mut [Shard<K, V>] {
                 &mut self.shards
             }
 
@@ -353,22 +354,22 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// Requires the `raw-api` feature to be enabled.
             ///
             /// See [`DashMap::shards()`] and [`DashMap::shards_mut()`] for more information.
-            pub fn into_shards(self) -> Box<[CachePadded<RwLock<HashMap<K, V>>>]> {
+            pub fn into_shards(self) -> Box<[Shard<K, V>]> {
                 self.shards
             }
         } else {
             #[allow(dead_code)]
-            pub(crate) fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
+            pub(crate) fn shards(&self) -> &[Shard<K, V>] {
                 &self.shards
             }
 
             #[allow(dead_code)]
-            pub(crate) fn shards_mut(&mut self) -> &mut [CachePadded<RwLock<HashMap<K, V>>>] {
+            pub(crate) fn shards_mut(&mut self) -> &mut [Shard<K, V>] {
                 &mut self.shards
             }
 
             #[allow(dead_code)]
-            pub(crate) fn into_shards(self) -> Box<[CachePadded<RwLock<HashMap<K, V>>>]> {
+            pub(crate) fn into_shards(self) -> Box<[Shard<K, V>]> {
                 self.shards
             }
         }
@@ -908,21 +909,22 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V> {
         debug_assert!(i < self.shards.len());
 
-        &*self.shards.get_unchecked(i).data_ptr()
+        let shard = unsafe { self.shards.get_unchecked(i) };
+        unsafe { &*shard.data_ptr() }
     }
 
     /// Safety: `i` must be in bounds
     unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V>> {
         debug_assert!(i < self.shards.len());
 
-        self.shards.get_unchecked(i).read()
+        unsafe { self.shards.get_unchecked(i) }.read()
     }
 
     /// Safety: `i` must be in bounds
     unsafe fn _yield_write_shard(&'a self, i: usize) -> RwLockWriteGuard<'a, HashMap<K, V>> {
         debug_assert!(i < self.shards.len());
 
-        self.shards.get_unchecked(i).write()
+        unsafe { self.shards.get_unchecked(i) }.write()
     }
 
     /// Safety: `i` must be in bounds
@@ -932,7 +934,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     ) -> Option<RwLockReadGuard<'a, HashMap<K, V>>> {
         debug_assert!(i < self.shards.len());
 
-        self.shards.get_unchecked(i).try_read()
+        unsafe { self.shards.get_unchecked(i) }.try_read()
     }
 
     /// Safety: `i` must be in bounds
@@ -942,7 +944,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     ) -> Option<RwLockWriteGuard<'a, HashMap<K, V>>> {
         debug_assert!(i < self.shards.len());
 
-        self.shards.get_unchecked(i).try_write()
+        unsafe { self.shards.get_unchecked(i) }.try_write()
     }
 
     fn _insert(&self, key: K, value: V) -> Option<V> {

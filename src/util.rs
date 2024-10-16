@@ -65,6 +65,10 @@ impl<'a, R: RawRwLock> Drop for RwLockWriteGuardDetached<'a, R> {
 
 impl<'a, R: RawRwLock> RwLockReadGuardDetached<'a, R> {
     /// Separates the data from the [`RwLockReadGuard`]
+    ///
+    /// # Safety
+    ///
+    /// The data must not outlive the detached guard
     pub(crate) unsafe fn detach_from<T>(guard: RwLockReadGuard<'a, R, T>) -> (Self, &'a T) {
         let rwlock = RwLockReadGuard::rwlock(&ManuallyDrop::new(guard));
 
@@ -81,6 +85,10 @@ impl<'a, R: RawRwLock> RwLockReadGuardDetached<'a, R> {
 
 impl<'a, R: RawRwLock> RwLockWriteGuardDetached<'a, R> {
     /// Separates the data from the [`RwLockWriteGuard`]
+    ///
+    /// # Safety
+    ///
+    /// The data must not outlive the detached guard
     pub(crate) unsafe fn detach_from<T>(guard: RwLockWriteGuard<'a, R, T>) -> (Self, &'a mut T) {
         let rwlock = RwLockWriteGuard::rwlock(&ManuallyDrop::new(guard));
 
@@ -96,8 +104,11 @@ impl<'a, R: RawRwLock> RwLockWriteGuardDetached<'a, R> {
 }
 
 impl<'a, R: RawRwLockDowngrade> RwLockWriteGuardDetached<'a, R> {
+    /// # Safety
+    ///
+    /// The associated data must not mut mutated after downgrading
     pub(crate) unsafe fn downgrade(self) -> RwLockReadGuardDetached<'a, R> {
-        self.lock.downgrade();
+        unsafe { self.lock.downgrade() }
         RwLockReadGuardDetached {
             lock: self.lock,
             _marker: self._marker,
