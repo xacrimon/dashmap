@@ -2,11 +2,10 @@
 //! Either spend a day fixing it and quietly submit a PR or don't mention it to anybody.
 use core::cell::UnsafeCell;
 use core::{mem, ptr};
+use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
 
-use lock_api::{RawRwLock as _, RawRwLockDowngrade};
-
-use crate::lock::{RawRwLock, RwLockReadGuard, RwLockWriteGuard};
+use lock_api::{RawRwLock, RawRwLockDowngrade, RwLockReadGuard, RwLockWriteGuard};
 
 pub const fn ptr_size_bits() -> usize {
     mem::size_of::<usize>() * 8
@@ -89,49 +88,72 @@ impl Drop for AbortOnPanic {
     }
 }
 
-/// A RwLockReadGuard, without the data
-pub(crate) struct GuardRead<'a>(&'a RawRwLock);
+/// A [`RwLockReadGuard`], without the data
+pub(crate) struct RwLockReadGuardDetached<'a, R: RawRwLock> {
+    lock: &'a R,
+    _marker: PhantomData<R::GuardMarker>,
+}
 
-impl<'a> Drop for GuardRead<'a> {
+impl<'a, R: RawRwLock> Drop for RwLockReadGuardDetached<'a, R> {
     fn drop(&mut self) {
         unsafe {
-            self.0.unlock_shared();
+            self.lock.unlock_shared();
         }
     }
 }
 
-/// Separates the data from the RwLock ReadGuard
-pub(crate) fn split_read_guard<T>(guard: RwLockReadGuard<'_, T>) -> (GuardRead<'_>, &T) {
-    let rwlock = RwLockReadGuard::rwlock(&ManuallyDrop::new(guard));
-
-    let data = unsafe { &*rwlock.data_ptr() };
-    let guard = unsafe { GuardRead(rwlock.raw()) };
-    (guard, data)
+/// A [`RwLockWriteGuard`], without the data
+pub(crate) struct RwLockWriteGuardDetached<'a, R: RawRwLock> {
+    lock: &'a R,
+    _marker: PhantomData<R::GuardMarker>,
 }
 
-/// A RwLockWriteGuard, without the data
-pub(crate) struct GuardWrite<'a>(&'a RawRwLock);
-
-impl<'a> Drop for GuardWrite<'a> {
+impl<'a, R: RawRwLock> Drop for RwLockWriteGuardDetached<'a, R> {
     fn drop(&mut self) {
         unsafe {
-            self.0.unlock_exclusive();
+            self.lock.unlock_exclusive();
         }
     }
 }
 
-impl<'a> GuardWrite<'a> {
-    pub(crate) unsafe fn downgrade(self) -> GuardRead<'a> {
-        self.0.downgrade();
-        GuardRead(self.0)
+impl<'a, R: RawRwLock> RwLockReadGuardDetached<'a, R> {
+    /// Separates the data from the [`RwLockReadGuard`]
+    pub(crate) unsafe fn detach_from<T>(guard: RwLockReadGuard<'a, R, T>) -> (Self, &'a T) {
+        let rwlock = RwLockReadGuard::rwlock(&ManuallyDrop::new(guard));
+
+        let data = unsafe { &*rwlock.data_ptr() };
+        let guard = unsafe {
+            RwLockReadGuardDetached {
+                lock: rwlock.raw(),
+                _marker: PhantomData,
+            }
+        };
+        (guard, data)
     }
 }
 
-/// Separates the data from the RwLock WriteGuard
-pub(crate) fn split_write_guard<T>(guard: RwLockWriteGuard<'_, T>) -> (GuardWrite<'_>, &mut T) {
-    let rwlock = RwLockWriteGuard::rwlock(&ManuallyDrop::new(guard));
+impl<'a, R: RawRwLock> RwLockWriteGuardDetached<'a, R> {
+    /// Separates the data from the [`RwLockWriteGuard`]
+    pub(crate) unsafe fn detach_from<T>(guard: RwLockWriteGuard<'a, R, T>) -> (Self, &'a mut T) {
+        let rwlock = RwLockWriteGuard::rwlock(&ManuallyDrop::new(guard));
 
-    let data = unsafe { &mut *rwlock.data_ptr() };
-    let guard = unsafe { GuardWrite(rwlock.raw()) };
-    (guard, data)
+        let data = unsafe { &mut *rwlock.data_ptr() };
+        let guard = unsafe {
+            RwLockWriteGuardDetached {
+                lock: rwlock.raw(),
+                _marker: PhantomData,
+            }
+        };
+        (guard, data)
+    }
+}
+
+impl<'a, R: RawRwLockDowngrade> RwLockWriteGuardDetached<'a, R> {
+    pub(crate) unsafe fn downgrade(self) -> RwLockReadGuardDetached<'a, R> {
+        self.lock.downgrade();
+        RwLockReadGuardDetached {
+            lock: self.lock,
+            _marker: self._marker,
+        }
+    }
 }

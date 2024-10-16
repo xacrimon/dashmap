@@ -1,4 +1,4 @@
-use crate::util::{GuardRead, GuardWrite};
+use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::SharedValue;
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
@@ -6,7 +6,7 @@ use std::fmt::{Debug, Formatter};
 use std::ptr::addr_of;
 
 pub struct Ref<'a, K, V> {
-    guard: GuardRead<'a>,
+    guard: RwLockReadGuardDetached<'a>,
     data: &'a (K, SharedValue<V>),
 }
 
@@ -14,7 +14,10 @@ unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for Ref<'a, K, V> {}
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for Ref<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
-    pub(crate) unsafe fn new(guard: GuardRead<'a>, data: &'a (K, SharedValue<V>)) -> Self {
+    pub(crate) unsafe fn new(
+        guard: RwLockReadGuardDetached<'a>,
+        data: &'a (K, SharedValue<V>),
+    ) -> Self {
         Self { guard, data }
     }
 
@@ -75,7 +78,7 @@ impl<'a, K: Eq + Hash, V> Deref for Ref<'a, K, V> {
 }
 
 pub struct RefMut<'a, K, V> {
-    guard: GuardWrite<'a>,
+    guard: RwLockWriteGuardDetached<'a>,
     data: &'a mut (K, SharedValue<V>),
 }
 
@@ -83,7 +86,10 @@ unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMut<'a, K, V> {}
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMut<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
-    pub(crate) unsafe fn new(guard: GuardWrite<'a>, data: &'a mut (K, SharedValue<V>)) -> Self {
+    pub(crate) unsafe fn new(
+        guard: RwLockWriteGuardDetached<'a>,
+        data: &'a mut (K, SharedValue<V>),
+    ) -> Self {
         Self { guard, data }
     }
 
@@ -164,7 +170,7 @@ impl<'a, K: Eq + Hash, V> DerefMut for RefMut<'a, K, V> {
 }
 
 pub struct MappedRef<'a, K, T> {
-    _guard: GuardRead<'a>,
+    _guard: RwLockReadGuardDetached<'a>,
     k: &'a K,
     v: &'a T,
 }
@@ -240,7 +246,7 @@ impl<'a, K: Eq + Hash, T: AsRef<TDeref>, TDeref: ?Sized> AsRef<TDeref> for Mappe
 }
 
 pub struct MappedRefMut<'a, K, T> {
-    _guard: GuardWrite<'a>,
+    _guard: RwLockWriteGuardDetached<'a>,
     k: &'a K,
     v: &'a mut T,
 }

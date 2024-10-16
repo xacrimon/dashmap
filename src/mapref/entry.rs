@@ -1,5 +1,6 @@
 use super::one::RefMut;
-use crate::util::{GuardWrite, SharedValue};
+use crate::lock::RwLockWriteGuardDetached;
+use crate::util::SharedValue;
 use core::hash::Hash;
 use core::mem;
 use hashbrown::hash_table;
@@ -111,7 +112,7 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
 }
 
 pub struct VacantEntry<'a, K, V> {
-    guard: GuardWrite<'a>,
+    guard: RwLockWriteGuardDetached<'a>,
     entry: hash_table::VacantEntry<'a, (K, SharedValue<V>)>,
     key: K,
 }
@@ -121,7 +122,7 @@ unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for VacantEntry<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     pub(crate) unsafe fn new(
-        guard: GuardWrite<'a>,
+        guard: RwLockWriteGuardDetached<'a>,
         entry: hash_table::VacantEntry<'a, (K, SharedValue<V>)>,
         key: K,
     ) -> Self {
@@ -158,7 +159,7 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
 }
 
 pub struct OccupiedEntry<'a, K, V> {
-    guard: GuardWrite<'a>,
+    guard: RwLockWriteGuardDetached<'a>,
     entry: hash_table::OccupiedEntry<'a, (K, SharedValue<V>)>,
     key: K,
 }
@@ -168,7 +169,7 @@ unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for OccupiedEntry<'a, K, V> {
 
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     pub(crate) unsafe fn new(
-        guard: GuardWrite<'a>,
+        guard: RwLockWriteGuardDetached<'a>,
         entry: hash_table::OccupiedEntry<'a, (K, SharedValue<V>)>,
         key: K,
     ) -> Self {

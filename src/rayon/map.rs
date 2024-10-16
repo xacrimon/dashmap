@@ -1,6 +1,5 @@
-use crate::lock::RwLock;
+use crate::lock::{RwLock, RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::mapref::multiple::{RefMulti, RefMutMulti};
-use crate::util::{split_read_guard, split_write_guard};
 use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
 use crossbeam_utils::CachePadded;
@@ -135,6 +134,7 @@ where
 {
     type Item = RefMulti<'a, K, V>;
 
+    #[allow(clippy::arc_with_non_send_sync)]
     fn drive_unindexed<C>(self, consumer: C) -> C::Result
     where
         C: UnindexedConsumer<Self::Item>,
@@ -142,7 +142,7 @@ where
         self.shards
             .into_par_iter()
             .flat_map_iter(|shard| {
-                let (guard, data) = split_read_guard(shard.read());
+                let (guard, data) = unsafe { RwLockReadGuardDetached::detach_from(shard.read()) };
                 let guard = Arc::new(guard);
 
                 data.iter().map(move |data| {
@@ -194,6 +194,7 @@ where
 {
     type Item = RefMutMulti<'a, K, V>;
 
+    #[allow(clippy::arc_with_non_send_sync)]
     fn drive_unindexed<C>(self, consumer: C) -> C::Result
     where
         C: UnindexedConsumer<Self::Item>,
@@ -201,7 +202,7 @@ where
         self.shards
             .into_par_iter()
             .flat_map_iter(|shard| {
-                let (guard, data) = split_write_guard(shard.write());
+                let (guard, data) = unsafe { RwLockWriteGuardDetached::detach_from(shard.write()) };
                 let guard = Arc::new(guard);
 
                 data.iter_mut().map(move |data| {

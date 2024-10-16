@@ -1,6 +1,7 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
+use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::t::Map;
-use crate::util::{split_read_guard, split_write_guard, GuardRead, GuardWrite, SharedValue};
+use crate::util::SharedValue;
 use crate::DashMap;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
@@ -88,12 +89,12 @@ where
 }
 
 type GuardIter<'a, K, V> = (
-    Arc<GuardRead<'a>>,
+    Arc<RwLockReadGuardDetached<'a>>,
     hashbrown::hash_table::Iter<'a, (K, SharedValue<V>)>,
 );
 
 type GuardIterMut<'a, K, V> = (
-    Arc<GuardWrite<'a>>,
+    Arc<RwLockWriteGuardDetached<'a>>,
     hashbrown::hash_table::IterMut<'a, (K, SharedValue<V>)>,
 );
 
@@ -155,6 +156,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 {
     type Item = RefMulti<'a, K, V>;
 
+    #[allow(clippy::arc_with_non_send_sync)]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
@@ -171,7 +173,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
             }
 
             let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
-            let (guard, data) = split_read_guard(guard);
+            let (guard, data) = unsafe { RwLockReadGuardDetached::detach_from(guard) };
 
             self.current = Some((Arc::new(guard), data.iter()));
 
@@ -235,6 +237,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 {
     type Item = RefMutMulti<'a, K, V>;
 
+    #[allow(clippy::arc_with_non_send_sync)]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
@@ -251,7 +254,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
             }
 
             let guard = unsafe { self.map._yield_write_shard(self.shard_i) };
-            let (guard, data) = split_write_guard(guard);
+            let (guard, data) = unsafe { RwLockWriteGuardDetached::detach_from(guard) };
 
             self.current = Some((Arc::new(guard), data.iter_mut()));
 

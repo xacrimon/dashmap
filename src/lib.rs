@@ -35,6 +35,7 @@ use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use crossbeam_utils::CachePadded;
 use iter::{Iter, IterMut, OwningIter};
+use lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 pub use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
@@ -44,7 +45,6 @@ pub use set::DashSet;
 use std::collections::hash_map::RandomState;
 pub use t::Map;
 use try_result::TryResult;
-use util::{split_read_guard, split_write_guard};
 
 cfg_if! {
     if #[cfg(feature = "raw-api")] {
@@ -1044,7 +1044,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let idx = self.determine_shard(hash as usize);
 
         let shard = unsafe { self._yield_read_shard(idx) };
-        let (guard, data) = split_read_guard(shard);
+        let (guard, data) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
         data.find(hash, |(k, _v)| key == k.borrow())
             .map(|data| unsafe { Ref::new(guard, data) })
@@ -1060,7 +1060,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let idx = self.determine_shard(hash as usize);
 
         let shard = unsafe { self._yield_write_shard(idx) };
-        let (guard, data) = split_write_guard(shard);
+        let (guard, data) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         data.find_mut(hash, |(k, _v)| key == k.borrow())
             .map(|data| unsafe { RefMut::new(guard, data) })
@@ -1080,7 +1080,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             None => return TryResult::Locked,
         };
 
-        let (guard, data) = split_read_guard(shard);
+        let (guard, data) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
         match data.find(hash, |(k, _v)| key == k.borrow()) {
             Some(data) => TryResult::Present(unsafe { Ref::new(guard, data) }),
@@ -1102,7 +1102,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             None => return TryResult::Locked,
         };
 
-        let (guard, data) = split_write_guard(shard);
+        let (guard, data) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         match data.find_mut(hash, |(k, _v)| key == k.borrow()) {
             Some(data) => TryResult::Present(unsafe { RefMut::new(guard, data) }),
@@ -1168,7 +1168,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let idx = self.determine_shard(hash as usize);
 
         let shard = unsafe { self._yield_write_shard(idx) };
-        let (guard, data) = split_write_guard(shard);
+        let (guard, data) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         match data.entry(
             hash,
@@ -1198,7 +1198,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             None => return None,
         };
 
-        let (guard, data) = split_write_guard(shard);
+        let (guard, data) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         match data.entry(
             hash,
