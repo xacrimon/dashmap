@@ -134,7 +134,6 @@ where
 {
     type Item = RefMulti<'a, K, V>;
 
-    #[allow(clippy::arc_with_non_send_sync)]
     fn drive_unindexed<C>(self, consumer: C) -> C::Result
     where
         C: UnindexedConsumer<Self::Item>,
@@ -194,7 +193,6 @@ where
 {
     type Item = RefMutMulti<'a, K, V>;
 
-    #[allow(clippy::arc_with_non_send_sync)]
     fn drive_unindexed<C>(self, consumer: C) -> C::Result
     where
         C: UnindexedConsumer<Self::Item>,

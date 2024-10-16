@@ -117,9 +117,6 @@ pub struct VacantEntry<'a, K, V> {
     key: K,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for VacantEntry<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for VacantEntry<'a, K, V> {}
-
 impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     pub(crate) unsafe fn new(
         guard: RwLockWriteGuardDetached<'a>,
@@ -163,9 +160,6 @@ pub struct OccupiedEntry<'a, K, V> {
     entry: hash_table::OccupiedEntry<'a, (K, SharedValue<V>)>,
     key: K,
 }
-
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for OccupiedEntry<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for OccupiedEntry<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     pub(crate) unsafe fn new(

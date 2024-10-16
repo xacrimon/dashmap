@@ -72,22 +72,6 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     }
 }
 
-unsafe impl<K, V, S> Send for OwningIter<K, V, S>
-where
-    K: Eq + Hash + Send,
-    V: Send,
-    S: BuildHasher + Clone + Send,
-{
-}
-
-unsafe impl<K, V, S> Sync for OwningIter<K, V, S>
-where
-    K: Eq + Hash + Sync,
-    V: Sync,
-    S: BuildHasher + Clone + Sync,
-{
-}
-
 type GuardIter<'a, K, V> = (
     Arc<RwLockReadGuardDetached<'a>>,
     hashbrown::hash_table::Iter<'a, (K, SharedValue<V>)>,
@@ -122,24 +106,6 @@ impl<'i, K: Clone + Hash + Eq, V: Clone, S: Clone + BuildHasher> Clone for Iter<
     }
 }
 
-unsafe impl<'a, 'i, K, V, S, M> Send for Iter<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Send,
-    V: 'a + Send,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
-}
-
-unsafe impl<'a, 'i, K, V, S, M> Sync for Iter<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Sync,
-    V: 'a + Sync,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
-}
-
 impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter<'a, K, V, S, M> {
     pub(crate) fn new(map: &'a M) -> Self {
         Self {
@@ -156,7 +122,6 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 {
     type Item = RefMulti<'a, K, V>;
 
-    #[allow(clippy::arc_with_non_send_sync)]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
@@ -201,24 +166,6 @@ pub struct IterMut<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     marker: PhantomData<S>,
 }
 
-unsafe impl<'a, 'i, K, V, S, M> Send for IterMut<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Send,
-    V: 'a + Send,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
-}
-
-unsafe impl<'a, 'i, K, V, S, M> Sync for IterMut<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Sync,
-    V: 'a + Sync,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
-}
-
 impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>>
     IterMut<'a, K, V, S, M>
 {
@@ -237,7 +184,6 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 {
     type Item = RefMutMulti<'a, K, V>;
 
-    #[allow(clippy::arc_with_non_send_sync)]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {

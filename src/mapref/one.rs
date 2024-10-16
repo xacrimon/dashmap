@@ -10,9 +10,6 @@ pub struct Ref<'a, K, V> {
     data: &'a (K, SharedValue<V>),
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for Ref<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for Ref<'a, K, V> {}
-
 impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
     pub(crate) unsafe fn new(
         guard: RwLockReadGuardDetached<'a>,
@@ -81,9 +78,6 @@ pub struct RefMut<'a, K, V> {
     guard: RwLockWriteGuardDetached<'a>,
     data: &'a mut (K, SharedValue<V>),
 }
-
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMut<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMut<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
     pub(crate) unsafe fn new(
