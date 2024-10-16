@@ -46,15 +46,7 @@ use std::collections::hash_map::RandomState;
 pub use t::Map;
 use try_result::TryResult;
 
-cfg_if! {
-    if #[cfg(feature = "raw-api")] {
-        pub use util::SharedValue;
-    } else {
-        use util::SharedValue;
-    }
-}
-
-pub(crate) type HashMap<K, V> = hashbrown::HashTable<(K, SharedValue<V>)>;
+pub(crate) type HashMap<K, V> = hashbrown::HashTable<(K, V)>;
 
 // Temporary reimplementation of [`std::collections::TryReserveError`]
 // util [`std::collections::TryReserveError`] stabilises.
@@ -969,8 +961,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         match shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
             Ok(entry) => {
-                let ((key, value), _) = entry.remove();
-                Some((key, value.into_inner()))
+                let (val, _) = entry.remove();
+                Some(val)
             }
             Err(_) => None,
         }
@@ -990,9 +982,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         match shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
             Ok(entry) => {
                 let (k, v) = entry.get();
-                if f(k, v.get()) {
-                    let ((key, value), _) = entry.remove();
-                    Some((key, value.into_inner()))
+                if f(k, v) {
+                    let (val, _) = entry.remove();
+                    Some(val)
                 } else {
                     None
                 }
@@ -1015,9 +1007,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         match shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
             Ok(mut entry) => {
                 let (k, v) = entry.get_mut();
-                if f(k, v.get_mut()) {
-                    let ((key, value), _) = entry.remove();
-                    Some((key, value.into_inner()))
+                if f(k, v) {
+                    let (val, _) = entry.remove();
+                    Some(val)
                 } else {
                     None
                 }
@@ -1124,7 +1116,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
         self.shards.iter().for_each(|s| {
-            s.write().retain(|(k, v)| f(&*k, v.get_mut()));
+            s.write().retain(|(k, v)| f(&*k, v));
         });
     }
 

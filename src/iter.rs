@@ -1,7 +1,6 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::t::Map;
-use crate::util::SharedValue;
 use crate::DashMap;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
@@ -38,7 +37,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> OwningIter<K, V, S> {
     }
 }
 
-type GuardOwningIter<K, V> = hashbrown::hash_table::IntoIter<(K, SharedValue<V>)>;
+type GuardOwningIter<K, V> = hashbrown::hash_table::IntoIter<(K, V)>;
 
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     type Item = (K, V);
@@ -46,8 +45,8 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
-                if let Some((k, v)) = current.next() {
-                    return Some((k, v.into_inner()));
+                if let Some(value) = current.next() {
+                    return Some(value);
                 }
             }
 
@@ -74,12 +73,12 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
 
 type GuardIter<'a, K, V> = (
     Arc<RwLockReadGuardDetached<'a>>,
-    hashbrown::hash_table::Iter<'a, (K, SharedValue<V>)>,
+    hashbrown::hash_table::Iter<'a, (K, V)>,
 );
 
 type GuardIterMut<'a, K, V> = (
     Arc<RwLockWriteGuardDetached<'a>>,
-    hashbrown::hash_table::IterMut<'a, (K, SharedValue<V>)>,
+    hashbrown::hash_table::IterMut<'a, (K, V)>,
 );
 
 /// Iterator over a DashMap yielding immutable references.

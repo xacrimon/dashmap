@@ -1,20 +1,16 @@
 use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
-use crate::SharedValue;
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
 use std::fmt::{Debug, Formatter};
-use std::ptr::addr_of;
+use std::ptr::{addr_of, addr_of_mut};
 
 pub struct Ref<'a, K, V> {
     guard: RwLockReadGuardDetached<'a>,
-    data: &'a (K, SharedValue<V>),
+    data: &'a (K, V),
 }
 
 impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
-    pub(crate) unsafe fn new(
-        guard: RwLockReadGuardDetached<'a>,
-        data: &'a (K, SharedValue<V>),
-    ) -> Self {
+    pub(crate) unsafe fn new(guard: RwLockReadGuardDetached<'a>, data: &'a (K, V)) -> Self {
         Self { guard, data }
     }
 
@@ -23,11 +19,11 @@ impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
     }
 
     pub fn value(&self) -> &V {
-        self.data.1.get()
+        &self.data.1
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        (&self.data.0, self.data.1.get())
+        (&self.data.0, &self.data.1)
     }
 
     pub fn map<F, T>(self, f: F) -> MappedRef<'a, K, T>
@@ -37,7 +33,7 @@ impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
         MappedRef {
             _guard: self.guard,
             k: &self.data.0,
-            v: f(self.data.1.get()),
+            v: f(&self.data.1),
         }
     }
 
@@ -45,7 +41,7 @@ impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
     where
         F: FnOnce(&V) -> Option<&T>,
     {
-        if let Some(v) = f(self.data.1.get()) {
+        if let Some(v) = f(&self.data.1) {
             Ok(MappedRef {
                 _guard: self.guard,
                 k: &self.data.0,
@@ -61,7 +57,7 @@ impl<'a, K: Eq + Hash + Debug, V: Debug> Debug for Ref<'a, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Ref")
             .field("k", &self.data.0)
-            .field("v", self.data.1.get())
+            .field("v", &self.data.1)
             .finish()
     }
 }
@@ -76,14 +72,11 @@ impl<'a, K: Eq + Hash, V> Deref for Ref<'a, K, V> {
 
 pub struct RefMut<'a, K, V> {
     guard: RwLockWriteGuardDetached<'a>,
-    data: &'a mut (K, SharedValue<V>),
+    data: &'a mut (K, V),
 }
 
 impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
-    pub(crate) unsafe fn new(
-        guard: RwLockWriteGuardDetached<'a>,
-        data: &'a mut (K, SharedValue<V>),
-    ) -> Self {
+    pub(crate) unsafe fn new(guard: RwLockWriteGuardDetached<'a>, data: &'a mut (K, V)) -> Self {
         Self { guard, data }
     }
 
@@ -100,11 +93,11 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        (&self.data.0, self.data.1.get())
+        (&self.data.0, &self.data.1)
     }
 
     pub fn pair_mut(&mut self) -> (&K, &mut V) {
-        (&self.data.0, self.data.1.get_mut())
+        (&self.data.0, &mut self.data.1)
     }
 
     pub fn downgrade(self) -> Ref<'a, K, V> {
@@ -118,25 +111,30 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
         MappedRefMut {
             _guard: self.guard,
             k: &self.data.0,
-            v: f(self.data.1.get_mut()),
+            v: f(&mut self.data.1),
         }
     }
 
     pub fn try_map<F, T>(self, f: F) -> Result<MappedRefMut<'a, K, T>, Self>
     where
-        F: FnOnce(&mut V) -> Option<&mut T>,
+        F: for<'v> FnOnce(&'v mut V) -> Option<&'v mut T>,
     {
-        let v = match f(unsafe { &mut *(self.data.1.get_mut() as *mut _) }) {
-            Some(v) => v,
-            None => return Err(self),
-        };
-        let guard = self.guard;
-        let k = &self.data.0;
-        Ok(MappedRefMut {
-            _guard: guard,
-            k,
-            v,
-        })
+        // temporarily extend the lifetime to get around issues of returning `Err(self)`
+        // while "it's still borrowed"
+        //
+        // SAFETY: we pass it to `f`, which is not allowed to assume the lifetime lives
+        // for a long time. We shrink the lifetime of the result value again.
+        let v = unsafe { &mut *addr_of_mut!(self.data.1) };
+
+        if let Some(v) = f(v) {
+            Ok(MappedRefMut {
+                _guard: self.guard,
+                k: &self.data.0,
+                v,
+            })
+        } else {
+            Err(self)
+        }
     }
 }
 
@@ -144,7 +142,7 @@ impl<'a, K: Eq + Hash + Debug, V: Debug> Debug for RefMut<'a, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RefMut")
             .field("k", &self.data.0)
-            .field("v", self.data.1.get())
+            .field("v", &self.data.1)
             .finish()
     }
 }

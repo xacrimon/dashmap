@@ -1,19 +1,15 @@
 use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
-use crate::util::SharedValue;
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 pub struct RefMulti<'a, K, V> {
     _guard: Arc<RwLockReadGuardDetached<'a>>,
-    data: &'a (K, SharedValue<V>),
+    data: &'a (K, V),
 }
 
 impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
-    pub(crate) unsafe fn new(
-        guard: Arc<RwLockReadGuardDetached<'a>>,
-        data: &'a (K, SharedValue<V>),
-    ) -> Self {
+    pub(crate) unsafe fn new(guard: Arc<RwLockReadGuardDetached<'a>>, data: &'a (K, V)) -> Self {
         Self {
             _guard: guard,
             data,
@@ -29,7 +25,7 @@ impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        (&self.data.0, self.data.1.get())
+        (&self.data.0, &self.data.1)
     }
 }
 
@@ -43,13 +39,13 @@ impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
 
 pub struct RefMutMulti<'a, K, V> {
     _guard: Arc<RwLockWriteGuardDetached<'a>>,
-    data: &'a mut (K, SharedValue<V>),
+    data: &'a mut (K, V),
 }
 
 impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     pub(crate) unsafe fn new(
         guard: Arc<RwLockWriteGuardDetached<'a>>,
-        data: &'a mut (K, SharedValue<V>),
+        data: &'a mut (K, V),
     ) -> Self {
         Self {
             _guard: guard,
@@ -70,11 +66,11 @@ impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        (&self.data.0, self.data.1.get())
+        (&self.data.0, &self.data.1)
     }
 
     pub fn pair_mut(&mut self) -> (&K, &mut V) {
-        (&self.data.0, self.data.1.get_mut())
+        (&self.data.0, &mut self.data.1)
     }
 }
 

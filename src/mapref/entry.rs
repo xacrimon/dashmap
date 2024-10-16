@@ -1,6 +1,5 @@
 use super::one::RefMut;
 use crate::lock::RwLockWriteGuardDetached;
-use crate::util::SharedValue;
 use core::hash::Hash;
 use core::mem;
 use hashbrown::hash_table;
@@ -113,21 +112,21 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
 
 pub struct VacantEntry<'a, K, V> {
     guard: RwLockWriteGuardDetached<'a>,
-    entry: hash_table::VacantEntry<'a, (K, SharedValue<V>)>,
+    entry: hash_table::VacantEntry<'a, (K, V)>,
     key: K,
 }
 
 impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     pub(crate) unsafe fn new(
         guard: RwLockWriteGuardDetached<'a>,
-        entry: hash_table::VacantEntry<'a, (K, SharedValue<V>)>,
+        entry: hash_table::VacantEntry<'a, (K, V)>,
         key: K,
     ) -> Self {
         Self { guard, entry, key }
     }
 
     pub fn insert(self, value: V) -> RefMut<'a, K, V> {
-        let occupied = self.entry.insert((self.key, SharedValue::new(value)));
+        let occupied = self.entry.insert((self.key, value));
         unsafe { RefMut::new(self.guard, occupied.into_mut()) }
     }
 
@@ -136,9 +135,7 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     where
         K: Clone,
     {
-        let entry = self
-            .entry
-            .insert((self.key.clone(), SharedValue::new(value)));
+        let entry = self.entry.insert((self.key.clone(), value));
         OccupiedEntry {
             guard: self.guard,
             entry,
@@ -157,14 +154,14 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
 
 pub struct OccupiedEntry<'a, K, V> {
     guard: RwLockWriteGuardDetached<'a>,
-    entry: hash_table::OccupiedEntry<'a, (K, SharedValue<V>)>,
+    entry: hash_table::OccupiedEntry<'a, (K, V)>,
     key: K,
 }
 
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     pub(crate) unsafe fn new(
         guard: RwLockWriteGuardDetached<'a>,
-        entry: hash_table::OccupiedEntry<'a, (K, SharedValue<V>)>,
+        entry: hash_table::OccupiedEntry<'a, (K, V)>,
         key: K,
     ) -> Self {
         Self { guard, entry, key }
@@ -172,12 +169,12 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
 
     pub fn get(&self) -> &V {
         let (_k, v) = self.entry.get();
-        v.get()
+        v
     }
 
     pub fn get_mut(&mut self) -> &mut V {
         let (_k, v) = self.entry.get_mut();
-        v.get_mut()
+        v
     }
 
     pub fn insert(&mut self, value: V) -> V {
@@ -198,17 +195,17 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
 
     pub fn remove(self) -> V {
         let ((_k, v), _) = self.entry.remove();
-        v.into_inner()
+        v
     }
 
     pub fn remove_entry(self) -> (K, V) {
-        let ((k, v), _) = self.entry.remove();
-        (k, v.into_inner())
+        let (entry, _) = self.entry.remove();
+        entry
     }
 
     pub fn replace_entry(self, value: V) -> (K, V) {
-        let (k, v) = mem::replace(self.entry.into_mut(), (self.key, SharedValue::new(value)));
-        (k, v.into_inner())
+        let entry = mem::replace(self.entry.into_mut(), (self.key, value));
+        entry
     }
 }
 

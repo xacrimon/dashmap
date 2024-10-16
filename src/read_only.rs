@@ -88,7 +88,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
 
         shard
             .find(hash, |(k, _v)| key == k.borrow())
-            .map(|(k, v)| (k, v.get()))
+            .map(|(k, v)| (k, v))
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order. The iterator element type is `(&'a K, &'a V)`.
@@ -97,7 +97,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
             (0..self.map._shard_count())
                 .map(move |shard_i| self.map._get_read_shard(shard_i))
                 .flat_map(|shard| shard.iter())
-                .map(|(k, v)| (k, v.get()))
+                .map(|(k, v)| (k, v))
         }
     }
 
