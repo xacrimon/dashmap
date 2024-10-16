@@ -37,7 +37,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> OwningIter<K, V, S> {
     }
 }
 
-type GuardOwningIter<K, V> = hashbrown::raw::RawIntoIter<(K, V)>;
+type GuardOwningIter<K, V> = hashbrown::hash_table::IntoIter<(K, V)>;
 
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     type Item = (K, V);
@@ -71,12 +71,12 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
 
 type GuardIter<'a, K, V> = (
     Arc<RwLockReadGuardDetached<'a>>,
-    hashbrown::raw::RawIter<(K, V)>,
+    hashbrown::hash_table::Iter<'a, (K, V)>,
 );
 
 type GuardIterMut<'a, K, V> = (
     Arc<RwLockWriteGuardDetached<'a>>,
-    hashbrown::raw::RawIter<(K, V)>,
+    hashbrown::hash_table::IterMut<'a, (K, V)>,
 );
 
 /// Iterator over a DashMap yielding immutable references.
@@ -124,9 +124,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V,
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
-                if let Some(b) = current.1.next() {
+                if let Some((k, v)) = current.1.next() {
                     return unsafe {
-                        let (k, v) = b.as_ref();
                         let guard = current.0.clone();
                         Some(RefMulti::new(guard, k, v))
                     };
@@ -140,7 +139,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V,
             let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
             let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(guard) };
 
-            let iter = unsafe { shard.iter() };
+            let iter = shard.iter();
 
             self.current = Some((Arc::new(guard), iter));
 
@@ -189,9 +188,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V,
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
-                if let Some(b) = current.1.next() {
+                if let Some((k, v)) = current.1.next() {
                     return unsafe {
-                        let (k, v) = b.as_mut();
                         let guard = current.0.clone();
                         Some(RefMutMulti::new(guard, k, v))
                     };
@@ -205,7 +203,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V,
             let guard = unsafe { self.map._yield_write_shard(self.shard_i) };
             let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(guard) };
 
-            let iter = unsafe { shard.iter() };
+            let iter = shard.iter_mut();
 
             self.current = Some((Arc::new(guard), iter));
 
@@ -229,7 +227,7 @@ mod tests {
         let mut c = 0;
 
         for shard in map.shards().iter() {
-            c += unsafe { shard.write().iter().count() };
+            c += shard.write().iter().count();
         }
 
         assert_eq!(c, 1);
