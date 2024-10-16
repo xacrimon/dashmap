@@ -1349,8 +1349,7 @@ where
             .map(|shard_lock| {
                 let shard = shard_lock.read();
 
-                // added in hashbrown 0.15
-                // let hashtable_size = shard.allocation_info().1.size();
+                let hashtable_size = shard.allocation_size();
 
                 let entry_size_iter = shard.iter().map(|entry| {
                     let (key, value) = entry;
@@ -1358,7 +1357,7 @@ where
                 });
 
                 core::mem::size_of::<CachePadded<RwLock<HashMap<K, V>>>>()
-                    // + hashtable_size
+                    + hashtable_size
                     + entry_size_iter.sum::<usize>()
             })
             .sum();
