@@ -10,6 +10,8 @@ pub struct Ref<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
+    /// # Safety
+    /// The guard should be protecting the provided data.
     pub(crate) unsafe fn new(guard: RwLockReadGuardDetached<'a>, data: &'a (K, V)) -> Self {
         Self { guard, data }
     }
@@ -76,6 +78,8 @@ pub struct RefMut<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
+    /// # Safety
+    /// The guard should be protecting the provided data.
     pub(crate) unsafe fn new(guard: RwLockWriteGuardDetached<'a>, data: &'a mut (K, V)) -> Self {
         Self { guard, data }
     }

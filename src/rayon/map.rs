@@ -95,13 +95,7 @@ where
     {
         Vec::from(self.shards)
             .into_par_iter()
-            .flat_map_iter(|shard| {
-                shard
-                    .into_inner()
-                    .into_inner()
-                    .into_iter()
-                    .map(|(k, v)| (k, v.into_inner()))
-            })
+            .flat_map_iter(|shard| shard.into_inner().into_inner().into_iter())
             .drive_unindexed(consumer)
     }
 }
@@ -141,11 +135,13 @@ where
         self.shards
             .into_par_iter()
             .flat_map_iter(|shard| {
+                // Safety: The data will not outlive the guard.
                 let (guard, data) = unsafe { RwLockReadGuardDetached::detach_from(shard.read()) };
                 let guard = Arc::new(guard);
 
                 data.iter().map(move |data| {
                     let guard = Arc::clone(&guard);
+                    // Safety: The guard is still protecting the data.
                     unsafe { RefMulti::new(guard, data) }
                 })
             })
@@ -200,11 +196,13 @@ where
         self.shards
             .into_par_iter()
             .flat_map_iter(|shard| {
+                // Safety: The data will not outlive the guard.
                 let (guard, data) = unsafe { RwLockWriteGuardDetached::detach_from(shard.write()) };
                 let guard = Arc::new(guard);
 
                 data.iter_mut().map(move |data| {
                     let guard = Arc::clone(&guard);
+                    // Safety: The guard is still protecting the data.
                     unsafe { RefMutMulti::new(guard, data) }
                 })
             })

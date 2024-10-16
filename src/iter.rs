@@ -54,7 +54,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
                 return None;
             }
 
-            //let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+            // Safety: shard index is in bounds
             let mut shard_wl = unsafe { self.map._yield_write_shard(self.shard_i) };
 
             let map = mem::take(&mut *shard_wl);
@@ -63,7 +63,6 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
 
             let iter = map.into_iter();
 
-            //unsafe { ptr::write(&mut self.current, Some((arcee, iter))); }
             self.current = Some(iter);
 
             self.shard_i += 1;
@@ -125,10 +124,8 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
         loop {
             if let Some(current) = self.current.as_mut() {
                 if let Some(data) = current.1.next() {
-                    return unsafe {
-                        let guard = current.0.clone();
-                        Some(RefMulti::new(guard, data))
-                    };
+                    let guard = current.0.clone();
+                    return unsafe { Some(RefMulti::new(guard, data)) };
                 }
             }
 
@@ -136,7 +133,9 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
                 return None;
             }
 
+            // Safety: shard index is in bounds
             let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+            // Safety: The data will not outlive the guard.
             let (guard, data) = unsafe { RwLockReadGuardDetached::detach_from(guard) };
 
             self.current = Some((Arc::new(guard), data.iter()));
@@ -187,10 +186,8 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
         loop {
             if let Some(current) = self.current.as_mut() {
                 if let Some(data) = current.1.next() {
-                    return unsafe {
-                        let guard = current.0.clone();
-                        Some(RefMutMulti::new(guard, data))
-                    };
+                    let guard = current.0.clone();
+                    return unsafe { Some(RefMutMulti::new(guard, data)) };
                 }
             }
 
@@ -198,7 +195,9 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
                 return None;
             }
 
+            // Safety: shard index is in bounds
             let guard = unsafe { self.map._yield_write_shard(self.shard_i) };
+            // Safety: The data will not outlive the guard.
             let (guard, data) = unsafe { RwLockWriteGuardDetached::detach_from(guard) };
 
             self.current = Some((Arc::new(guard), data.iter_mut()));

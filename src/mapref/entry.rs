@@ -117,6 +117,8 @@ pub struct VacantEntry<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
+    /// # Safety
+    /// The guard should be protecting the provided entry.
     pub(crate) unsafe fn new(
         guard: RwLockWriteGuardDetached<'a>,
         entry: hash_table::VacantEntry<'a, (K, V)>,
@@ -127,6 +129,8 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
 
     pub fn insert(self, value: V) -> RefMut<'a, K, V> {
         let occupied = self.entry.insert((self.key, value));
+
+        // Safety: The guard is still protecting the occupied entry data.
         unsafe { RefMut::new(self.guard, occupied.into_mut()) }
     }
 
@@ -136,11 +140,8 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
         K: Clone,
     {
         let entry = self.entry.insert((self.key.clone(), value));
-        OccupiedEntry {
-            guard: self.guard,
-            entry,
-            key: self.key,
-        }
+        // Safety: The guard is still protecting the occupied entry.
+        unsafe { OccupiedEntry::new(self.guard, entry, self.key) }
     }
 
     pub fn into_key(self) -> K {
@@ -159,6 +160,8 @@ pub struct OccupiedEntry<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
+    /// # Safety
+    /// The guard should be protecting the provided entry.
     pub(crate) unsafe fn new(
         guard: RwLockWriteGuardDetached<'a>,
         entry: hash_table::OccupiedEntry<'a, (K, V)>,
@@ -182,6 +185,7 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     }
 
     pub fn into_ref(self) -> RefMut<'a, K, V> {
+        // Safety: The guard is still protecting the occupied entry data.
         unsafe { RefMut::new(self.guard, self.entry.into_mut()) }
     }
 
