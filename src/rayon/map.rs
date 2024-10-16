@@ -1,6 +1,6 @@
-use crate::lock::RwLock;
+use crate::lock::{RwLock, RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::mapref::multiple::{RefMulti, RefMutMulti};
-use crate::{DashMap, HashMap};
+use crate::{DashMap, HashMap, Shard};
 use core::hash::{BuildHasher, Hash};
 use crossbeam_utils::CachePadded;
 use rayon::iter::plumbing::UnindexedConsumer;
@@ -79,7 +79,7 @@ where
 }
 
 pub struct OwningIter<K, V> {
-    pub(super) shards: Box<[CachePadded<RwLock<HashMap<K, V>>>]>,
+    pub(super) shards: Box<[Shard<K, V>]>,
 }
 
 impl<K, V> ParallelIterator for OwningIter<K, V>
@@ -95,13 +95,7 @@ where
     {
         Vec::from(self.shards)
             .into_par_iter()
-            .flat_map_iter(|shard| {
-                shard
-                    .into_inner()
-                    .into_inner()
-                    .into_iter()
-                    .map(|(k, v)| (k, v.into_inner()))
-            })
+            .flat_map_iter(|shard| shard.into_inner().into_inner().into_iter())
             .drive_unindexed(consumer)
     }
 }
@@ -124,7 +118,7 @@ where
 }
 
 pub struct Iter<'a, K, V> {
-    pub(super) shards: &'a [CachePadded<RwLock<HashMap<K, V>>>],
+    pub(super) shards: &'a [Shard<K, V>],
 }
 
 impl<'a, K, V> ParallelIterator for Iter<'a, K, V>
@@ -140,12 +134,15 @@ where
     {
         self.shards
             .into_par_iter()
-            .flat_map_iter(|shard| unsafe {
-                let guard = Arc::new(shard.read());
-                guard.iter().map(move |b| {
+            .flat_map_iter(|shard| {
+                // Safety: The data will not outlive the guard.
+                let (guard, data) = unsafe { RwLockReadGuardDetached::detach_from(shard.read()) };
+                let guard = Arc::new(guard);
+
+                data.iter().map(move |data| {
                     let guard = Arc::clone(&guard);
-                    let (k, v) = b.as_ref();
-                    RefMulti::new(guard, k, v.get())
+                    // Safety: The guard is still protecting the data.
+                    unsafe { RefMulti::new(guard, data) }
                 })
             })
             .drive_unindexed(consumer)
@@ -198,12 +195,15 @@ where
     {
         self.shards
             .into_par_iter()
-            .flat_map_iter(|shard| unsafe {
-                let guard = Arc::new(shard.write());
-                guard.iter().map(move |b| {
+            .flat_map_iter(|shard| {
+                // Safety: The data will not outlive the guard.
+                let (guard, data) = unsafe { RwLockWriteGuardDetached::detach_from(shard.write()) };
+                let guard = Arc::new(guard);
+
+                data.iter_mut().map(move |data| {
                     let guard = Arc::clone(&guard);
-                    let (k, v) = b.as_mut();
-                    RefMutMulti::new(guard, k, v.get_mut())
+                    // Safety: The guard is still protecting the data.
+                    unsafe { RefMutMulti::new(guard, data) }
                 })
             })
             .drive_unindexed(consumer)

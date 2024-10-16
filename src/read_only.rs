@@ -84,25 +84,23 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
 
         let idx = self.map.determine_shard(hash as usize);
 
+        // Safety: shard index is in bounds
+        // and this is a read-only view.
         let shard = unsafe { self.map._get_read_shard(idx) };
 
-        shard.find(hash, |(k, _v)| key == k.borrow()).map(|b| {
-            let (k, v) = unsafe { b.as_ref() };
-            (k, v.get())
-        })
+        shard
+            .find(hash, |(k, _v)| key == k.borrow())
+            .map(|(k, v)| (k, v))
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order. The iterator element type is `(&'a K, &'a V)`.
     pub fn iter(&'a self) -> impl Iterator<Item = (&'a K, &'a V)> + 'a {
-        unsafe {
-            (0..self.map._shard_count())
-                .map(move |shard_i| self.map._get_read_shard(shard_i))
-                .flat_map(|shard| shard.iter())
-                .map(|b| {
-                    let (k, v) = b.as_ref();
-                    (k, v.get())
-                })
-        }
+        (0..self.map._shard_count())
+            // Safety: shard index is in bounds
+            // and this is a read-only view.
+            .map(move |shard_i| unsafe { self.map._get_read_shard(shard_i) })
+            .flat_map(|shard| shard.iter())
+            .map(|(k, v)| (k, v))
     }
 
     /// An iterator visiting all keys in arbitrary order. The iterator element type is `&'a K`.

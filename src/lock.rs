@@ -4,6 +4,8 @@ use parking_lot_core::{ParkToken, SpinWait, UnparkToken};
 pub type RwLock<T> = lock_api::RwLock<RawRwLock, T>;
 pub type RwLockReadGuard<'a, T> = lock_api::RwLockReadGuard<'a, RawRwLock, T>;
 pub type RwLockWriteGuard<'a, T> = lock_api::RwLockWriteGuard<'a, RawRwLock, T>;
+pub(crate) type RwLockReadGuardDetached<'a> = crate::util::RwLockReadGuardDetached<'a, RawRwLock>;
+pub(crate) type RwLockWriteGuardDetached<'a> = crate::util::RwLockWriteGuardDetached<'a, RawRwLock>;
 
 const READERS_PARKED: usize = 0b0001;
 const WRITERS_PARKED: usize = 0b0010;
@@ -20,7 +22,7 @@ unsafe impl lock_api::RawRwLock for RawRwLock {
         state: AtomicUsize::new(0),
     };
 
-    type GuardMarker = lock_api::GuardNoSend;
+    type GuardMarker = lock_api::GuardSend;
 
     #[inline]
     fn try_lock_exclusive(&self) -> bool {
@@ -80,7 +82,9 @@ unsafe impl lock_api::RawRwLockDowngrade for RawRwLock {
             .state
             .fetch_and(ONE_READER | WRITERS_PARKED, Ordering::Release);
         if state & READERS_PARKED != 0 {
-            parking_lot_core::unpark_all((self as *const _ as usize) + 1, UnparkToken(0));
+            unsafe {
+                parking_lot_core::unpark_all((self as *const _ as usize) + 1, UnparkToken(0));
+            }
         }
     }
 }

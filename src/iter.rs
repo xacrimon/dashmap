@@ -1,8 +1,7 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
-use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
+use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::t::Map;
-use crate::util::SharedValue;
-use crate::{DashMap, HashMap};
+use crate::DashMap;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 use std::collections::hash_map::RandomState;
@@ -38,7 +37,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> OwningIter<K, V, S> {
     }
 }
 
-type GuardOwningIter<K, V> = hashbrown::raw::RawIntoIter<(K, SharedValue<V>)>;
+type GuardOwningIter<K, V> = hashbrown::hash_table::IntoIter<(K, V)>;
 
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     type Item = (K, V);
@@ -46,8 +45,8 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
-                if let Some((k, v)) = current.next() {
-                    return Some((k, v.into_inner()));
+                if let Some(value) = current.next() {
+                    return Some(value);
                 }
             }
 
@@ -55,7 +54,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
                 return None;
             }
 
-            //let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+            // Safety: shard index is in bounds
             let mut shard_wl = unsafe { self.map._yield_write_shard(self.shard_i) };
 
             let map = mem::take(&mut *shard_wl);
@@ -64,7 +63,6 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
 
             let iter = map.into_iter();
 
-            //unsafe { ptr::write(&mut self.current, Some((arcee, iter))); }
             self.current = Some(iter);
 
             self.shard_i += 1;
@@ -72,30 +70,14 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
     }
 }
 
-unsafe impl<K, V, S> Send for OwningIter<K, V, S>
-where
-    K: Eq + Hash + Send,
-    V: Send,
-    S: BuildHasher + Clone + Send,
-{
-}
-
-unsafe impl<K, V, S> Sync for OwningIter<K, V, S>
-where
-    K: Eq + Hash + Sync,
-    V: Sync,
-    S: BuildHasher + Clone + Sync,
-{
-}
-
 type GuardIter<'a, K, V> = (
-    Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
-    hashbrown::raw::RawIter<(K, SharedValue<V>)>,
+    Arc<RwLockReadGuardDetached<'a>>,
+    hashbrown::hash_table::Iter<'a, (K, V)>,
 );
 
 type GuardIterMut<'a, K, V> = (
-    Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
-    hashbrown::raw::RawIter<(K, SharedValue<V>)>,
+    Arc<RwLockWriteGuardDetached<'a>>,
+    hashbrown::hash_table::IterMut<'a, (K, V)>,
 );
 
 /// Iterator over a DashMap yielding immutable references.
@@ -122,24 +104,6 @@ impl<'i, K: Clone + Hash + Eq, V: Clone, S: Clone + BuildHasher> Clone for Iter<
     }
 }
 
-unsafe impl<'a, 'i, K, V, S, M> Send for Iter<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Send,
-    V: 'a + Send,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
-}
-
-unsafe impl<'a, 'i, K, V, S, M> Sync for Iter<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Sync,
-    V: 'a + Sync,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
-}
-
 impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter<'a, K, V, S, M> {
     pub(crate) fn new(map: &'a M) -> Self {
         Self {
@@ -159,12 +123,10 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
-                if let Some(b) = current.1.next() {
-                    return unsafe {
-                        let (k, v) = b.as_ref();
-                        let guard = current.0.clone();
-                        Some(RefMulti::new(guard, k, v.get()))
-                    };
+                if let Some(data) = current.1.next() {
+                    let guard = current.0.clone();
+                    // Safety: The guard still protects the data
+                    return unsafe { Some(RefMulti::new(guard, data)) };
                 }
             }
 
@@ -172,11 +134,12 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
                 return None;
             }
 
+            // Safety: shard index is in bounds
             let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+            // Safety: The data will not outlive the guard.
+            let (guard, data) = unsafe { RwLockReadGuardDetached::detach_from(guard) };
 
-            let iter = unsafe { guard.iter() };
-
-            self.current = Some((Arc::new(guard), iter));
+            self.current = Some((Arc::new(guard), data.iter()));
 
             self.shard_i += 1;
         }
@@ -202,24 +165,6 @@ pub struct IterMut<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     marker: PhantomData<S>,
 }
 
-unsafe impl<'a, 'i, K, V, S, M> Send for IterMut<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Send,
-    V: 'a + Send,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
-}
-
-unsafe impl<'a, 'i, K, V, S, M> Sync for IterMut<'i, K, V, S, M>
-where
-    K: 'a + Eq + Hash + Sync,
-    V: 'a + Sync,
-    S: 'a + BuildHasher + Clone,
-    M: Map<'a, K, V, S>,
-{
-}
-
 impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>>
     IterMut<'a, K, V, S, M>
 {
@@ -241,12 +186,10 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(current) = self.current.as_mut() {
-                if let Some(b) = current.1.next() {
-                    return unsafe {
-                        let (k, v) = b.as_mut();
-                        let guard = current.0.clone();
-                        Some(RefMutMulti::new(guard, k, v.get_mut()))
-                    };
+                if let Some(data) = current.1.next() {
+                    let guard = current.0.clone();
+                    // Safety: The guard still protects the data
+                    return unsafe { Some(RefMutMulti::new(guard, data)) };
                 }
             }
 
@@ -254,11 +197,12 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
                 return None;
             }
 
+            // Safety: shard index is in bounds
             let guard = unsafe { self.map._yield_write_shard(self.shard_i) };
+            // Safety: The data will not outlive the guard.
+            let (guard, data) = unsafe { RwLockWriteGuardDetached::detach_from(guard) };
 
-            let iter = unsafe { guard.iter() };
-
-            self.current = Some((Arc::new(guard), iter));
+            self.current = Some((Arc::new(guard), data.iter_mut()));
 
             self.shard_i += 1;
         }
@@ -280,7 +224,7 @@ mod tests {
         let mut c = 0;
 
         for shard in map.shards() {
-            c += unsafe { shard.write().iter().count() };
+            c += shard.write().iter().count();
         }
 
         assert_eq!(c, 1);
