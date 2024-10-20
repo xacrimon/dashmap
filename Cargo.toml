@@ -14,8 +14,9 @@ keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
 [dependencies]
-seize = { git = "https://github.com/xacrimon/seize", rev = "0f41a677bccb60bdd8f3fb66a9d3e0744a5a99e8" }
 cfg-if = "1.0.0"
+seize = { git = "https://github.com/xacrimon/seize", rev = "3525d40db2ea0deeee273f13700f1211d5c7d102" }
+atomic-wait = "1.1.0"
 
 [package.metadata.docs.rs]
 features = []
