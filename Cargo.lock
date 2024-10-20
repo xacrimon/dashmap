@@ -36,7 +36,7 @@ checksum = "b4668fb0ea861c1df094127ac5f1da3409a82116a4ba74fca2e58ef927159bb3"
 [[package]]
 name = "seize"
 version = "0.4.5"
-source = "git+https://github.com/xacrimon/seize?rev=3525d40db2ea0deeee273f13700f1211d5c7d102#3525d40db2ea0deeee273f13700f1211d5c7d102"
+source = "git+https://github.com/xacrimon/seize?rev=4eb96f405ea73fc72a23c09c048708d210ce45cd#4eb96f405ea73fc72a23c09c048708d210ce45cd"
 dependencies = [
  "cfg-if",
  "libc",

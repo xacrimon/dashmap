@@ -15,7 +15,7 @@ categories = ["concurrency", "algorithms", "data-structures"]
 
 [dependencies]
 cfg-if = "1.0.0"
-seize = { git = "https://github.com/xacrimon/seize", rev = "3525d40db2ea0deeee273f13700f1211d5c7d102" }
+seize = { git = "https://github.com/xacrimon/seize", rev = "4eb96f405ea73fc72a23c09c048708d210ce45cd" }
 atomic-wait = "1.1.0"
 
 [package.metadata.docs.rs]
