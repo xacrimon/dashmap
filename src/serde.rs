@@ -6,8 +6,9 @@ use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde::Deserializer;
 
+type Contravariant<T> = PhantomData<fn() -> T>;
 pub struct DashMapVisitor<K, V, S> {
-    marker: PhantomData<fn() -> DashMap<K, V, S>>,
+    marker: Contravariant<DashMap<K, V, S>>,
 }
 
 impl<K, V, S> DashMapVisitor<K, V, S>

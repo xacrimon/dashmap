@@ -1,8 +1,10 @@
-#![allow(clippy::type_complexity)]
-#![warn(clippy::undocumented_unsafe_blocks)]
+#![warn(
+    unsafe_op_in_unsafe_fn,
+    clippy::missing_safety_doc,
+    clippy::multiple_unsafe_ops_per_block,
+    clippy::undocumented_unsafe_blocks
+)]
 
-#[cfg(feature = "arbitrary")]
-mod arbitrary;
 pub mod iter;
 pub mod iter_set;
 mod lock;
@@ -48,6 +50,7 @@ use std::collections::hash_map::RandomState;
 use try_result::TryResult;
 
 pub(crate) type HashMap<K, V> = hash_table::HashTable<(K, V)>;
+pub(crate) type Shard<K, V> = CachePadded<RwLock<HashMap<K, V>>>;
 
 // Temporary reimplementation of [`std::collections::TryReserveError`]
 // util [`std::collections::TryReserveError`] stabilises.
@@ -81,7 +84,7 @@ fn ncb(shard_amount: usize) -> usize {
 /// This means that it is safe to ignore it across multiple threads.
 pub struct DashMap<K, V, S = RandomState> {
     shift: usize,
-    shards: Box<[CachePadded<RwLock<HashMap<K, V>>>]>,
+    shards: Box<[Shard<K, V>]>,
     hasher: S,
 }
 
@@ -227,7 +230,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// map.shards_mut()[shard_ind].get_mut().insert_unique(hash, data, hasher);
     /// assert_eq!(*map.get(&42).unwrap(), "forty two");
     /// ```
-    pub fn shards_mut(&mut self) -> &mut [CachePadded<RwLock<HashMap<K, V>>>] {
+    pub fn shards_mut(&mut self) -> &mut [Shard<K, V>] {
         &mut self.shards
     }
 
@@ -237,7 +240,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Requires the `raw-api` feature to be enabled.
     ///
     /// See [`DashMap::shards()`] and [`DashMap::shards_mut()`] for more information.
-    pub fn into_shards(self) -> Box<[CachePadded<RwLock<HashMap<K, V>>>]> {
+    pub fn into_shards(self) -> Box<[Shard<K, V>]> {
         self.shards
     }
 
