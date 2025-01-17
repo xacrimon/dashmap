@@ -260,7 +260,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         Q: Hash + Eq + ?Sized,
     {
         let hash = self.hash_usize(&key);
-        self._determine_shard(hash)
+        self._determine_shard(hash).idx
     }
 
     /// Finds which shard a certain hash is stored in.
@@ -278,7 +278,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// println!("hash is stored in shard: {}", map.determine_shard(hash));
     /// ```
     pub fn determine_shard(&self, hash: usize) -> usize {
-        self._determine_shard(hash)
+        self._determine_shard(hash).idx
     }
 }
 
@@ -398,9 +398,12 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         hasher.finish()
     }
 
-    pub(crate) fn _determine_shard(&self, hash: usize) -> usize {
-        // Leave the high 7 bits for the HashBrown SIMD tag.
-        (hash << 7) >> self.shift
+    pub(crate) fn _determine_shard(&self, hash: usize) -> ShardIdx<'_, K, V> {
+        ShardIdx {
+            // Leave the high 7 bits for the HashBrown SIMD tag.
+            idx: (hash << 7) >> self.shift,
+            map: &self.shards,
+        }
     }
 
     /// Returns a reference to the map's [`BuildHasher`].
@@ -465,7 +468,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let mut shard = unsafe { self.yield_write_shard(idx) };
+        let mut shard = idx.yield_write_shard();
 
         if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
             let ((k, v), _) = entry.remove();
@@ -505,7 +508,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let mut shard = unsafe { self.yield_write_shard(idx) };
+        let mut shard = idx.yield_write_shard();
 
         if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
             let (k, v) = entry.get();
@@ -529,7 +532,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let mut shard = unsafe { self.yield_write_shard(idx) };
+        let mut shard = idx.yield_write_shard();
 
         if let Ok(mut entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
             let (k, v) = entry.get_mut();
@@ -601,7 +604,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = unsafe { self.yield_read_shard(idx) };
+        let shard = idx.yield_read_shard();
         // Safety: The data will not outlive the guard.
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
@@ -636,7 +639,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = unsafe { self.yield_write_shard(idx) };
+        let shard = idx.yield_write_shard();
         // Safety: The data will not outlive the guard.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
@@ -676,7 +679,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = match unsafe { self.try_yield_read_shard(idx) } {
+        let shard = match idx.try_yield_read_shard() {
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
@@ -720,7 +723,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = match unsafe { self.try_yield_write_shard(idx) } {
+        let shard = match idx.try_yield_write_shard() {
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
@@ -960,7 +963,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = unsafe { self.yield_write_shard(idx) };
+        let shard = idx.yield_write_shard();
         // Safety: The data will not outlive the guard.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
@@ -991,7 +994,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = unsafe { self.try_yield_write_shard(idx) }?;
+        let shard = idx.try_yield_write_shard()?;
         // Safety: The data will not outlive the guard.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
@@ -1052,305 +1055,32 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         self.shards.get_unchecked(i).write()
     }
+}
 
-    unsafe fn try_yield_read_shard(&self, i: usize) -> Option<RwLockReadGuard<'_, HashMap<K, V>>> {
-        debug_assert!(i < self.shards.len());
+struct ShardIdx<'a, K, V> {
+    idx: usize,
+    map: &'a [CachePadded<RwLock<HashMap<K, V>>>],
+}
 
-        self.shards.get_unchecked(i).try_read()
+impl<'a, K, V> ShardIdx<'a, K, V> {
+    fn shard(&self) -> &'a RwLock<HashMap<K, V>> {
+        unsafe { self.map.get_unchecked(self.idx) }
     }
 
-    unsafe fn try_yield_write_shard(
-        &self,
-        i: usize,
-    ) -> Option<RwLockWriteGuard<'_, HashMap<K, V>>> {
-        debug_assert!(i < self.shards.len());
-
-        self.shards.get_unchecked(i).try_write()
+    fn yield_read_shard(&self) -> RwLockReadGuard<'a, HashMap<K, V>> {
+        self.shard().read()
     }
 
-    fn _insert(&self, key: K, value: V) -> Option<V> {
-        match self.entry(key) {
-            Entry::Occupied(mut o) => Some(o.insert(value)),
-            Entry::Vacant(v) => {
-                v.insert(value);
-                None
-            }
-        }
+    fn yield_write_shard(&self) -> RwLockWriteGuard<'a, HashMap<K, V>> {
+        self.shard().write()
     }
 
-    fn _remove<Q>(&self, key: &Q) -> Option<(K, V)>
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        let hash = self.hash_u64(&key);
-
-        let idx = self._determine_shard(hash as usize);
-
-        let mut shard = unsafe { self.yield_write_shard(idx) };
-
-        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
-            let ((k, v), _) = entry.remove();
-            Some((k, v))
-        } else {
-            None
-        }
+    fn try_yield_read_shard(&self) -> Option<RwLockReadGuard<'a, HashMap<K, V>>> {
+        self.shard().try_read()
     }
 
-    fn _remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        let hash = self.hash_u64(&key);
-
-        let idx = self._determine_shard(hash as usize);
-
-        let mut shard = unsafe { self.yield_write_shard(idx) };
-
-        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
-            let (k, v) = entry.get();
-            if f(k, v) {
-                let ((k, v), _) = entry.remove();
-                Some((k, v))
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    fn _remove_if_mut<Q>(&self, key: &Q, f: impl FnOnce(&K, &mut V) -> bool) -> Option<(K, V)>
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        let hash = self.hash_u64(&key);
-
-        let idx = self._determine_shard(hash as usize);
-
-        let mut shard = unsafe { self.yield_write_shard(idx) };
-
-        if let Ok(mut entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
-            let (k, v) = entry.get_mut();
-            if f(k, v) {
-                let ((k, v), _) = entry.remove();
-                Some((k, v))
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    fn _iter(&self) -> Iter<'_, K, V, S> {
-        Iter::new(self)
-    }
-
-    fn _iter_mut(&self) -> IterMut<'_, K, V, S> {
-        IterMut::new(self)
-    }
-
-    fn _get<Q>(&self, key: &Q) -> Option<Ref<'_, K, V>>
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        let hash = self.hash_u64(&key);
-
-        let idx = self._determine_shard(hash as usize);
-
-        let shard = unsafe { self.yield_read_shard(idx) };
-        // Safety: The data will not outlive the guard.
-        let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
-
-        if let Some(entry) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            let (k, v) = entry;
-            Some(Ref::new(guard, k, v))
-        } else {
-            None
-        }
-    }
-
-    fn _get_mut<Q>(&self, key: &Q) -> Option<RefMut<'_, K, V>>
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        let hash = self.hash_u64(&key);
-
-        let idx = self._determine_shard(hash as usize);
-
-        let shard = unsafe { self.yield_write_shard(idx) };
-        // Safety: The data will not outlive the guard.
-        let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
-
-        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
-            let (k, v) = entry.into_mut();
-            Some(RefMut::new(guard, k, v))
-        } else {
-            None
-        }
-    }
-
-    fn _try_get<Q>(&self, key: &Q) -> TryResult<Ref<'_, K, V>>
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        let hash = self.hash_u64(&key);
-
-        let idx = self._determine_shard(hash as usize);
-
-        let shard = match unsafe { self.try_yield_read_shard(idx) } {
-            Some(shard) => shard,
-            None => return TryResult::Locked,
-        };
-        // Safety: The data will not outlive the guard.
-        let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
-
-        if let Some(entry) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            let (k, v) = entry;
-            TryResult::Present(Ref::new(guard, k, v))
-        } else {
-            TryResult::Absent
-        }
-    }
-
-    fn _try_get_mut<Q>(&self, key: &Q) -> TryResult<RefMut<'_, K, V>>
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        let hash = self.hash_u64(&key);
-
-        let idx = self._determine_shard(hash as usize);
-
-        let shard = match unsafe { self.try_yield_write_shard(idx) } {
-            Some(shard) => shard,
-            None => return TryResult::Locked,
-        };
-        // Safety: The data will not outlive the guard.
-        let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
-
-        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
-            let (k, v) = entry.into_mut();
-            TryResult::Present(RefMut::new(guard, k, v))
-        } else {
-            TryResult::Absent
-        }
-    }
-
-    fn _shrink_to_fit(&self) {
-        self.shards.iter().for_each(|s| {
-            let mut shard = s.write();
-            let size = shard.len();
-            shard.shrink_to(size, |(k, _v)| {
-                let mut hasher = self.hasher.build_hasher();
-                k.hash(&mut hasher);
-                hasher.finish()
-            })
-        });
-    }
-
-    fn _retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
-        self.shards.iter().for_each(|s| {
-            s.write().retain(|(k, v)| f(k, v));
-        });
-    }
-
-    fn _len(&self) -> usize {
-        self.shards.iter().map(|s| s.read().len()).sum()
-    }
-
-    fn _capacity(&self) -> usize {
-        self.shards.iter().map(|s| s.read().capacity()).sum()
-    }
-
-    fn _alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        if let Some(mut r) = self.get_mut(key) {
-            util::map_in_place_2(r.pair_mut(), f);
-        }
-    }
-
-    fn _alter_all(&self, mut f: impl FnMut(&K, V) -> V) {
-        self.iter_mut()
-            .for_each(|mut m| util::map_in_place_2(m.pair_mut(), &mut f));
-    }
-
-    fn _view<Q, R>(&self, key: &Q, f: impl FnOnce(&K, &V) -> R) -> Option<R>
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        self.get(key).map(|r| {
-            let (k, v) = r.pair();
-            f(k, v)
-        })
-    }
-
-    fn _entry(&self, key: K) -> Entry<'_, K, V> {
-        let hash = self.hash_u64(&key);
-
-        let idx = self._determine_shard(hash as usize);
-
-        let shard = unsafe { self.yield_write_shard(idx) };
-        // Safety: The data will not outlive the guard.
-        let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
-
-        match shard.entry(
-            hash,
-            |(k, _v)| k == &key,
-            |(k, _v)| {
-                let mut hasher = self.hasher.build_hasher();
-                k.hash(&mut hasher);
-                hasher.finish()
-            },
-        ) {
-            hash_table::Entry::Occupied(occupied_entry) => {
-                Entry::Occupied(OccupiedEntry::new(guard, key, occupied_entry))
-            }
-            hash_table::Entry::Vacant(vacant_entry) => {
-                Entry::Vacant(VacantEntry::new(guard, key, vacant_entry))
-            }
-        }
-    }
-
-    fn _try_entry(&self, key: K) -> Option<Entry<'_, K, V>> {
-        let hash = self.hash_u64(&key);
-
-        let idx = self._determine_shard(hash as usize);
-
-        let shard = unsafe { self.try_yield_write_shard(idx) }?;
-        // Safety: The data will not outlive the guard.
-        let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
-
-        match shard.entry(
-            hash,
-            |(k, _v)| k == &key,
-            |(k, _v)| {
-                let mut hasher = self.hasher.build_hasher();
-                k.hash(&mut hasher);
-                hasher.finish()
-            },
-        ) {
-            hash_table::Entry::Occupied(occupied_entry) => Some(Entry::Occupied(
-                OccupiedEntry::new(guard, key, occupied_entry),
-            )),
-            hash_table::Entry::Vacant(vacant_entry) => {
-                Some(Entry::Vacant(VacantEntry::new(guard, key, vacant_entry)))
-            }
-        }
-    }
-
-    fn _is_empty(&self) -> bool {
-        self._len() == 0
+    fn try_yield_write_shard(&self) -> Option<RwLockWriteGuard<'a, HashMap<K, V>>> {
+        self.shard().try_write()
     }
 }
 

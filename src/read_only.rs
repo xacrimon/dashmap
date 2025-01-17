@@ -84,7 +84,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     {
         let hash = self.map.hash_u64(&key);
 
-        let idx = self.map._determine_shard(hash as usize);
+        let idx = self.map._determine_shard(hash as usize).idx;
 
         let shard = unsafe { self.map.get_read_shard(idx) };
 
