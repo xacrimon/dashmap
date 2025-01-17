@@ -80,6 +80,7 @@ dependencies = [
  "once_cell",
  "parking_lot_core",
  "rayon",
+ "replace_with",
  "serde",
  "typesize",
 ]
@@ -204,6 +205,12 @@ checksum = "567664f262709473930a4bf9e51bf2ebf3348f2e748ccc50dea20646858f8f29"
 dependencies = [
  "bitflags",
 ]
+
+[[package]]
+name = "replace_with"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a8614ee435691de62bcffcf4a66d91b3594bf1428a5722e79103249a095690"
 
 [[package]]
 name = "scopeguard"

@@ -22,7 +22,7 @@ pub mod rayon {
 }
 
 #[cfg(not(feature = "raw-api"))]
-use crate::lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use crate::lock::RwLock;
 
 #[cfg(feature = "raw-api")]
 pub use crate::lock::{RawRwLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -41,6 +41,7 @@ use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
 use once_cell::sync::OnceCell;
 pub use read_only::ReadOnlyView;
+use replace_with::replace_with_or_abort;
 pub use set::DashSet;
 use std::collections::hash_map::RandomState;
 use try_result::TryResult;
@@ -475,7 +476,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let mut shard = idx.yield_write_shard();
+        let mut shard = idx.shard().write();
 
         if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
             let ((k, v), _) = entry.remove();
@@ -515,7 +516,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let mut shard = idx.yield_write_shard();
+        let mut shard = idx.shard().write();
 
         if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
             let (k, v) = entry.get();
@@ -539,7 +540,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let mut shard = idx.yield_write_shard();
+        let mut shard = idx.shard().write();
 
         if let Ok(mut entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
             let (k, v) = entry.get_mut();
@@ -611,7 +612,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = idx.yield_read_shard();
+        let shard = idx.shard().read();
         // Safety: The data will not outlive the guard.
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
@@ -646,7 +647,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = idx.yield_write_shard();
+        let shard = idx.shard().write();
         // Safety: The data will not outlive the guard.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
@@ -686,7 +687,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = match idx.try_yield_read_shard() {
+        let shard = match idx.shard().try_read() {
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
@@ -730,7 +731,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = match idx.try_yield_write_shard() {
+        let shard = match idx.shard().try_write() {
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
@@ -881,7 +882,8 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         Q: Hash + Eq + ?Sized,
     {
         if let Some(mut r) = self.get_mut(key) {
-            util::map_in_place_2(r.pair_mut(), f);
+            let (k, v) = r.pair_mut();
+            replace_with_or_abort(v, |v| f(k, v))
         }
     }
 
@@ -906,8 +908,10 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     ///
     /// If the given closure panics, then `alter_all` will abort the process
     pub fn alter_all(&self, mut f: impl FnMut(&K, V) -> V) {
-        self.iter_mut()
-            .for_each(|mut m| util::map_in_place_2(m.pair_mut(), &mut f))
+        self.iter_mut().for_each(|mut m| {
+            let (k, v) = m.pair_mut();
+            replace_with_or_abort(v, |v| f(k, v))
+        })
     }
 
     /// Scoped access into an item of the map according to a function.
@@ -970,7 +974,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = idx.yield_write_shard();
+        let shard = idx.shard().write();
         // Safety: The data will not outlive the guard.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
@@ -1001,7 +1005,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let idx = self._determine_shard(hash as usize);
 
-        let shard = idx.try_yield_write_shard()?;
+        let shard = idx.shard().try_write()?;
         // Safety: The data will not outlive the guard.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
@@ -1044,12 +1048,6 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         }
         Ok(())
     }
-
-    unsafe fn get_read_shard(&self, i: usize) -> &HashMap<K, V> {
-        debug_assert!(i < self.shards.len());
-
-        &*self.shards.get_unchecked(i).data_ptr()
-    }
 }
 
 struct ShardIdx<'a, K, V> {
@@ -1077,22 +1075,6 @@ impl<'a, K, V> ShardIdx<'a, K, V> {
         } else {
             Some(self)
         }
-    }
-
-    fn yield_read_shard(&self) -> RwLockReadGuard<'a, HashMap<K, V>> {
-        self.shard().read()
-    }
-
-    fn yield_write_shard(&self) -> RwLockWriteGuard<'a, HashMap<K, V>> {
-        self.shard().write()
-    }
-
-    fn try_yield_read_shard(&self) -> Option<RwLockReadGuard<'a, HashMap<K, V>>> {
-        self.shard().try_read()
-    }
-
-    fn try_yield_write_shard(&self) -> Option<RwLockWriteGuard<'a, HashMap<K, V>>> {
-        self.shard().try_write()
     }
 }
 

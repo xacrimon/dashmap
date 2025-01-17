@@ -1,7 +1,6 @@
 #[cfg(feature = "raw-api")]
 use crate::lock::RwLock;
 use crate::DashMap;
-#[cfg(feature = "raw-api")]
 use crate::HashMap;
 use core::borrow::Borrow;
 use core::fmt;
@@ -86,7 +85,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
 
         let idx = self.map._determine_shard(hash as usize).idx;
 
-        let shard = unsafe { self.map.get_read_shard(idx) };
+        let shard = unsafe { self.get_read_shard(idx) };
 
         shard
             .find(hash, |(k, _v)| key == k.borrow())
@@ -94,9 +93,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order. The iterator element type is `(&'a K, &'a V)`.
-    pub fn iter(&'a self) -> impl Iterator<Item = (&'a K, &'a V)> + 'a {
+    pub fn iter(&'a self) -> impl Iterator<Item = (&'a K, &'a V)> {
         (0..self.map.shards.len())
-            .map(move |shard_i| unsafe { self.map.get_read_shard(shard_i) })
+            .map(move |shard_i| unsafe { self.get_read_shard(shard_i) })
             .flat_map(|shard| shard.iter())
             .map(|(k, v)| (k, v))
     }
@@ -127,6 +126,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// ```
     pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
         &self.map.shards
+    }
+
+    unsafe fn get_read_shard(&self, i: usize) -> &HashMap<K, V> {
+        debug_assert!(i < self.map.shards.len());
+        &*self.map.shards.get_unchecked(i).data_ptr()
     }
 }
 

@@ -124,7 +124,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Iterator for Iter<'a, K, V> {
 
             let shard_i = self.shard_i.take()?;
 
-            let guard = shard_i.yield_read_shard();
+            let guard = shard_i.shard().read();
             let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(guard) };
 
             let iter = shard.iter();
@@ -176,7 +176,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Iterator for IterMut<'a, K, V> {
 
             let shard_i = self.shard_i.take()?;
 
-            let guard = shard_i.yield_write_shard();
+            let guard = shard_i.shard().write();
             let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(guard) };
 
             let iter = shard.iter_mut();
