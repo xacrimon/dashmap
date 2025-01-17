@@ -14,9 +14,13 @@ keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
 [features]
+default = []
 raw-api = []
-typesize = ["dep:typesize"]
 inline = ["hashbrown/inline-more"]
+
+rayon = ["dep:rayon"]
+serde = ["dep:serde"]
+typesize = ["dep:typesize"]
 
 [dependencies]
 lock_api = "0.4.10"
