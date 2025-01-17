@@ -19,17 +19,17 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> Iterator for OwningIter<K, S> {
     }
 }
 
-pub struct Iter<'a, K, S> {
-    inner: crate::iter::Iter<'a, K, (), S>,
+pub struct Iter<'a, K> {
+    inner: crate::iter::Iter<'a, K, ()>,
 }
 
-impl<'a, K: 'a + Eq + Hash, S: 'a + BuildHasher + Clone> Iter<'a, K, S> {
-    pub(crate) fn new(inner: crate::iter::Iter<'a, K, (), S>) -> Self {
+impl<'a, K: 'a + Eq + Hash> Iter<'a, K> {
+    pub(crate) fn new(inner: crate::iter::Iter<'a, K, ()>) -> Self {
         Self { inner }
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, S: 'a + BuildHasher + Clone> Iterator for Iter<'a, K, S> {
+impl<'a, K: 'a + Eq + Hash> Iterator for Iter<'a, K> {
     type Item = RefMulti<'a, K>;
 
     fn next(&mut self) -> Option<Self::Item> {

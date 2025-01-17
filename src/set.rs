@@ -255,7 +255,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// words.insert("hello");
     /// assert_eq!(words.iter().count(), 1);
     /// ```
-    pub fn iter(&'a self) -> Iter<'a, K, S> {
+    pub fn iter(&self) -> Iter<'_, K> {
         let iter = self.inner.iter();
 
         Iter::new(iter)

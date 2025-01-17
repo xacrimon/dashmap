@@ -406,6 +406,13 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         }
     }
 
+    pub(crate) fn first_shard(&self) -> ShardIdx<'_, K, V> {
+        ShardIdx {
+            idx: 0,
+            map: &self.shards,
+        }
+    }
+
     /// Returns a reference to the map's [`BuildHasher`].
     ///
     /// # Examples
@@ -560,7 +567,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// words.insert("hello", "world");
     /// assert_eq!(words.iter().count(), 1);
     /// ```
-    pub fn iter(&self) -> Iter<'_, K, V, S> {
+    pub fn iter(&self) -> Iter<'_, K, V> {
         Iter::new(self)
     }
 
@@ -578,7 +585,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// map.iter_mut().for_each(|mut r| *r += 1);
     /// assert_eq!(*map.get("Johnny").unwrap(), 22);
     /// ```
-    pub fn iter_mut(&self) -> IterMut<'_, K, V, S> {
+    pub fn iter_mut(&self) -> IterMut<'_, K, V> {
         IterMut::new(self)
     }
 
@@ -1043,18 +1050,6 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         &*self.shards.get_unchecked(i).data_ptr()
     }
-
-    unsafe fn yield_read_shard(&self, i: usize) -> RwLockReadGuard<'_, HashMap<K, V>> {
-        debug_assert!(i < self.shards.len());
-
-        self.shards.get_unchecked(i).read()
-    }
-
-    unsafe fn yield_write_shard(&self, i: usize) -> RwLockWriteGuard<'_, HashMap<K, V>> {
-        debug_assert!(i < self.shards.len());
-
-        self.shards.get_unchecked(i).write()
-    }
 }
 
 struct ShardIdx<'a, K, V> {
@@ -1062,9 +1057,26 @@ struct ShardIdx<'a, K, V> {
     map: &'a [CachePadded<RwLock<HashMap<K, V>>>],
 }
 
+impl<K, V> Copy for ShardIdx<'_, K, V> {}
+
+impl<K, V> Clone for ShardIdx<'_, K, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
 impl<'a, K, V> ShardIdx<'a, K, V> {
     fn shard(&self) -> &'a RwLock<HashMap<K, V>> {
         unsafe { self.map.get_unchecked(self.idx) }
+    }
+
+    fn next_shard(mut self) -> Option<Self> {
+        self.idx += 1;
+        if self.idx == self.map.len() {
+            None
+        } else {
+            Some(self)
+        }
     }
 
     fn yield_read_shard(&self) -> RwLockReadGuard<'a, HashMap<K, V>> {
@@ -1169,7 +1181,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> 
 impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a DashMap<K, V, S> {
     type Item = RefMulti<'a, K, V>;
 
-    type IntoIter = Iter<'a, K, V, S>;
+    type IntoIter = Iter<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
