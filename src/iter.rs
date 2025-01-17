@@ -213,7 +213,7 @@ mod tests {
 
         let mut c = 0;
 
-        for shard in map.shards().iter() {
+        for shard in map.shards.iter() {
             c += shard.write().iter().count();
         }
 

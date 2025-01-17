@@ -27,7 +27,6 @@ use crate::lock::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 #[cfg(feature = "raw-api")]
 pub use crate::lock::{RawRwLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use cfg_if::cfg_if;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash, Hasher};
@@ -183,6 +182,106 @@ impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
     }
 }
 
+#[cfg(feature = "raw-api")]
+impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
+    /// Allows you to peek at the inner shards that store your data.
+    /// You should probably not use this unless you know what you are doing.
+    ///
+    /// Requires the `raw-api` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::<(), ()>::new();
+    /// println!("Amount of shards: {}", map.shards().len());
+    /// ```
+    pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
+        &self.shards
+    }
+
+    /// Provides mutable access to the inner shards that store your data.
+    /// You should probably not use this unless you know what you are doing.
+    ///
+    /// Requires the `raw-api` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    /// use std::hash::{Hash, Hasher, BuildHasher};
+    ///
+    /// let mut map = DashMap::<i32, &'static str>::new();
+    /// let shard_ind = map.determine_map(&42);
+    /// let mut factory = map.hasher().clone();
+    /// let hasher = |tuple: &(i32, &'static str)| {
+    ///     let mut hasher = factory.build_hasher();
+    ///     tuple.0.hash(&mut hasher);
+    ///     hasher.finish()
+    /// };
+    /// let data = (42, "forty two");
+    /// let hash = hasher(&data);
+    /// map.shards_mut()[shard_ind].get_mut().insert_unique(hash, data, hasher);
+    /// assert_eq!(*map.get(&42).unwrap(), "forty two");
+    /// ```
+    pub fn shards_mut(&mut self) -> &mut [CachePadded<RwLock<HashMap<K, V>>>] {
+        &mut self.shards
+    }
+
+    /// Consumes this `DashMap` and returns the inner shards.
+    /// You should probably not use this unless you know what you are doing.
+    ///
+    /// Requires the `raw-api` feature to be enabled.
+    ///
+    /// See [`DashMap::shards()`] and [`DashMap::shards_mut()`] for more information.
+    pub fn into_shards(self) -> Box<[CachePadded<RwLock<HashMap<K, V>>>]> {
+        self.shards
+    }
+
+    /// Finds which shard a certain key is stored in.
+    /// You should probably not use this unless you know what you are doing.
+    /// Note that shard selection is dependent on the default or provided HashBuilder.
+    ///
+    /// Requires the `raw-api` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::new();
+    /// map.insert("coca-cola", 1.4);
+    /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
+    /// ```
+    pub fn determine_map<Q>(&self, key: &Q) -> usize
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        let hash = self.hash_usize(&key);
+        self._determine_shard(hash)
+    }
+
+    /// Finds which shard a certain hash is stored in.
+    ///
+    /// Requires the `raw-api` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map: DashMap<i32, i32> = DashMap::new();
+    /// let key = "key";
+    /// let hash = map.hash_usize(&key);
+    /// println!("hash is stored in shard: {}", map.determine_shard(hash));
+    /// ```
+    pub fn determine_shard(&self, hash: usize) -> usize {
+        self._determine_shard(hash)
+    }
+}
+
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// Wraps this `DashMap` into a read-only view. This view allows to obtain raw references to the stored values.
     pub fn into_read_only(self) -> ReadOnlyView<K, V, S> {
@@ -299,135 +398,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         hasher.finish()
     }
 
-    cfg_if! {
-        if #[cfg(feature = "raw-api")] {
-            /// Allows you to peek at the inner shards that store your data.
-            /// You should probably not use this unless you know what you are doing.
-            ///
-            /// Requires the `raw-api` feature to be enabled.
-            ///
-            /// # Examples
-            ///
-            /// ```
-            /// use dashmap::DashMap;
-            ///
-            /// let map = DashMap::<(), ()>::new();
-            /// println!("Amount of shards: {}", map.shards().len());
-            /// ```
-            pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
-                &self.shards
-            }
-
-            /// Provides mutable access to the inner shards that store your data.
-            /// You should probably not use this unless you know what you are doing.
-            ///
-            /// Requires the `raw-api` feature to be enabled.
-            ///
-            /// # Examples
-            ///
-            /// ```
-            /// use dashmap::DashMap;
-            /// use std::hash::{Hash, Hasher, BuildHasher};
-            ///
-            /// let mut map = DashMap::<i32, &'static str>::new();
-            /// let shard_ind = map.determine_map(&42);
-            /// let mut factory = map.hasher().clone();
-            /// let hasher = |tuple: &(i32, &'static str)| {
-            ///     let mut hasher = factory.build_hasher();
-            ///     tuple.0.hash(&mut hasher);
-            ///     hasher.finish()
-            /// };
-            /// let data = (42, "forty two");
-            /// let hash = hasher(&data);
-            /// map.shards_mut()[shard_ind].get_mut().insert_unique(hash, data, hasher);
-            /// assert_eq!(*map.get(&42).unwrap(), "forty two");
-            /// ```
-            pub fn shards_mut(&mut self) -> &mut [CachePadded<RwLock<HashMap<K, V>>>] {
-                &mut self.shards
-            }
-
-            /// Consumes this `DashMap` and returns the inner shards.
-            /// You should probably not use this unless you know what you are doing.
-            ///
-            /// Requires the `raw-api` feature to be enabled.
-            ///
-            /// See [`DashMap::shards()`] and [`DashMap::shards_mut()`] for more information.
-            pub fn into_shards(self) -> Box<[CachePadded<RwLock<HashMap<K, V>>>]> {
-                self.shards
-            }
-        } else {
-            #[allow(dead_code)]
-            pub(crate) fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
-                &self.shards
-            }
-
-            #[allow(dead_code)]
-            pub(crate) fn shards_mut(&mut self) -> &mut [CachePadded<RwLock<HashMap<K, V>>>] {
-                &mut self.shards
-            }
-
-            #[allow(dead_code)]
-            pub(crate) fn into_shards(self) -> Box<[CachePadded<RwLock<HashMap<K, V>>>]> {
-                self.shards
-            }
-        }
-    }
-
-    cfg_if! {
-        if #[cfg(feature = "raw-api")] {
-            /// Finds which shard a certain key is stored in.
-            /// You should probably not use this unless you know what you are doing.
-            /// Note that shard selection is dependent on the default or provided HashBuilder.
-            ///
-            /// Requires the `raw-api` feature to be enabled.
-            ///
-            /// # Examples
-            ///
-            /// ```
-            /// use dashmap::DashMap;
-            ///
-            /// let map = DashMap::new();
-            /// map.insert("coca-cola", 1.4);
-            /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
-            /// ```
-            pub fn determine_map<Q>(&self, key: &Q) -> usize
-            where
-                K: Borrow<Q>,
-                Q: Hash + Eq + ?Sized,
-            {
-                let hash = self.hash_usize(&key);
-                self.determine_shard(hash)
-            }
-        }
-    }
-
-    cfg_if! {
-        if #[cfg(feature = "raw-api")] {
-            /// Finds which shard a certain hash is stored in.
-            ///
-            /// Requires the `raw-api` feature to be enabled.
-            ///
-            /// # Examples
-            ///
-            /// ```
-            /// use dashmap::DashMap;
-            ///
-            /// let map: DashMap<i32, i32> = DashMap::new();
-            /// let key = "key";
-            /// let hash = map.hash_usize(&key);
-            /// println!("hash is stored in shard: {}", map.determine_shard(hash));
-            /// ```
-            pub fn determine_shard(&self, hash: usize) -> usize {
-                // Leave the high 7 bits for the HashBrown SIMD tag.
-                (hash << 7) >> self.shift
-            }
-        } else {
-
-            pub(crate) fn determine_shard(&self, hash: usize) -> usize {
-                // Leave the high 7 bits for the HashBrown SIMD tag.
-                (hash << 7) >> self.shift
-            }
-        }
+    pub(crate) fn _determine_shard(&self, hash: usize) -> usize {
+        // Leave the high 7 bits for the HashBrown SIMD tag.
+        (hash << 7) >> self.shift
     }
 
     /// Returns a reference to the map's [`BuildHasher`].
@@ -490,7 +463,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let mut shard = unsafe { self.yield_write_shard(idx) };
 
@@ -530,7 +503,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let mut shard = unsafe { self.yield_write_shard(idx) };
 
@@ -554,7 +527,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let mut shard = unsafe { self.yield_write_shard(idx) };
 
@@ -626,7 +599,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = unsafe { self.yield_read_shard(idx) };
         // Safety: The data will not outlive the guard.
@@ -661,7 +634,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = unsafe { self.yield_write_shard(idx) };
         // Safety: The data will not outlive the guard.
@@ -701,7 +674,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = match unsafe { self.try_yield_read_shard(idx) } {
             Some(shard) => shard,
@@ -745,7 +718,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = match unsafe { self.try_yield_write_shard(idx) } {
             Some(shard) => shard,
@@ -985,7 +958,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     pub fn entry(&self, key: K) -> Entry<'_, K, V> {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = unsafe { self.yield_write_shard(idx) };
         // Safety: The data will not outlive the guard.
@@ -1016,7 +989,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     pub fn try_entry(&self, key: K) -> Option<Entry<'_, K, V>> {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = unsafe { self.try_yield_write_shard(idx) }?;
         // Safety: The data will not outlive the guard.
@@ -1112,7 +1085,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let mut shard = unsafe { self.yield_write_shard(idx) };
 
@@ -1131,7 +1104,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let mut shard = unsafe { self.yield_write_shard(idx) };
 
@@ -1155,7 +1128,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let mut shard = unsafe { self.yield_write_shard(idx) };
 
@@ -1187,7 +1160,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = unsafe { self.yield_read_shard(idx) };
         // Safety: The data will not outlive the guard.
@@ -1208,7 +1181,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = unsafe { self.yield_write_shard(idx) };
         // Safety: The data will not outlive the guard.
@@ -1229,7 +1202,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = match unsafe { self.try_yield_read_shard(idx) } {
             Some(shard) => shard,
@@ -1253,7 +1226,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = match unsafe { self.try_yield_write_shard(idx) } {
             Some(shard) => shard,
@@ -1325,7 +1298,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     fn _entry(&self, key: K) -> Entry<'_, K, V> {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = unsafe { self.yield_write_shard(idx) };
         // Safety: The data will not outlive the guard.
@@ -1352,7 +1325,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     fn _try_entry(&self, key: K) -> Option<Entry<'_, K, V>> {
         let hash = self.hash_u64(&key);
 
-        let idx = self.determine_shard(hash as usize);
+        let idx = self._determine_shard(hash as usize);
 
         let shard = unsafe { self.try_yield_write_shard(idx) }?;
         // Safety: The data will not outlive the guard.

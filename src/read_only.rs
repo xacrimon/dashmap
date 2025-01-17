@@ -1,9 +1,12 @@
+#[cfg(feature = "raw-api")]
 use crate::lock::RwLock;
-use crate::{DashMap, HashMap};
-use cfg_if::cfg_if;
+use crate::DashMap;
+#[cfg(feature = "raw-api")]
+use crate::HashMap;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
+#[cfg(feature = "raw-api")]
 use crossbeam_utils::CachePadded;
 use std::collections::hash_map::RandomState;
 
@@ -81,7 +84,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     {
         let hash = self.map.hash_u64(&key);
 
-        let idx = self.map.determine_shard(hash as usize);
+        let idx = self.map._determine_shard(hash as usize);
 
         let shard = unsafe { self.map.get_read_shard(idx) };
 
@@ -108,30 +111,22 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
         self.iter().map(|(_k, v)| v)
     }
 
-    cfg_if! {
-        if #[cfg(feature = "raw-api")] {
-            /// Allows you to peek at the inner shards that store your data.
-            /// You should probably not use this unless you know what you are doing.
-            ///
-            /// Requires the `raw-api` feature to be enabled.
-            ///
-            /// # Examples
-            ///
-            /// ```
-            /// use dashmap::DashMap;
-            ///
-            /// let map = DashMap::<(), ()>::new().into_read_only();
-            /// println!("Amount of shards: {}", map.shards().len());
-            /// ```
-            pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
-                &self.map.shards
-            }
-        } else {
-            #[allow(dead_code)]
-            pub(crate) fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
-                &self.map.shards
-            }
-        }
+    #[cfg(feature = "raw-api")]
+    /// Allows you to peek at the inner shards that store your data.
+    /// You should probably not use this unless you know what you are doing.
+    ///
+    /// Requires the `raw-api` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::<(), ()>::new().into_read_only();
+    /// println!("Amount of shards: {}", map.shards().len());
+    /// ```
+    pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
+        &self.map.shards
     }
 }
 

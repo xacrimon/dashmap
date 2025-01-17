@@ -5,7 +5,6 @@ use crate::setref::one::Ref;
 use crate::DashMap;
 #[cfg(feature = "raw-api")]
 use crate::HashMap;
-use cfg_if::cfg_if;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
@@ -123,74 +122,65 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
         self.inner.hash_usize(item)
     }
 
-    cfg_if! {
-        if #[cfg(feature = "raw-api")] {
-            /// Allows you to peek at the inner shards that store your data.
-            /// You should probably not use this unless you know what you are doing.
-            ///
-            /// Requires the `raw-api` feature to be enabled.
-            ///
-            /// # Examples
-            ///
-            /// ```
-            /// use dashmap::DashSet;
-            ///
-            /// let set = DashSet::<()>::new();
-            /// println!("Amount of shards: {}", set.shards().len());
-            /// ```
-            pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, ()>>>] {
-                self.inner.shards()
-            }
-        }
+    #[cfg(feature = "raw-api")]
+    /// Allows you to peek at the inner shards that store your data.
+    /// You should probably not use this unless you know what you are doing.
+    ///
+    /// Requires the `raw-api` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let set = DashSet::<()>::new();
+    /// println!("Amount of shards: {}", set.shards().len());
+    /// ```
+    pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, ()>>>] {
+        self.inner.shards()
     }
 
-    cfg_if! {
-        if #[cfg(feature = "raw-api")] {
-            /// Finds which shard a certain key is stored in.
-            /// You should probably not use this unless you know what you are doing.
-            /// Note that shard selection is dependent on the default or provided HashBuilder.
-            ///
-            /// Requires the `raw-api` feature to be enabled.
-            ///
-            /// # Examples
-            ///
-            /// ```
-            /// use dashmap::DashSet;
-            ///
-            /// let set = DashSet::new();
-            /// set.insert("coca-cola");
-            /// println!("coca-cola is stored in shard: {}", set.determine_map("coca-cola"));
-            /// ```
-            pub fn determine_map<Q>(&self, key: &Q) -> usize
-            where
-                K: Borrow<Q>,
-                Q: Hash + Eq + ?Sized,
-            {
-                self.inner.determine_map(key)
-            }
-        }
+    #[cfg(feature = "raw-api")]
+    /// Finds which shard a certain key is stored in.
+    /// You should probably not use this unless you know what you are doing.
+    /// Note that shard selection is dependent on the default or provided HashBuilder.
+    ///
+    /// Requires the `raw-api` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let set = DashSet::new();
+    /// set.insert("coca-cola");
+    /// println!("coca-cola is stored in shard: {}", set.determine_map("coca-cola"));
+    /// ```
+    pub fn determine_map<Q>(&self, key: &Q) -> usize
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.inner.determine_map(key)
     }
 
-    cfg_if! {
-        if #[cfg(feature = "raw-api")] {
-            /// Finds which shard a certain hash is stored in.
-            ///
-            /// Requires the `raw-api` feature to be enabled.
-            ///
-            /// # Examples
-            ///
-            /// ```
-            /// use dashmap::DashSet;
-            ///
-            /// let set: DashSet<i32> = DashSet::new();
-            /// let key = "key";
-            /// let hash = set.hash_usize(&key);
-            /// println!("hash is stored in shard: {}", set.determine_shard(hash));
-            /// ```
-            pub fn determine_shard(&self, hash: usize) -> usize {
-                self.inner.determine_shard(hash)
-            }
-        }
+    #[cfg(feature = "raw-api")]
+    /// Finds which shard a certain hash is stored in.
+    ///
+    /// Requires the `raw-api` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let set: DashSet<i32> = DashSet::new();
+    /// let key = "key";
+    /// let hash = set.hash_usize(&key);
+    /// println!("hash is stored in shard: {}", set.determine_shard(hash));
+    /// ```
+    pub fn determine_shard(&self, hash: usize) -> usize {
+        self.inner.determine_shard(hash)
     }
 
     /// Inserts a key into the set. Returns true if the key was not already in the set.
