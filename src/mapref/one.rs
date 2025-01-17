@@ -1,4 +1,5 @@
 use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
+use crate::util::try_map;
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
 use std::fmt::{Debug, Formatter};
@@ -125,22 +126,19 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
         }
     }
 
-    pub fn try_map<F, T>(self, f: F) -> Result<MappedRefMut<'a, K, T>, Self>
+    pub fn try_map<F, T: 'a>(self, f: F) -> Result<MappedRefMut<'a, K, T>, Self>
     where
         F: FnOnce(&mut V) -> Option<&mut T>,
     {
-        // Safety: this is needed to get around a polonius limitation...
-        let v = match f(unsafe { &mut *(self.v as *mut _) }) {
-            Some(v) => v,
-            None => return Err(self),
-        };
-        let guard = self.guard;
-        let k = self.k;
-        Ok(MappedRefMut {
-            _guard: guard,
-            k,
-            v,
-        })
+        let Self { guard, k, v } = self;
+        match try_map(v, f) {
+            Ok(v) => Ok(MappedRefMut {
+                _guard: guard,
+                k,
+                v,
+            }),
+            Err(v) => Err(Self { guard, k, v }),
+        }
     }
 }
 
@@ -285,18 +283,11 @@ impl<'a, K: Eq + Hash, T> MappedRefMut<'a, K, T> {
     where
         F: FnOnce(&mut T) -> Option<&mut T2>,
     {
-        // Safety: this is needed to get around a polonius limitation...
-        let v = match f(unsafe { &mut *(self.v as *mut _) }) {
-            Some(v) => v,
-            None => return Err(self),
-        };
-        let guard = self._guard;
-        let k = self.k;
-        Ok(MappedRefMut {
-            _guard: guard,
-            k,
-            v,
-        })
+        let Self { _guard, k, v } = self;
+        match try_map(v, f) {
+            Ok(v) => Ok(MappedRefMut { _guard, k, v }),
+            Err(v) => Err(Self { _guard, k, v }),
+        }
     }
 }
 

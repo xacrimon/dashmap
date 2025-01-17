@@ -9,6 +9,19 @@ pub const fn ptr_size_bits() -> usize {
     mem::size_of::<usize>() * 8
 }
 
+pub(crate) fn try_map<F, T, U>(mut t: &mut T, f: F) -> Result<&mut U, &mut T>
+where
+    F: FnOnce(&mut T) -> Option<&mut U>,
+{
+    use polonius_the_crab::{polonius, polonius_return};
+    polonius!(|t| -> Result<&'polonius mut U, &mut T> {
+        if let Some(u) = f(t) {
+            polonius_return!(Ok(u));
+        }
+    });
+    Err(t)
+}
+
 /// A [`RwLockReadGuard`], without the data
 pub(crate) struct RwLockReadGuardDetached<'a, R: RawRwLock> {
     lock: &'a R,
