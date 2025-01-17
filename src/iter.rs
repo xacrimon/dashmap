@@ -125,10 +125,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V,
         loop {
             if let Some(current) = self.current.as_mut() {
                 if let Some((k, v)) = current.1.next() {
-                    return unsafe {
-                        let guard = current.0.clone();
-                        Some(RefMulti::new(guard, k, v))
-                    };
+                    let guard = current.0.clone();
+                    return Some(RefMulti::new(guard, k, v));
                 }
             }
 
@@ -189,10 +187,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V,
         loop {
             if let Some(current) = self.current.as_mut() {
                 if let Some((k, v)) = current.1.next() {
-                    return unsafe {
-                        let guard = current.0.clone();
-                        Some(RefMutMulti::new(guard, k, v))
-                    };
+                    let guard = current.0.clone();
+                    return Some(RefMutMulti::new(guard, k, v));
                 }
             }
 

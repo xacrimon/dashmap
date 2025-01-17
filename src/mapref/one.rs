@@ -10,7 +10,7 @@ pub struct Ref<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
-    pub(crate) unsafe fn new(guard: RwLockReadGuardDetached<'a>, k: &'a K, v: &'a V) -> Self {
+    pub(crate) fn new(guard: RwLockReadGuardDetached<'a>, k: &'a K, v: &'a V) -> Self {
         Self {
             _guard: guard,
             k,
@@ -81,7 +81,7 @@ pub struct RefMut<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
-    pub(crate) unsafe fn new(guard: RwLockWriteGuardDetached<'a>, k: &'a K, v: &'a mut V) -> Self {
+    pub(crate) fn new(guard: RwLockWriteGuardDetached<'a>, k: &'a K, v: &'a mut V) -> Self {
         Self { guard, k, v }
     }
 

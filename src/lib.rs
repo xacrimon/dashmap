@@ -1038,10 +1038,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
         if let Some(entry) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            unsafe {
-                let (k, v) = entry;
-                Some(Ref::new(guard, k, v))
-            }
+            let (k, v) = entry;
+            Some(Ref::new(guard, k, v))
         } else {
             None
         }
@@ -1061,10 +1059,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
-            unsafe {
-                let (k, v) = entry.into_mut();
-                Some(RefMut::new(guard, k, v))
-            }
+            let (k, v) = entry.into_mut();
+            Some(RefMut::new(guard, k, v))
         } else {
             None
         }
@@ -1087,10 +1083,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
         if let Some(entry) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            unsafe {
-                let (k, v) = entry;
-                TryResult::Present(Ref::new(guard, k, v))
-            }
+            let (k, v) = entry;
+            TryResult::Present(Ref::new(guard, k, v))
         } else {
             TryResult::Absent
         }
@@ -1113,10 +1107,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
-            unsafe {
-                let (k, v) = entry.into_mut();
-                TryResult::Present(RefMut::new(guard, k, v))
-            }
+            let (k, v) = entry.into_mut();
+            TryResult::Present(RefMut::new(guard, k, v))
         } else {
             TryResult::Absent
         }
@@ -1193,10 +1185,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             },
         ) {
             hash_table::Entry::Occupied(occupied_entry) => {
-                Entry::Occupied(unsafe { OccupiedEntry::new(guard, key, occupied_entry) })
+                Entry::Occupied(OccupiedEntry::new(guard, key, occupied_entry))
             }
             hash_table::Entry::Vacant(vacant_entry) => {
-                Entry::Vacant(unsafe { VacantEntry::new(guard, key, vacant_entry) })
+                Entry::Vacant(VacantEntry::new(guard, key, vacant_entry))
             }
         }
     }
@@ -1219,12 +1211,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
                 hasher.finish()
             },
         ) {
-            hash_table::Entry::Occupied(occupied_entry) => Some(Entry::Occupied(unsafe {
-                OccupiedEntry::new(guard, key, occupied_entry)
-            })),
-            hash_table::Entry::Vacant(vacant_entry) => Some(Entry::Vacant(unsafe {
-                VacantEntry::new(guard, key, vacant_entry)
-            })),
+            hash_table::Entry::Occupied(occupied_entry) => Some(Entry::Occupied(
+                OccupiedEntry::new(guard, key, occupied_entry),
+            )),
+            hash_table::Entry::Vacant(vacant_entry) => {
+                Some(Entry::Vacant(VacantEntry::new(guard, key, vacant_entry)))
+            }
         }
     }
 
