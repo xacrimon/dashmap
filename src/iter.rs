@@ -279,7 +279,7 @@ mod tests {
 
         let mut c = 0;
 
-        for shard in map.shards() {
+        for shard in map.shards().iter() {
             c += unsafe { shard.write().iter().count() };
         }
 
