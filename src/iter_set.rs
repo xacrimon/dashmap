@@ -1,5 +1,4 @@
 use crate::setref::multiple::RefMulti;
-use crate::t::Map;
 use core::hash::{BuildHasher, Hash};
 
 pub struct OwningIter<K, S> {
@@ -20,19 +19,17 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> Iterator for OwningIter<K, S> {
     }
 }
 
-pub struct Iter<'a, K, S, M> {
-    inner: crate::iter::Iter<'a, K, (), S, M>,
+pub struct Iter<'a, K, S> {
+    inner: crate::iter::Iter<'a, K, (), S>,
 }
 
-impl<'a, K: 'a + Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iter<'a, K, S, M> {
-    pub(crate) fn new(inner: crate::iter::Iter<'a, K, (), S, M>) -> Self {
+impl<'a, K: 'a + Eq + Hash, S: 'a + BuildHasher + Clone> Iter<'a, K, S> {
+    pub(crate) fn new(inner: crate::iter::Iter<'a, K, (), S>) -> Self {
         Self { inner }
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iterator
-    for Iter<'a, K, S, M>
-{
+impl<'a, K: 'a + Eq + Hash, S: 'a + BuildHasher + Clone> Iterator for Iter<'a, K, S> {
     type Item = RefMulti<'a, K>;
 
     fn next(&mut self) -> Option<Self::Item> {
