@@ -49,11 +49,11 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
                 }
             }
 
-            if self.shard_i == self.map._shard_count() {
+            if self.shard_i == self.map.shards.len() {
                 return None;
             }
 
-            let mut shard_wl = unsafe { self.map._yield_write_shard(self.shard_i) };
+            let mut shard_wl = unsafe { self.map.yield_write_shard(self.shard_i) };
 
             let map = mem::take(&mut *shard_wl);
 
@@ -125,11 +125,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Iterator for Ite
                 }
             }
 
-            if self.shard_i == self.map._shard_count() {
+            if self.shard_i == self.map.shards.len() {
                 return None;
             }
 
-            let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+            let guard = unsafe { self.map.yield_read_shard(self.shard_i) };
             let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(guard) };
 
             let iter = shard.iter();
@@ -183,11 +183,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Iterator for Ite
                 }
             }
 
-            if self.shard_i == self.map._shard_count() {
+            if self.shard_i == self.map.shards.len() {
                 return None;
             }
 
-            let guard = unsafe { self.map._yield_write_shard(self.shard_i) };
+            let guard = unsafe { self.map.yield_write_shard(self.shard_i) };
             let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(guard) };
 
             let iter = shard.iter_mut();
