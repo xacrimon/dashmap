@@ -106,13 +106,12 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
     }
 
     pub fn downgrade(self) -> Ref<'a, K, V> {
-        unsafe {
-            Ref::new(
-                RwLockWriteGuardDetached::downgrade(self.guard),
-                self.k,
-                self.v,
-            )
-        }
+        Ref::new(
+            // SAFETY: `Ref` will prevent writes to the data.
+            unsafe { RwLockWriteGuardDetached::downgrade(self.guard) },
+            self.k,
+            self.v,
+        )
     }
 
     pub fn map<F, T>(self, f: F) -> MappedRefMut<'a, K, T>
@@ -130,6 +129,7 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
     where
         F: FnOnce(&mut V) -> Option<&mut T>,
     {
+        // Safety: this is needed to get around a polonius limitation...
         let v = match f(unsafe { &mut *(self.v as *mut _) }) {
             Some(v) => v,
             None => return Err(self),
@@ -285,6 +285,7 @@ impl<'a, K: Eq + Hash, T> MappedRefMut<'a, K, T> {
     where
         F: FnOnce(&mut T) -> Option<&mut T2>,
     {
+        // Safety: this is needed to get around a polonius limitation...
         let v = match f(unsafe { &mut *(self.v as *mut _) }) {
             Some(v) => v,
             None => return Err(self),

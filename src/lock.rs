@@ -18,6 +18,8 @@ pub struct RawRwLock {
     state: AtomicUsize,
 }
 
+// Safety:
+// This RawRwLock is actually exclusive
 unsafe impl lock_api::RawRwLock for RawRwLock {
     #[allow(clippy::declare_interior_mutable_const)]
     const INIT: Self = Self {
@@ -77,6 +79,9 @@ unsafe impl lock_api::RawRwLock for RawRwLock {
     }
 }
 
+// Safety:
+// `lock_api::RawRwLockDowngrade` has no explicit safety requirements,
+// so I will assume it just requires the `downgrade` be implemented correctly.
 unsafe impl lock_api::RawRwLockDowngrade for RawRwLock {
     #[inline]
     unsafe fn downgrade(&self) {
@@ -127,6 +132,10 @@ impl RawRwLock {
                     }
                 }
 
+                // SAFETY:
+                // 1. We call park with an address that we control.
+                // 2. `validate` will not panic.
+                // 3. `before_sleep` and `timed_out` are no-ops.
                 let _ = unsafe {
                     parking_lot_core::park(
                         self as *const _ as usize,
@@ -171,12 +180,18 @@ impl RawRwLock {
         }
 
         if parked == READERS_PARKED {
+            // SAFETY:
+            // 1. We call unpark with an address that we control.
             return unsafe {
                 parking_lot_core::unpark_all((self as *const _ as usize) + 1, UnparkToken(0));
             };
         }
 
         assert_eq!(parked, WRITERS_PARKED);
+
+        // SAFETY:
+        // 1. We call unpark with an address that we control.
+        // 2. `callback` will not panic.
         unsafe {
             parking_lot_core::unpark_one(self as *const _ as usize, |_| UnparkToken(0));
         }
@@ -270,6 +285,10 @@ impl RawRwLock {
                     }
                 }
 
+                // SAFETY:
+                // 1. We call park with an address that we control.
+                // 2. `validate` will not panic.
+                // 3. `before_sleep` and `timed_out` are no-ops.
                 let _ = unsafe {
                     parking_lot_core::park(
                         (self as *const _ as usize) + 1,
@@ -296,6 +315,9 @@ impl RawRwLock {
             .compare_exchange(WRITERS_PARKED, 0, Ordering::Relaxed, Ordering::Relaxed)
             .is_ok()
         {
+            // SAFETY:
+            // 1. We call unpark with an address that we control.
+            // 2. `callback` will not panic.
             unsafe {
                 parking_lot_core::unpark_one(self as *const _ as usize, |_| UnparkToken(0));
             }

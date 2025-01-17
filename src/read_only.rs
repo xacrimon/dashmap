@@ -85,6 +85,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
 
         let idx = self.map._determine_shard(hash as usize).idx;
 
+        // SAFETY: `shard_i` is in-bounds of `shards`.
         let shard = unsafe { self.get_read_shard(idx) };
 
         shard
@@ -95,7 +96,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// An iterator visiting all key-value pairs in arbitrary order. The iterator element type is `(&'a K, &'a V)`.
     pub fn iter(&'a self) -> impl Iterator<Item = (&'a K, &'a V)> {
         (0..self.map.shards.len())
-            .map(move |shard_i| unsafe { self.get_read_shard(shard_i) })
+            .map(move |shard_i| {
+                // SAFETY: `shard_i` is in-bounds of `shards`.
+                unsafe { self.get_read_shard(shard_i) }
+            })
             .flat_map(|shard| shard.iter())
             .map(|(k, v)| (k, v))
     }
@@ -128,9 +132,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
         &self.map.shards
     }
 
+    /// # Safety
+    /// The `i` index must be in-bounds.
     unsafe fn get_read_shard(&self, i: usize) -> &HashMap<K, V> {
         debug_assert!(i < self.map.shards.len());
-        &*self.map.shards.get_unchecked(i).data_ptr()
+        // SAFETY: caller guarantees that i is inbounds
+        let shard = unsafe { self.map.shards.get_unchecked(i) };
+        // SAFETY: This map is in read-only mode, so there's no possibility of concurrent writes.
+        unsafe { &*shard.data_ptr() }
     }
 }
 

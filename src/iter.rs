@@ -125,11 +125,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Iterator for Iter<'a, K, V> {
             let shard_i = self.shard_i.take()?;
 
             let guard = shard_i.shard().read();
+
+            // SAFETY: we keep the guard alive with the shard iterator,
+            // and with any refs produced by the iterator
             let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(guard) };
-
-            let iter = shard.iter();
-
-            self.current = Some((Arc::new(guard), iter));
+            self.current = Some((Arc::new(guard), shard.iter()));
 
             self.shard_i = shard_i.next_shard();
         }
@@ -177,11 +177,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Iterator for IterMut<'a, K, V> {
             let shard_i = self.shard_i.take()?;
 
             let guard = shard_i.shard().write();
+
+            // SAFETY: we keep the guard alive with the shard iterator,
+            // and with any refs produced by the iterator
             let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(guard) };
-
-            let iter = shard.iter_mut();
-
-            self.current = Some((Arc::new(guard), iter));
+            self.current = Some((Arc::new(guard), shard.iter_mut()));
 
             self.shard_i = shard_i.next_shard();
         }

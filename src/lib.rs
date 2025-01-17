@@ -1,4 +1,5 @@
 #![allow(clippy::type_complexity)]
+#![warn(clippy::undocumented_unsafe_blocks)]
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary;
@@ -613,7 +614,8 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         let idx = self._determine_shard(hash as usize);
 
         let shard = idx.shard().read();
-        // Safety: The data will not outlive the guard.
+
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `Ref`.
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
         if let Some(entry) = shard.find(hash, |(k, _v)| key == k.borrow()) {
@@ -648,7 +650,8 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         let idx = self._determine_shard(hash as usize);
 
         let shard = idx.shard().write();
-        // Safety: The data will not outlive the guard.
+
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `RefMut`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
@@ -691,7 +694,8 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
-        // Safety: The data will not outlive the guard.
+
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `Ref`.
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
         if let Some(entry) = shard.find(hash, |(k, _v)| key == k.borrow()) {
@@ -735,7 +739,8 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
-        // Safety: The data will not outlive the guard.
+
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `RefMut`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
@@ -975,7 +980,8 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         let idx = self._determine_shard(hash as usize);
 
         let shard = idx.shard().write();
-        // Safety: The data will not outlive the guard.
+
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         match shard.entry(
@@ -1006,7 +1012,8 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         let idx = self._determine_shard(hash as usize);
 
         let shard = idx.shard().try_write()?;
-        // Safety: The data will not outlive the guard.
+
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         match shard.entry(
@@ -1065,6 +1072,7 @@ impl<K, V> Clone for ShardIdx<'_, K, V> {
 
 impl<'a, K, V> ShardIdx<'a, K, V> {
     fn shard(&self) -> &'a RwLock<HashMap<K, V>> {
+        // SAFETY: `idx` is inbounds.
         unsafe { self.map.get_unchecked(self.idx) }
     }
 
