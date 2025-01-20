@@ -10,8 +10,8 @@ pub struct RefMulti<'a, K, V> {
     v: *const V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMulti<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMulti<'a, K, V> {}
+unsafe impl<K: Eq + Hash + Sync, V: Sync> Send for RefMulti<'_, K, V> {}
+unsafe impl<K: Eq + Hash + Sync, V: Sync> Sync for RefMulti<'_, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     pub(crate) unsafe fn new(
@@ -39,7 +39,7 @@ impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
+impl<K: Eq + Hash, V> Deref for RefMulti<'_, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -53,8 +53,8 @@ pub struct RefMutMulti<'a, K, V> {
     v: *mut V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMutMulti<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMutMulti<'a, K, V> {}
+unsafe impl<K: Eq + Hash + Sync, V: Sync> Send for RefMutMulti<'_, K, V> {}
+unsafe impl<K: Eq + Hash + Sync, V: Sync> Sync for RefMutMulti<'_, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     pub(crate) unsafe fn new(
@@ -90,7 +90,7 @@ impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for RefMutMulti<'a, K, V> {
+impl<K: Eq + Hash, V> Deref for RefMutMulti<'_, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -98,7 +98,7 @@ impl<'a, K: Eq + Hash, V> Deref for RefMutMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> DerefMut for RefMutMulti<'a, K, V> {
+impl<K: Eq + Hash, V> DerefMut for RefMutMulti<'_, K, V> {
     fn deref_mut(&mut self) -> &mut V {
         self.value_mut()
     }

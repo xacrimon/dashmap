@@ -117,8 +117,8 @@ pub struct VacantEntry<'a, K, V> {
     slot: hashbrown::raw::InsertSlot,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for VacantEntry<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for VacantEntry<'a, K, V> {}
+unsafe impl<K: Eq + Hash + Sync, V: Sync> Send for VacantEntry<'_, K, V> {}
+unsafe impl<K: Eq + Hash + Sync, V: Sync> Sync for VacantEntry<'_, K, V> {}
 
 impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     pub(crate) unsafe fn new(
@@ -176,8 +176,8 @@ pub struct OccupiedEntry<'a, K, V> {
     key: K,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for OccupiedEntry<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for OccupiedEntry<'a, K, V> {}
+unsafe impl<K: Eq + Hash + Sync, V: Sync> Send for OccupiedEntry<'_, K, V> {}
+unsafe impl<K: Eq + Hash + Sync, V: Sync> Sync for OccupiedEntry<'_, K, V> {}
 
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     pub(crate) unsafe fn new(

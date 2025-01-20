@@ -16,7 +16,7 @@ impl<'a, K: Eq + Hash> Ref<'a, K> {
     }
 }
 
-impl<'a, K: Eq + Hash> Deref for Ref<'a, K> {
+impl<K: Eq + Hash> Deref for Ref<'_, K> {
     type Target = K;
 
     fn deref(&self) -> &K {

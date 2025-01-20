@@ -169,35 +169,35 @@ macro_rules! serialize_impl {
 }
 
 // Map
-impl<'a, K: Eq + Hash, V: Serialize> Serialize for mapref::multiple::RefMulti<'a, K, V> {
+impl<K: Eq + Hash, V: Serialize> Serialize for mapref::multiple::RefMulti<'_, K, V> {
     serialize_impl! {}
 }
 
-impl<'a, K: Eq + Hash, V: Serialize> Serialize for mapref::multiple::RefMutMulti<'a, K, V> {
+impl<K: Eq + Hash, V: Serialize> Serialize for mapref::multiple::RefMutMulti<'_, K, V> {
     serialize_impl! {}
 }
 
-impl<'a, K: Eq + Hash, V: Serialize> Serialize for mapref::one::Ref<'a, K, V> {
+impl<K: Eq + Hash, V: Serialize> Serialize for mapref::one::Ref<'_, K, V> {
     serialize_impl! {}
 }
 
-impl<'a, K: Eq + Hash, V: Serialize> Serialize for mapref::one::RefMut<'a, K, V> {
+impl<K: Eq + Hash, V: Serialize> Serialize for mapref::one::RefMut<'_, K, V> {
     serialize_impl! {}
 }
 
-impl<'a, K: Eq + Hash, V, T: Serialize> Serialize for mapref::one::MappedRef<'a, K, V, T> {
+impl<K: Eq + Hash, V, T: Serialize> Serialize for mapref::one::MappedRef<'_, K, V, T> {
     serialize_impl! {}
 }
 
-impl<'a, K: Eq + Hash, V, T: Serialize> Serialize for mapref::one::MappedRefMut<'a, K, V, T> {
+impl<K: Eq + Hash, V, T: Serialize> Serialize for mapref::one::MappedRefMut<'_, K, V, T> {
     serialize_impl! {}
 }
 
 // Set
-impl<'a, V: Hash + Eq + Serialize> Serialize for setref::multiple::RefMulti<'a, V> {
+impl<V: Hash + Eq + Serialize> Serialize for setref::multiple::RefMulti<'_, V> {
     serialize_impl! {}
 }
 
-impl<'a, V: Hash + Eq + Serialize> Serialize for setref::one::Ref<'a, V> {
+impl<V: Hash + Eq + Serialize> Serialize for setref::one::Ref<'_, V> {
     serialize_impl! {}
 }

@@ -143,9 +143,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
 }
 
 #[cfg(test)]
-
 mod tests {
-
     use crate::DashMap;
 
     fn construct_sample_map() -> DashMap<i32, String> {

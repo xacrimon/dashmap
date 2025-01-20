@@ -113,13 +113,13 @@ pub struct Iter<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     marker: PhantomData<S>,
 }
 
-impl<'i, K: Clone + Hash + Eq, V: Clone, S: Clone + BuildHasher> Clone for Iter<'i, K, V, S> {
+impl<K: Clone + Hash + Eq, V: Clone, S: Clone + BuildHasher> Clone for Iter<'_, K, V, S> {
     fn clone(&self) -> Self {
         Iter::new(self.map)
     }
 }
 
-unsafe impl<'a, 'i, K, V, S, M> Send for Iter<'i, K, V, S, M>
+unsafe impl<'a, K, V, S, M> Send for Iter<'_, K, V, S, M>
 where
     K: 'a + Eq + Hash + Send,
     V: 'a + Send,
@@ -128,7 +128,7 @@ where
 {
 }
 
-unsafe impl<'a, 'i, K, V, S, M> Sync for Iter<'i, K, V, S, M>
+unsafe impl<'a, K, V, S, M> Sync for Iter<'_, K, V, S, M>
 where
     K: 'a + Eq + Hash + Sync,
     V: 'a + Sync,
@@ -199,7 +199,7 @@ pub struct IterMut<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
     marker: PhantomData<S>,
 }
 
-unsafe impl<'a, 'i, K, V, S, M> Send for IterMut<'i, K, V, S, M>
+unsafe impl<'a, K, V, S, M> Send for IterMut<'_, K, V, S, M>
 where
     K: 'a + Eq + Hash + Send,
     V: 'a + Send,
@@ -208,7 +208,7 @@ where
 {
 }
 
-unsafe impl<'a, 'i, K, V, S, M> Sync for IterMut<'i, K, V, S, M>
+unsafe impl<'a, K, V, S, M> Sync for IterMut<'_, K, V, S, M>
 where
     K: 'a + Eq + Hash + Sync,
     V: 'a + Sync,
