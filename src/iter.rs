@@ -92,7 +92,7 @@ pub struct Iter<'a, K, V> {
     current: Option<GuardIter<'a, K, V>>,
 }
 
-impl<K: Hash + Eq, V> Clone for Iter<'_, K, V> {
+impl<K, V> Clone for Iter<'_, K, V> {
     fn clone(&self) -> Self {
         Self {
             shard_i: self.shard_i,
@@ -210,6 +210,16 @@ mod tests {
     }
 
     #[test]
+    fn into_iter_count() {
+        let map = DashMap::new();
+
+        map.insert("Johnny", 21);
+        let c = map.into_iter().count();
+
+        assert_eq!(c, 1);
+    }
+
+    #[test]
     fn iter_mut_count() {
         let map = DashMap::new();
 
@@ -229,5 +239,21 @@ mod tests {
         assert_eq!(map.len(), 1);
 
         assert_eq!(map.iter().count(), 1);
+    }
+
+    #[test]
+    fn iter_clone() {
+        let map = DashMap::new();
+
+        map.insert("Johnny", 21);
+        map.insert("Chucky", 22);
+
+        let mut iter = map.iter();
+        iter.next();
+
+        let iter2 = iter.clone();
+
+        assert_eq!(iter.count(), 1);
+        assert_eq!(iter2.count(), 1);
     }
 }
