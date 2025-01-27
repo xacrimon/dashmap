@@ -1,3 +1,4 @@
+use crate::lock::RwLock;
 #[cfg(feature = "raw-api")]
 use crate::lock::RwLock;
 use crate::DashMap;
@@ -5,19 +6,25 @@ use crate::HashMap;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
+use crossbeam_utils::CachePadded;
 #[cfg(feature = "raw-api")]
 use crossbeam_utils::CachePadded;
 use std::collections::hash_map::RandomState;
+use std::hash::Hasher;
 
 /// A read-only view into a `DashMap`. Allows to obtain raw references to the stored values.
 pub struct ReadOnlyView<K, V, S = RandomState> {
-    pub(crate) map: DashMap<K, V, S>,
+    shift: usize,
+    shards: Box<[HashMap<K, V>]>,
+    hasher: S,
 }
 
 impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for ReadOnlyView<K, V, S> {
     fn clone(&self) -> Self {
         Self {
-            map: self.map.clone(),
+            shards: self.shards.clone(),
+            hasher: self.hasher.clone(),
+            shift: self.shift,
         }
     }
 }
@@ -26,35 +33,65 @@ impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debu
     for ReadOnlyView<K, V, S>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.map.fmt(f)
+        f.debug_map().entries(self.iter()).finish()
     }
 }
 
 impl<K, V, S> ReadOnlyView<K, V, S> {
     pub(crate) fn new(map: DashMap<K, V, S>) -> Self {
-        Self { map }
+        Self {
+            shards: Vec::from(map.shards)
+                .into_iter()
+                .map(|s| s.into_inner().into_inner())
+                .collect(),
+            shift: map.shift,
+            hasher: map.hasher,
+        }
     }
 
     /// Consumes this `ReadOnlyView`, returning the underlying `DashMap`.
     pub fn into_inner(self) -> DashMap<K, V, S> {
-        self.map
+        DashMap {
+            shards: Vec::from(self.shards)
+                .into_iter()
+                .map(|s| CachePadded::new(RwLock::new(s)))
+                .collect(),
+            shift: self.shift,
+            hasher: self.hasher,
+        }
     }
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S> {
+    fn hash_u64<T: Hash>(&self, item: &T) -> u64 {
+        let mut hasher = self.hasher.build_hasher();
+
+        item.hash(&mut hasher);
+
+        hasher.finish()
+    }
+
+    fn _determine_shard(&self, hash: usize) -> ShardIdx<'_, K, V> {
+        ShardIdx {
+            // Leave the high 7 bits for the HashBrown SIMD tag.
+            idx: (hash << 7) >> self.shift,
+            map: &self.shards,
+        }
+    }
+
     /// Returns the number of elements in the map.
     pub fn len(&self) -> usize {
-        self.map.len()
+        self.shards.iter().map(|s| s.len()).sum()
     }
 
     /// Returns `true` if the map contains no elements.
     pub fn is_empty(&self) -> bool {
-        self.map.is_empty()
+        self.len() == 0
     }
 
     /// Returns the number of elements the map can hold without reallocating.
     pub fn capacity(&self) -> usize {
-        self.map.capacity()
+        self.shards.iter().map(|s| s.capacity()).sum()
     }
 
     /// Returns `true` if the map contains a value for the specified key.
@@ -81,25 +118,26 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let hash = self.map.hash_u64(&key);
-
-        let idx = self.map._determine_shard(hash as usize).idx;
-
-        // SAFETY: `shard_i` is in-bounds of `shards`.
-        let shard = unsafe { self.get_read_shard(idx) };
+        let hash = self.hash_u64(&key);
+        let idx = self._determine_shard(hash as usize);
+        let shard = idx.shard();
 
         shard
             .find(hash, |(k, _v)| key == k.borrow())
             .map(|(k, v)| (k, v))
     }
 
+    fn first_shard(&self) -> ShardIdx<'_, K, V> {
+        ShardIdx {
+            idx: 0,
+            map: &self.shards,
+        }
+    }
+
     /// An iterator visiting all key-value pairs in arbitrary order. The iterator element type is `(&'a K, &'a V)`.
     pub fn iter(&'a self) -> impl Iterator<Item = (&'a K, &'a V)> {
-        (0..self.map.shards.len())
-            .map(move |shard_i| {
-                // SAFETY: `shard_i` is in-bounds of `shards`.
-                unsafe { self.get_read_shard(shard_i) }
-            })
+        std::iter::successors(Some(self.first_shard()), |s| s.next_shard())
+            .map(|shard_i| shard_i.shard())
             .flat_map(|shard| shard.iter())
             .map(|(k, v)| (k, v))
     }
@@ -129,17 +167,36 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// println!("Amount of shards: {}", map.shards().len());
     /// ```
     pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
-        &self.map.shards
+        &self.shards
+    }
+}
+
+struct ShardIdx<'a, K, V> {
+    idx: usize,
+    map: &'a [HashMap<K, V>],
+}
+
+impl<K, V> Copy for ShardIdx<'_, K, V> {}
+
+impl<K, V> Clone for ShardIdx<'_, K, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<'a, K, V> ShardIdx<'a, K, V> {
+    fn shard(&self) -> &'a HashMap<K, V> {
+        // SAFETY: `idx` is inbounds.
+        unsafe { self.map.get_unchecked(self.idx) }
     }
 
-    /// # Safety
-    /// The `i` index must be in-bounds.
-    unsafe fn get_read_shard(&self, i: usize) -> &HashMap<K, V> {
-        debug_assert!(i < self.map.shards.len());
-        // SAFETY: caller guarantees that i is inbounds
-        let shard = unsafe { self.map.shards.get_unchecked(i) };
-        // SAFETY: This map is in read-only mode, so there's no possibility of concurrent writes.
-        unsafe { &*shard.data_ptr() }
+    fn next_shard(mut self) -> Option<Self> {
+        self.idx += 1;
+        if self.idx == self.map.len() {
+            None
+        } else {
+            Some(self)
+        }
     }
 }
 
