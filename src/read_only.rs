@@ -1,13 +1,9 @@
 use crate::lock::RwLock;
-#[cfg(feature = "raw-api")]
-use crate::lock::RwLock;
 use crate::DashMap;
 use crate::HashMap;
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
-use crossbeam_utils::CachePadded;
-#[cfg(feature = "raw-api")]
 use crossbeam_utils::CachePadded;
 use std::collections::hash_map::RandomState;
 use std::hash::Hasher;
@@ -15,7 +11,7 @@ use std::hash::Hasher;
 /// A read-only view into a `DashMap`. Allows to obtain raw references to the stored values.
 pub struct ReadOnlyView<K, V, S = RandomState> {
     shift: usize,
-    shards: Box<[HashMap<K, V>]>,
+    pub(crate) shards: Box<[HashMap<K, V>]>,
     hasher: S,
 }
 
@@ -166,7 +162,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// let map = DashMap::<(), ()>::new().into_read_only();
     /// println!("Amount of shards: {}", map.shards().len());
     /// ```
-    pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
+    pub fn shards(&self) -> &[HashMap<K, V>] {
         &self.shards
     }
 }

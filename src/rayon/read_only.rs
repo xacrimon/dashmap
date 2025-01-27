@@ -1,8 +1,8 @@
-use crate::mapref::multiple::RefMulti;
-use crate::rayon::map::Iter;
+use crate::HashMap;
 use crate::ReadOnlyView;
 use core::hash::{BuildHasher, Hash};
-use rayon::iter::IntoParallelIterator;
+use rayon::iter::plumbing::UnindexedConsumer;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 impl<K, V, S> IntoParallelIterator for ReadOnlyView<K, V, S>
 where
@@ -10,13 +10,35 @@ where
     V: Send,
     S: Send + Clone + BuildHasher,
 {
-    type Iter = super::map::OwningIter<K, V>;
+    type Iter = ReadOnlyOwningIter<K, V>;
     type Item = (K, V);
 
     fn into_par_iter(self) -> Self::Iter {
-        super::map::OwningIter {
-            shards: self.map.shards,
+        ReadOnlyOwningIter {
+            shards: self.shards,
         }
+    }
+}
+
+pub struct ReadOnlyOwningIter<K, V> {
+    pub(super) shards: Box<[HashMap<K, V>]>,
+}
+
+impl<K, V> ParallelIterator for ReadOnlyOwningIter<K, V>
+where
+    K: Send + Eq + Hash,
+    V: Send,
+{
+    type Item = (K, V);
+
+    fn drive_unindexed<C>(self, consumer: C) -> C::Result
+    where
+        C: UnindexedConsumer<Self::Item>,
+    {
+        Vec::from(self.shards)
+            .into_par_iter()
+            .flat_map_iter(|shard| shard.into_iter())
+            .drive_unindexed(consumer)
     }
 }
 
@@ -27,13 +49,35 @@ where
     V: Send + Sync,
     S: Send + Sync + Clone + BuildHasher,
 {
-    type Iter = Iter<'a, K, V>;
-    type Item = RefMulti<'a, K, V>;
+    type Iter = ReadOnlyIter<'a, K, V>;
+    type Item = &'a (K, V);
 
     fn into_par_iter(self) -> Self::Iter {
-        Iter {
-            shards: &self.map.shards,
+        ReadOnlyIter {
+            shards: &self.shards,
         }
+    }
+}
+
+pub struct ReadOnlyIter<'a, K, V> {
+    pub(super) shards: &'a [HashMap<K, V>],
+}
+
+impl<'a, K, V> ParallelIterator for ReadOnlyIter<'a, K, V>
+where
+    K: Send + Sync + Eq + Hash,
+    V: Send + Sync,
+{
+    type Item = &'a (K, V);
+
+    fn drive_unindexed<C>(self, consumer: C) -> C::Result
+    where
+        C: UnindexedConsumer<Self::Item>,
+    {
+        self.shards
+            .into_par_iter()
+            .flat_map_iter(|shard| shard.iter())
+            .drive_unindexed(consumer)
     }
 }
 
@@ -63,7 +107,7 @@ mod tests {
         let view = map.clone().into_read_only();
 
         view.par_iter().for_each(|entry| {
-            let key = *entry.key();
+            let (key, _) = *entry;
 
             assert!(view.contains_key(&key));
 
