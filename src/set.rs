@@ -389,7 +389,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher> ClashSet<K, S> {
 impl<K: Eq + Hash, S: BuildHasher> IntoIterator for ClashSet<K, S> {
     type Item = K;
 
-    type IntoIter = OwningIter<K, S>;
+    type IntoIter = OwningIter<K>;
 
     fn into_iter(self) -> Self::IntoIter {
         OwningIter::new(self.inner.into_iter())

@@ -1,17 +1,17 @@
 use crate::setref::multiple::RefMulti;
-use core::hash::{BuildHasher, Hash};
+use core::hash::Hash;
 
-pub struct OwningIter<K, S> {
-    inner: crate::iter::OwningIter<K, (), S>,
+pub struct OwningIter<K> {
+    inner: crate::iter::OwningIter<K, ()>,
 }
 
-impl<K: Eq + Hash, S: BuildHasher> OwningIter<K, S> {
-    pub(crate) fn new(inner: crate::iter::OwningIter<K, (), S>) -> Self {
+impl<K: Eq + Hash> OwningIter<K> {
+    pub(crate) fn new(inner: crate::iter::OwningIter<K, ()>) -> Self {
         Self { inner }
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher> Iterator for OwningIter<K, S> {
+impl<K: Eq + Hash> Iterator for OwningIter<K> {
     type Item = K;
 
     fn next(&mut self) -> Option<Self::Item> {

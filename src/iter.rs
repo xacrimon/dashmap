@@ -1,9 +1,8 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
-use crate::{ClashMap, ShardIdx};
+use crate::{ClashMap, Shard};
 use core::hash::{BuildHasher, Hash};
-use core::mem;
-use std::collections::hash_map::RandomState;
+use core::slice;
 use std::sync::Arc;
 
 /// Iterator over a ClashMap yielding key value pairs.
@@ -19,17 +18,15 @@ use std::sync::Arc;
 /// let pairs: Vec<(&'static str, &'static str)> = map.into_iter().collect();
 /// assert_eq!(pairs.len(), 2);
 /// ```
-pub struct OwningIter<K, V, S = RandomState> {
-    map: ClashMap<K, V, S>,
-    shard_i: usize,
+pub struct OwningIter<K, V> {
+    shards: std::vec::IntoIter<Shard<K, V>>,
     current: Option<GuardOwningIter<K, V>>,
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher> OwningIter<K, V, S> {
-    pub(crate) fn new(map: ClashMap<K, V, S>) -> Self {
+impl<K: Eq + Hash, V> OwningIter<K, V> {
+    pub(crate) fn new<S: BuildHasher>(map: ClashMap<K, V, S>) -> Self {
         Self {
-            map,
-            shard_i: 0,
+            shards: map.shards.into_vec().into_iter(),
             current: None,
         }
     }
@@ -37,7 +34,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> OwningIter<K, V, S> {
 
 type GuardOwningIter<K, V> = hashbrown::hash_table::IntoIter<(K, V)>;
 
-impl<K: Eq + Hash, V, S: BuildHasher> Iterator for OwningIter<K, V, S> {
+impl<K: Eq + Hash, V> Iterator for OwningIter<K, V> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -48,20 +45,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> Iterator for OwningIter<K, V, S> {
                 }
             }
 
-            if self.shard_i == self.map.shards.len() {
-                return None;
-            }
-
-            let shard = self.map.shards.get_mut(self.shard_i)?;
-            let shard_wl = shard.get_mut();
-
-            let map = mem::take(&mut *shard_wl);
-
-            let iter = map.into_iter();
+            let shard = self.shards.next()?;
+            let iter = shard.into_inner().into_inner().into_iter();
 
             self.current = Some(iter);
-
-            self.shard_i += 1;
         }
     }
 }
@@ -88,14 +75,14 @@ type GuardIterMut<'a, K, V> = (
 /// assert_eq!(map.iter().count(), 1);
 /// ```
 pub struct Iter<'a, K, V> {
-    shard_i: Option<ShardIdx<'a, K, V>>,
+    shards: slice::Iter<'a, Shard<K, V>>,
     current: Option<GuardIter<'a, K, V>>,
 }
 
 impl<K, V> Clone for Iter<'_, K, V> {
     fn clone(&self) -> Self {
         Self {
-            shard_i: self.shard_i,
+            shards: self.shards.clone(),
             current: self.current.clone(),
         }
     }
@@ -104,7 +91,7 @@ impl<K, V> Clone for Iter<'_, K, V> {
 impl<'a, K: 'a + Eq + Hash, V: 'a> Iter<'a, K, V> {
     pub(crate) fn new<S: BuildHasher>(map: &'a ClashMap<K, V, S>) -> Self {
         Self {
-            shard_i: Some(map.first_shard()),
+            shards: map.shards.iter(),
             current: None,
         }
     }
@@ -122,16 +109,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Iterator for Iter<'a, K, V> {
                 }
             }
 
-            let shard_i = self.shard_i.take()?;
-
-            let guard = shard_i.shard().read();
+            let guard = self.shards.next()?.read();
 
             // SAFETY: we keep the guard alive with the shard iterator,
             // and with any refs produced by the iterator
             let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(guard) };
             self.current = Some((Arc::new(guard), shard.iter()));
-
-            self.shard_i = shard_i.next_shard();
         }
     }
 }
@@ -149,14 +132,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Iterator for Iter<'a, K, V> {
 /// assert_eq!(*map.get("Johnny").unwrap(), 22);
 /// ```
 pub struct IterMut<'a, K, V> {
-    shard_i: Option<ShardIdx<'a, K, V>>,
+    shards: slice::Iter<'a, Shard<K, V>>,
     current: Option<GuardIterMut<'a, K, V>>,
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> IterMut<'a, K, V> {
     pub(crate) fn new<S: BuildHasher>(map: &'a ClashMap<K, V, S>) -> Self {
         Self {
-            shard_i: Some(map.first_shard()),
+            shards: map.shards.iter(),
             current: None,
         }
     }
@@ -174,16 +157,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Iterator for IterMut<'a, K, V> {
                 }
             }
 
-            let shard_i = self.shard_i.take()?;
-
-            let guard = shard_i.shard().write();
+            let guard = self.shards.next()?.write();
 
             // SAFETY: we keep the guard alive with the shard iterator,
             // and with any refs produced by the iterator
             let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(guard) };
             self.current = Some((Arc::new(guard), shard.iter_mut()));
-
-            self.shard_i = shard_i.next_shard();
         }
     }
 }

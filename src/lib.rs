@@ -69,10 +69,6 @@ fn default_shard_amount() -> usize {
     })
 }
 
-fn ncb(shard_amount: usize) -> usize {
-    shard_amount.trailing_zeros() as usize
-}
-
 /// ClashMap is an implementation of a concurrent associative array/hashmap in Rust.
 ///
 /// ClashMap tries to implement an easy to use API similar to `std::collections::HashMap`
@@ -266,7 +262,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_usize(&key);
-        self._determine_shard(hash).idx
+        self._determine_shard(hash)
     }
 
     /// Finds which shard a certain hash is stored in.
@@ -284,7 +280,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
     /// println!("hash is stored in shard: {}", map.determine_shard(hash));
     /// ```
     pub fn determine_shard(&self, hash: usize) -> usize {
-        self._determine_shard(hash).idx
+        self._determine_shard(hash)
     }
 }
 
@@ -371,7 +367,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         assert!(shard_amount > 1);
         assert!(shard_amount.is_power_of_two());
 
-        let shift = util::ptr_size_bits() - ncb(shard_amount);
+        let shift = (usize::BITS - shard_amount.trailing_zeros()) as usize;
 
         if capacity != 0 {
             capacity = (capacity + (shard_amount - 1)) & !(shard_amount - 1);
@@ -404,19 +400,26 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         hasher.finish()
     }
 
-    pub(crate) fn _determine_shard(&self, hash: usize) -> ShardIdx<'_, K, V> {
-        ShardIdx {
-            // Leave the high 7 bits for the HashBrown SIMD tag.
-            idx: (hash << 7) >> self.shift,
-            map: &self.shards,
-        }
-    }
+    #[inline(always)]
+    pub(crate) fn _determine_shard(&self, hash: usize) -> usize {
+        // Leave the high 7 bits for the HashBrown SIMD tag.
+        let idx = (hash << 7) >> self.shift;
 
-    pub(crate) fn first_shard(&self) -> ShardIdx<'_, K, V> {
-        ShardIdx {
-            idx: 0,
-            map: &self.shards,
+        // hint to llvm that the panic bounds check can be removed
+        if idx >= self.shards.len() {
+            if cfg!(debug_assertions) {
+                unreachable!("invalid shard index")
+            } else {
+                // SAFETY: shards is always a power of two,
+                // and shift is calculated such that the resulting idx is always
+                // less than the shards length
+                unsafe {
+                    unreachable_unchecked();
+                }
+            }
         }
+
+        idx
     }
 
     /// Returns a reference to the map's [`BuildHasher`].
@@ -497,10 +500,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
-
         let idx = self._determine_shard(hash as usize);
 
-        let mut shard = idx.shard().write();
+        let mut shard = self.shards[idx].write();
 
         if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key.equivalent(k)) {
             let ((k, v), _) = entry.remove();
@@ -536,10 +538,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
-
         let idx = self._determine_shard(hash as usize);
 
-        let mut shard = idx.shard().write();
+        let mut shard = self.shards[idx].write();
 
         if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key.equivalent(k)) {
             let (k, v) = entry.get();
@@ -559,10 +560,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
-
         let idx = self._determine_shard(hash as usize);
 
-        let mut shard = idx.shard().write();
+        let mut shard = self.shards[idx].write();
 
         if let Ok(mut entry) = shard.find_entry(hash, |(k, _v)| key.equivalent(k)) {
             let (k, v) = entry.get_mut();
@@ -657,10 +657,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
-
         let idx = self._determine_shard(hash as usize);
 
-        let shard = idx.shard().read();
+        let shard = self.shards[idx].read();
 
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Ref`.
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
@@ -692,10 +691,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
-
         let idx = self._determine_shard(hash as usize);
 
-        let shard = idx.shard().write();
+        let shard = self.shards[idx].write();
 
         // SAFETY: The data will not outlive the guard, since we pass the guard to `RefMut`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
@@ -732,10 +730,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
-
         let idx = self._determine_shard(hash as usize);
 
-        let shard = match idx.shard().try_read() {
+        let shard = match self.shards[idx].try_read() {
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
@@ -776,10 +773,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
-
         let idx = self._determine_shard(hash as usize);
 
-        let shard = match idx.shard().try_write() {
+        let shard = match self.shards[idx].try_write() {
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
@@ -1014,11 +1010,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
     /// Advanced entry API that tries to mimic `std::collections::HashMap`.
     pub fn entry_mut(&mut self, key: K) -> EntryMut<'_, K, V> {
         let hash = self.hash_u64(&key);
-
-        let idx = self._determine_shard(hash as usize).idx;
-
-        // SAFETY: idx is in-bounds
-        let shard = unsafe { self.shards.get_unchecked_mut(idx) }.get_mut();
+        let idx = self._determine_shard(hash as usize);
+        let shard = self.shards[idx].get_mut();
 
         match shard.entry(
             hash,
@@ -1044,10 +1037,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
     pub fn entry(&self, key: K) -> Entry<'_, K, V> {
         let hash = self.hash_u64(&key);
-
         let idx = self._determine_shard(hash as usize);
 
-        let shard = idx.shard().write();
+        let shard = self.shards[idx].write();
 
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
@@ -1076,10 +1068,9 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
     /// Returns None if the shard is currently locked.
     pub fn try_entry(&self, key: K) -> Option<Entry<'_, K, V>> {
         let hash = self.hash_u64(&key);
-
         let idx = self._determine_shard(hash as usize);
 
-        let shard = idx.shard().try_write()?;
+        let shard = self.shards[idx].try_write()?;
 
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
@@ -1122,35 +1113,6 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
                 .map_err(|_| TryReserveError {})?;
         }
         Ok(())
-    }
-}
-
-struct ShardIdx<'a, K, V> {
-    idx: usize,
-    map: &'a [CachePadded<RwLock<HashMap<K, V>>>],
-}
-
-impl<K, V> Copy for ShardIdx<'_, K, V> {}
-
-impl<K, V> Clone for ShardIdx<'_, K, V> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<'a, K, V> ShardIdx<'a, K, V> {
-    fn shard(&self) -> &'a RwLock<HashMap<K, V>> {
-        // SAFETY: `idx` is inbounds.
-        unsafe { self.map.get_unchecked(self.idx) }
-    }
-
-    fn next_shard(mut self) -> Option<Self> {
-        self.idx += 1;
-        if self.idx == self.map.len() {
-            None
-        } else {
-            Some(self)
-        }
     }
 }
 
@@ -1219,7 +1181,7 @@ where
 impl<K: Eq + Hash, V, S: BuildHasher> IntoIterator for ClashMap<K, V, S> {
     type Item = (K, V);
 
-    type IntoIter = OwningIter<K, V, S>;
+    type IntoIter = OwningIter<K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         OwningIter::new(self)

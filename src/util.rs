@@ -1,13 +1,8 @@
-//! This module is full of hackery and dark magic.
-//! Either spend a day fixing it and quietly submit a PR or don't mention it to anybody.
-use core::mem;
+//! Clever hacks
+
 use std::{marker::PhantomData, mem::ManuallyDrop};
 
 use lock_api::{RawRwLock, RawRwLockDowngrade, RwLockReadGuard, RwLockWriteGuard};
-
-pub const fn ptr_size_bits() -> usize {
-    mem::size_of::<usize>() * 8
-}
 
 pub(crate) fn try_map<F, T, U>(mut t: &mut T, f: F) -> Result<&mut U, &mut T>
 where
