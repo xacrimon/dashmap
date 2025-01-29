@@ -1,4 +1,4 @@
-use crate::{mapref, setref, DashMap, DashSet};
+use crate::{mapref, setref, ClashMap, ClashSet};
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
 use core::marker::PhantomData;
@@ -7,32 +7,32 @@ use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde::Deserializer;
 
 type Contravariant<T> = PhantomData<fn() -> T>;
-pub struct DashMapVisitor<K, V, S> {
-    marker: Contravariant<DashMap<K, V, S>>,
+pub struct ClashMapVisitor<K, V, S> {
+    marker: Contravariant<ClashMap<K, V, S>>,
 }
 
-impl<K, V, S> DashMapVisitor<K, V, S>
+impl<K, V, S> ClashMapVisitor<K, V, S>
 where
     K: Eq + Hash,
     S: BuildHasher + Clone,
 {
     fn new() -> Self {
-        DashMapVisitor {
+        ClashMapVisitor {
             marker: PhantomData,
         }
     }
 }
 
-impl<'de, K, V, S> Visitor<'de> for DashMapVisitor<K, V, S>
+impl<'de, K, V, S> Visitor<'de> for ClashMapVisitor<K, V, S>
 where
     K: Deserialize<'de> + Eq + Hash,
     V: Deserialize<'de>,
     S: BuildHasher + Clone + Default,
 {
-    type Value = DashMap<K, V, S>;
+    type Value = ClashMap<K, V, S>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a DashMap")
+        formatter.write_str("a ClashMap")
     }
 
     fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
@@ -40,7 +40,7 @@ where
         M: MapAccess<'de>,
     {
         let map =
-            DashMap::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
+            ClashMap::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
 
         while let Some((key, value)) = access.next_entry()? {
             map.insert(key, value);
@@ -50,7 +50,7 @@ where
     }
 }
 
-impl<'de, K, V, S> Deserialize<'de> for DashMap<K, V, S>
+impl<'de, K, V, S> Deserialize<'de> for ClashMap<K, V, S>
 where
     K: Deserialize<'de> + Eq + Hash,
     V: Deserialize<'de>,
@@ -60,11 +60,11 @@ where
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_map(DashMapVisitor::<K, V, S>::new())
+        deserializer.deserialize_map(ClashMapVisitor::<K, V, S>::new())
     }
 }
 
-impl<K, V, H> Serialize for DashMap<K, V, H>
+impl<K, V, H> Serialize for ClashMap<K, V, H>
 where
     K: Serialize + Eq + Hash,
     V: Serialize,
@@ -84,31 +84,31 @@ where
     }
 }
 
-pub struct DashSetVisitor<K, S> {
-    marker: PhantomData<fn() -> DashSet<K, S>>,
+pub struct ClashSetVisitor<K, S> {
+    marker: PhantomData<fn() -> ClashSet<K, S>>,
 }
 
-impl<K, S> DashSetVisitor<K, S>
+impl<K, S> ClashSetVisitor<K, S>
 where
     K: Eq + Hash,
     S: BuildHasher + Clone,
 {
     fn new() -> Self {
-        DashSetVisitor {
+        ClashSetVisitor {
             marker: PhantomData,
         }
     }
 }
 
-impl<'de, K, S> Visitor<'de> for DashSetVisitor<K, S>
+impl<'de, K, S> Visitor<'de> for ClashSetVisitor<K, S>
 where
     K: Deserialize<'de> + Eq + Hash,
     S: BuildHasher + Clone + Default,
 {
-    type Value = DashSet<K, S>;
+    type Value = ClashSet<K, S>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a DashSet")
+        formatter.write_str("a ClashSet")
     }
 
     fn visit_seq<M>(self, mut access: M) -> Result<Self::Value, M::Error>
@@ -116,7 +116,7 @@ where
         M: SeqAccess<'de>,
     {
         let map =
-            DashSet::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
+            ClashSet::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
 
         while let Some(key) = access.next_element()? {
             map.insert(key);
@@ -126,7 +126,7 @@ where
     }
 }
 
-impl<'de, K, S> Deserialize<'de> for DashSet<K, S>
+impl<'de, K, S> Deserialize<'de> for ClashSet<K, S>
 where
     K: Deserialize<'de> + Eq + Hash,
     S: BuildHasher + Clone + Default,
@@ -135,11 +135,11 @@ where
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_seq(DashSetVisitor::<K, S>::new())
+        deserializer.deserialize_seq(ClashSetVisitor::<K, S>::new())
     }
 }
 
-impl<K, H> Serialize for DashSet<K, H>
+impl<K, H> Serialize for ClashSet<K, H>
 where
     K: Serialize + Eq + Hash,
     H: BuildHasher + Clone,

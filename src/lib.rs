@@ -30,13 +30,12 @@ use crate::lock::RwLock;
 #[cfg(feature = "raw-api")]
 pub use crate::lock::{RawRwLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash, Hasher};
 use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use crossbeam_utils::CachePadded;
-use hashbrown::hash_table;
+use hashbrown::{hash_table, Equivalent};
 use iter::{Iter, IterMut, OwningIter};
 use lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 pub use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
@@ -45,7 +44,7 @@ use mapref::one::{Ref, RefMut};
 use once_cell::sync::OnceCell;
 pub use read_only::ReadOnlyView;
 use replace_with::replace_with_or_abort;
-pub use set::DashSet;
+pub use set::ClashSet;
 use std::collections::hash_map::RandomState;
 use try_result::TryResult;
 
@@ -71,24 +70,24 @@ fn ncb(shard_amount: usize) -> usize {
     shard_amount.trailing_zeros() as usize
 }
 
-/// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
+/// ClashMap is an implementation of a concurrent associative array/hashmap in Rust.
 ///
-/// DashMap tries to implement an easy to use API similar to `std::collections::HashMap`
+/// ClashMap tries to implement an easy to use API similar to `std::collections::HashMap`
 /// with some slight changes to handle concurrency.
 ///
-/// DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V>>`.
+/// ClashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V>>`.
 /// To accomplish this, all methods take `&self` instead of modifying methods taking `&mut self`.
-/// This allows you to put a DashMap in an `Arc<T>` and share it between threads while being able to modify it.
+/// This allows you to put a ClashMap in an `Arc<T>` and share it between threads while being able to modify it.
 ///
 /// Documentation mentioning locking behaviour acts in the reference frame of the calling thread.
 /// This means that it is safe to ignore it across multiple threads.
-pub struct DashMap<K, V, S = RandomState> {
+pub struct ClashMap<K, V, S = RandomState> {
     shift: usize,
     shards: Box<[Shard<K, V>]>,
     hasher: S,
 }
 
-impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
+impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for ClashMap<K, V, S> {
     fn clone(&self) -> Self {
         let mut inner_shards = Vec::new();
 
@@ -106,7 +105,7 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for DashMap<K, V, S> {
     }
 }
 
-impl<K, V, S> Default for DashMap<K, V, S>
+impl<K, V, S> Default for ClashMap<K, V, S>
 where
     K: Eq + Hash,
     S: Default + BuildHasher + Clone,
@@ -116,37 +115,37 @@ where
     }
 }
 
-impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
-    /// Creates a new DashMap with a capacity of 0.
+impl<K: Eq + Hash, V> ClashMap<K, V, RandomState> {
+    /// Creates a new ClashMap with a capacity of 0.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let reviews = DashMap::new();
+    /// let reviews = ClashMap::new();
     /// reviews.insert("Veloren", "What a fantastic game!");
     /// ```
     pub fn new() -> Self {
-        DashMap::with_hasher(RandomState::default())
+        ClashMap::with_hasher(RandomState::default())
     }
 
-    /// Creates a new DashMap with a specified starting capacity.
+    /// Creates a new ClashMap with a specified starting capacity.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let mappings = DashMap::with_capacity(2);
+    /// let mappings = ClashMap::with_capacity(2);
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
-        DashMap::with_capacity_and_hasher(capacity, RandomState::default())
+        ClashMap::with_capacity_and_hasher(capacity, RandomState::default())
     }
 
-    /// Creates a new DashMap with a specified shard amount
+    /// Creates a new ClashMap with a specified shard amount
     ///
     /// shard_amount should greater than 0 and be a power of two.
     /// If a shard_amount which is not a power of two is provided, the function will panic.
@@ -154,9 +153,9 @@ impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let mappings = DashMap::with_shard_amount(32);
+    /// let mappings = ClashMap::with_shard_amount(32);
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
@@ -164,7 +163,7 @@ impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
         Self::with_capacity_and_hasher_and_shard_amount(0, RandomState::default(), shard_amount)
     }
 
-    /// Creates a new DashMap with a specified capacity and shard amount.
+    /// Creates a new ClashMap with a specified capacity and shard amount.
     ///
     /// shard_amount should greater than 0 and be a power of two.
     /// If a shard_amount which is not a power of two is provided, the function will panic.
@@ -172,9 +171,9 @@ impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let mappings = DashMap::with_capacity_and_shard_amount(32, 32);
+    /// let mappings = ClashMap::with_capacity_and_shard_amount(32, 32);
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
@@ -188,7 +187,7 @@ impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
 }
 
 #[cfg(feature = "raw-api")]
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher + Clone> ClashMap<K, V, S> {
     /// Allows you to peek at the inner shards that store your data.
     /// You should probably not use this unless you know what you are doing.
     ///
@@ -197,9 +196,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let map = DashMap::<(), ()>::new();
+    /// let map = ClashMap::<(), ()>::new();
     /// println!("Amount of shards: {}", map.shards().len());
     /// ```
     pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
@@ -214,10 +213,10 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     /// use std::hash::{Hash, Hasher, BuildHasher};
     ///
-    /// let mut map = DashMap::<i32, &'static str>::new();
+    /// let mut map = ClashMap::<i32, &'static str>::new();
     /// let shard_ind = map.determine_map(&42);
     /// let mut factory = map.hasher().clone();
     /// let hasher = |tuple: &(i32, &'static str)| {
@@ -234,12 +233,12 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         &mut self.shards
     }
 
-    /// Consumes this `DashMap` and returns the inner shards.
+    /// Consumes this `ClashMap` and returns the inner shards.
     /// You should probably not use this unless you know what you are doing.
     ///
     /// Requires the `raw-api` feature to be enabled.
     ///
-    /// See [`DashMap::shards()`] and [`DashMap::shards_mut()`] for more information.
+    /// See [`ClashMap::shards()`] and [`ClashMap::shards_mut()`] for more information.
     pub fn into_shards(self) -> Box<[Shard<K, V>]> {
         self.shards
     }
@@ -253,16 +252,15 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let map = DashMap::new();
+    /// let map = ClashMap::new();
     /// map.insert("coca-cola", 1.4);
     /// println!("coca-cola is stored in shard: {}", map.determine_map("coca-cola"));
     /// ```
     pub fn determine_map<Q>(&self, key: &Q) -> usize
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_usize(&key);
         self._determine_shard(hash).idx
@@ -275,9 +273,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let map: DashMap<i32, i32> = DashMap::new();
+    /// let map: ClashMap<i32, i32> = ClashMap::new();
     /// let key = "key";
     /// let hash = map.hash_usize(&key);
     /// println!("hash is stored in shard: {}", map.determine_shard(hash));
@@ -287,38 +285,38 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
-    /// Wraps this `DashMap` into a read-only view. This view allows to obtain raw references to the stored values.
+impl<K: Eq + Hash, V, S: BuildHasher + Clone> ClashMap<K, V, S> {
+    /// Wraps this `ClashMap` into a read-only view. This view allows to obtain raw references to the stored values.
     pub fn into_read_only(self) -> ReadOnlyView<K, V, S> {
         ReadOnlyView::new(self)
     }
 
-    /// Creates a new DashMap with a capacity of 0 and the provided hasher.
+    /// Creates a new ClashMap with a capacity of 0 and the provided hasher.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     /// use std::collections::hash_map::RandomState;
     ///
     /// let s = RandomState::new();
-    /// let reviews = DashMap::with_hasher(s);
+    /// let reviews = ClashMap::with_hasher(s);
     /// reviews.insert("Veloren", "What a fantastic game!");
     /// ```
     pub fn with_hasher(hasher: S) -> Self {
         Self::with_capacity_and_hasher(0, hasher)
     }
 
-    /// Creates a new DashMap with a specified starting capacity and hasher.
+    /// Creates a new ClashMap with a specified starting capacity and hasher.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     /// use std::collections::hash_map::RandomState;
     ///
     /// let s = RandomState::new();
-    /// let mappings = DashMap::with_capacity_and_hasher(2, s);
+    /// let mappings = ClashMap::with_capacity_and_hasher(2, s);
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
@@ -326,7 +324,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         Self::with_capacity_and_hasher_and_shard_amount(capacity, hasher, default_shard_amount())
     }
 
-    /// Creates a new DashMap with a specified hasher and shard amount
+    /// Creates a new ClashMap with a specified hasher and shard amount
     ///
     /// shard_amount should be greater than 0 and a power of two.
     /// If a shard_amount which is not a power of two is provided, the function will panic.
@@ -334,11 +332,11 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     /// use std::collections::hash_map::RandomState;
     ///
     /// let s = RandomState::new();
-    /// let mappings = DashMap::with_hasher_and_shard_amount(s, 32);
+    /// let mappings = ClashMap::with_hasher_and_shard_amount(s, 32);
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
@@ -346,7 +344,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         Self::with_capacity_and_hasher_and_shard_amount(0, hasher, shard_amount)
     }
 
-    /// Creates a new DashMap with a specified starting capacity, hasher and shard_amount.
+    /// Creates a new ClashMap with a specified starting capacity, hasher and shard_amount.
     ///
     /// shard_amount should greater than 0 and be a power of two.
     /// If a shard_amount which is not a power of two is provided, the function will panic.
@@ -354,11 +352,11 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     /// use std::collections::hash_map::RandomState;
     ///
     /// let s = RandomState::new();
-    /// let mappings = DashMap::with_capacity_and_hasher_and_shard_amount(2, s, 32);
+    /// let mappings = ClashMap::with_capacity_and_hasher_and_shard_amount(2, s, 32);
     /// mappings.insert(2, 4);
     /// mappings.insert(8, 16);
     /// ```
@@ -423,11 +421,11 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```rust
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     /// use std::collections::hash_map::RandomState;
     ///
     /// let hasher = RandomState::new();
-    /// let map: DashMap<i32, i32> = DashMap::new();
+    /// let map: ClashMap<i32, i32> = ClashMap::new();
     /// let hasher: &RandomState = map.hasher();
     /// ```
     ///
@@ -443,9 +441,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let map = DashMap::new();
+    /// let map = ClashMap::new();
     /// map.insert("I am the key!", "And I am the value!");
     /// ```
     pub fn insert(&self, key: K, value: V) -> Option<V> {
@@ -465,16 +463,15 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let soccer_team = DashMap::new();
+    /// let soccer_team = ClashMap::new();
     /// soccer_team.insert("Jack", "Goalie");
     /// assert_eq!(soccer_team.remove("Jack").unwrap().1, "Goalie");
     /// ```
     pub fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -482,7 +479,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let mut shard = idx.shard().write();
 
-        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
+        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key.equivalent(k)) {
             let ((k, v), _) = entry.remove();
             Some((k, v))
         } else {
@@ -496,25 +493,24 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let soccer_team = DashMap::new();
+    /// let soccer_team = ClashMap::new();
     /// soccer_team.insert("Sam", "Forward");
     /// soccer_team.remove_if("Sam", |_, position| position == &"Goalie");
     /// assert!(soccer_team.contains_key("Sam"));
     /// ```
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let soccer_team = DashMap::new();
+    /// let soccer_team = ClashMap::new();
     /// soccer_team.insert("Sam", "Forward");
     /// soccer_team.remove_if("Sam", |_, position| position == &"Forward");
     /// assert!(!soccer_team.contains_key("Sam"));
     /// ```
     pub fn remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -522,7 +518,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let mut shard = idx.shard().write();
 
-        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
+        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key.equivalent(k)) {
             let (k, v) = entry.get();
             if f(k, v) {
                 let ((k, v), _) = entry.remove();
@@ -537,8 +533,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
     pub fn remove_if_mut<Q>(&self, key: &Q, f: impl FnOnce(&K, &mut V) -> bool) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -546,7 +541,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let mut shard = idx.shard().write();
 
-        if let Ok(mut entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
+        if let Ok(mut entry) = shard.find_entry(hash, |(k, _v)| key.equivalent(k)) {
             let (k, v) = entry.get_mut();
             if f(k, v) {
                 let ((k, v), _) = entry.remove();
@@ -559,16 +554,16 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         }
     }
 
-    /// Creates an iterator over a DashMap yielding immutable references.
+    /// Creates an iterator over a ClashMap yielding immutable references.
     ///
     /// **Locking behaviour:** May deadlock if called when holding a mutable reference into the map.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let words = DashMap::new();
+    /// let words = ClashMap::new();
     /// words.insert("hello", "world");
     /// assert_eq!(words.iter().count(), 1);
     /// ```
@@ -576,16 +571,16 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         Iter::new(self)
     }
 
-    /// Iterator over a DashMap yielding mutable references.
+    /// Iterator over a ClashMap yielding mutable references.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let map = DashMap::new();
+    /// let map = ClashMap::new();
     /// map.insert("Johnny", 21);
     /// map.iter_mut().for_each(|mut r| *r += 1);
     /// assert_eq!(*map.get("Johnny").unwrap(), 22);
@@ -601,16 +596,15 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let youtubers = DashMap::new();
+    /// let youtubers = ClashMap::new();
     /// youtubers.insert("Bosnian Bill", 457000);
     /// assert_eq!(*youtubers.get("Bosnian Bill").unwrap(), 457000);
     /// ```
     pub fn get<Q>(&self, key: &Q) -> Option<Ref<'_, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -621,7 +615,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Ref`.
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
-        if let Some(entry) = shard.find(hash, |(k, _v)| key == k.borrow()) {
+        if let Some(entry) = shard.find(hash, |(k, _v)| key.equivalent(k)) {
             let (k, v) = entry;
             Some(Ref::new(guard, k, v))
         } else {
@@ -636,17 +630,16 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let class = DashMap::new();
+    /// let class = ClashMap::new();
     /// class.insert("Albin", 15);
     /// *class.get_mut("Albin").unwrap() -= 1;
     /// assert_eq!(*class.get("Albin").unwrap(), 14);
     /// ```
     pub fn get_mut<Q>(&self, key: &Q) -> Option<RefMut<'_, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -657,7 +650,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         // SAFETY: The data will not outlive the guard, since we pass the guard to `RefMut`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
-        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
+        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key.equivalent(k)) {
             let (k, v) = entry.into_mut();
             Some(RefMut::new(guard, k, v))
         } else {
@@ -671,10 +664,10 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
-    /// use dashmap::try_result::TryResult;
+    /// use clashmap::ClashMap;
+    /// use clashmap::try_result::TryResult;
     ///
-    /// let map = DashMap::new();
+    /// let map = ClashMap::new();
     /// map.insert("Johnny", 21);
     ///
     /// assert_eq!(*map.try_get("Johnny").unwrap(), 21);
@@ -686,8 +679,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn try_get<Q>(&self, key: &Q) -> TryResult<Ref<'_, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -701,7 +693,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Ref`.
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
-        if let Some(entry) = shard.find(hash, |(k, _v)| key == k.borrow()) {
+        if let Some(entry) = shard.find(hash, |(k, _v)| key.equivalent(k)) {
             let (k, v) = entry;
             TryResult::Present(Ref::new(guard, k, v))
         } else {
@@ -715,10 +707,10 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
-    /// use dashmap::try_result::TryResult;
+    /// use clashmap::ClashMap;
+    /// use clashmap::try_result::TryResult;
     ///
-    /// let map = DashMap::new();
+    /// let map = ClashMap::new();
     /// map.insert("Johnny", 21);
     ///
     /// *map.try_get_mut("Johnny").unwrap() += 1;
@@ -731,8 +723,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn try_get_mut<Q>(&self, key: &Q) -> TryResult<RefMut<'_, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -746,7 +737,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
         // SAFETY: The data will not outlive the guard, since we pass the guard to `RefMut`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
-        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
+        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key.equivalent(k)) {
             let (k, v) = entry.into_mut();
             TryResult::Present(RefMut::new(guard, k, v))
         } else {
@@ -760,10 +751,10 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
-    /// use dashmap::try_result::TryResult;
+    /// use clashmap::ClashMap;
+    /// use clashmap::try_result::TryResult;
     ///
-    /// let map = DashMap::new();
+    /// let map = ClashMap::new();
     /// map.insert("Johnny", 21);
     /// assert!(map.capacity() > 0);
     /// map.remove("Johnny");
@@ -790,9 +781,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let people = DashMap::new();
+    /// let people = ClashMap::new();
     /// people.insert("Albin", 15);
     /// people.insert("Jones", 22);
     /// people.insert("Charlie", 27);
@@ -812,9 +803,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let people = DashMap::new();
+    /// let people = ClashMap::new();
     /// people.insert("Albin", 15);
     /// people.insert("Jones", 22);
     /// people.insert("Charlie", 27);
@@ -831,9 +822,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let map = DashMap::<(), ()>::new();
+    /// let map = ClashMap::<(), ()>::new();
     /// assert!(map.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
@@ -847,9 +838,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let stats = DashMap::new();
+    /// let stats = ClashMap::new();
     /// stats.insert("Goals", 4);
     /// assert!(!stats.is_empty());
     /// stats.clear();
@@ -873,9 +864,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let stats = DashMap::new();
+    /// let stats = ClashMap::new();
     /// stats.insert("Goals", 4);
     /// stats.alter("Goals", |_, v| v * 2);
     /// assert_eq!(*stats.get("Goals").unwrap(), 8);
@@ -886,8 +877,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// If the given closure panics, then `alter` will abort the process
     pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         if let Some(mut r) = self.get_mut(key) {
             let (k, v) = r.pair_mut();
@@ -902,9 +892,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let stats = DashMap::new();
+    /// let stats = ClashMap::new();
     /// stats.insert("Wins", 4);
     /// stats.insert("Losses", 2);
     /// stats.alter_all(|_, v| v + 1);
@@ -929,9 +919,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let warehouse = DashMap::new();
+    /// let warehouse = ClashMap::new();
     /// warehouse.insert(4267, ("Banana", 100));
     /// warehouse.insert(2359, ("Pear", 120));
     /// let fruit = warehouse.view(&4267, |_k, v| *v);
@@ -943,8 +933,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// If the given closure panics, then `view` will abort the process
     pub fn view<Q, R>(&self, key: &Q, f: impl FnOnce(&K, &V) -> R) -> Option<R>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.get(key).map(|r| {
             let (k, v) = r.pair();
@@ -959,22 +948,21 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let team_sizes = DashMap::new();
+    /// let team_sizes = ClashMap::new();
     /// team_sizes.insert("Dakota Cherries", 23);
     /// assert!(team_sizes.contains_key("Dakota Cherries"));
     /// ```
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.get(key).is_some()
     }
 
     /// Advanced entry API that tries to mimic `std::collections::HashMap`.
-    /// See the documentation on `dashmap::mapref::entry` for more details.
+    /// See the documentation on `clashmap::mapref::entry` for more details.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
     pub fn entry(&self, key: K) -> Entry<'_, K, V> {
@@ -1006,7 +994,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Advanced entry API that tries to mimic `std::collections::HashMap`.
-    /// See the documentation on `dashmap::mapref::entry` for more details.
+    /// See the documentation on `clashmap::mapref::entry` for more details.
     ///
     /// Returns None if the shard is currently locked.
     pub fn try_entry(&self, key: K) -> Option<Entry<'_, K, V>> {
@@ -1090,7 +1078,7 @@ impl<'a, K, V> ShardIdx<'a, K, V> {
 }
 
 impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debug
-    for DashMap<K, V, S>
+    for ClashMap<K, V, S>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut pmap = f.debug_map();
@@ -1105,7 +1093,7 @@ impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debu
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> Shl<(K, V)> for &'a DashMap<K, V, S> {
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> Shl<(K, V)> for &'a ClashMap<K, V, S> {
     type Output = Option<V>;
 
     fn shl(self, pair: (K, V)) -> Self::Output {
@@ -1113,10 +1101,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> Shl<(K, V)> for &'a D
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> Shr<&Q> for &'a DashMap<K, V, S>
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> Shr<&Q> for &'a ClashMap<K, V, S>
 where
-    K: Borrow<Q>,
-    Q: Hash + Eq + ?Sized,
+    Q: Hash + Equivalent<K> + ?Sized,
 {
     type Output = Ref<'a, K, V>;
 
@@ -1125,10 +1112,9 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> BitOr<&Q> for &'a DashMap<K, V, S>
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> BitOr<&Q> for &'a ClashMap<K, V, S>
 where
-    K: Borrow<Q>,
-    Q: Hash + Eq + ?Sized,
+    Q: Hash + Equivalent<K> + ?Sized,
 {
     type Output = RefMut<'a, K, V>;
 
@@ -1137,10 +1123,9 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> Sub<&Q> for &'a DashMap<K, V, S>
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> Sub<&Q> for &'a ClashMap<K, V, S>
 where
-    K: Borrow<Q>,
-    Q: Hash + Eq + ?Sized,
+    Q: Hash + Equivalent<K> + ?Sized,
 {
     type Output = Option<(K, V)>;
 
@@ -1149,10 +1134,9 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> BitAnd<&Q> for &'a DashMap<K, V, S>
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> BitAnd<&Q> for &'a ClashMap<K, V, S>
 where
-    K: Borrow<Q>,
-    Q: Hash + Eq + ?Sized,
+    Q: Hash + Equivalent<K> + ?Sized,
 {
     type Output = bool;
 
@@ -1161,7 +1145,7 @@ where
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for ClashMap<K, V, S> {
     type Item = (K, V);
 
     type IntoIter = OwningIter<K, V, S>;
@@ -1171,7 +1155,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> 
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a DashMap<K, V, S> {
+impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a ClashMap<K, V, S> {
     type Item = RefMulti<'a, K, V>;
 
     type IntoIter = Iter<'a, K, V>;
@@ -1181,7 +1165,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a DashMap<K
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> Extend<(K, V)> for DashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher + Clone> Extend<(K, V)> for ClashMap<K, V, S> {
     fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, intoiter: I) {
         for pair in intoiter.into_iter() {
             self.insert(pair.0, pair.1);
@@ -1189,9 +1173,9 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Extend<(K, V)> for DashMap<K, V, S
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone + Default> FromIterator<(K, V)> for DashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher + Clone + Default> FromIterator<(K, V)> for ClashMap<K, V, S> {
     fn from_iter<I: IntoIterator<Item = (K, V)>>(intoiter: I) -> Self {
-        let mut map = DashMap::default();
+        let mut map = ClashMap::default();
 
         map.extend(intoiter);
 
@@ -1200,7 +1184,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone + Default> FromIterator<(K, V)> for
 }
 
 #[cfg(feature = "typesize")]
-impl<K, V, S> typesize::TypeSize for DashMap<K, V, S>
+impl<K, V, S> typesize::TypeSize for ClashMap<K, V, S>
 where
     K: typesize::TypeSize + Eq + Hash,
     V: typesize::TypeSize,
@@ -1238,12 +1222,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::DashMap;
+    use crate::ClashMap;
     use std::collections::hash_map::RandomState;
 
     #[test]
     fn test_basic() {
-        let dm = DashMap::new();
+        let dm = ClashMap::new();
 
         dm.insert(0, 0);
 
@@ -1252,7 +1236,7 @@ mod tests {
 
     #[test]
     fn test_default() {
-        let dm: DashMap<u32, u32> = DashMap::default();
+        let dm: ClashMap<u32, u32> = ClashMap::default();
 
         dm.insert(0, 0);
 
@@ -1261,7 +1245,7 @@ mod tests {
 
     #[test]
     fn test_multiple_hashes() {
-        let dm: DashMap<u32, u32> = DashMap::default();
+        let dm: ClashMap<u32, u32> = ClashMap::default();
 
         for i in 0..100 {
             dm.insert(0, i);
@@ -1291,7 +1275,7 @@ mod tests {
             u: u8,
         }
 
-        let dm = DashMap::new();
+        let dm = ClashMap::new();
 
         let range = 0..10;
 
@@ -1309,8 +1293,8 @@ mod tests {
 
     #[test]
     fn test_different_hashers_randomstate() {
-        let dm_hm_default: DashMap<u32, u32, RandomState> =
-            DashMap::with_hasher(RandomState::new());
+        let dm_hm_default: ClashMap<u32, u32, RandomState> =
+            ClashMap::with_hasher(RandomState::new());
 
         for i in 0..10 {
             dm_hm_default.insert(i, i);
@@ -1321,7 +1305,7 @@ mod tests {
 
     #[test]
     fn test_map_view() {
-        let dm = DashMap::new();
+        let dm = ClashMap::new();
 
         let vegetables: [String; 4] = [
             "Salad".to_string(),
@@ -1349,7 +1333,7 @@ mod tests {
     #[test]
     fn test_try_get() {
         {
-            let map = DashMap::new();
+            let map = ClashMap::new();
             map.insert("Johnny", 21);
 
             assert_eq!(*map.try_get("Johnny").unwrap(), 21);
@@ -1361,7 +1345,7 @@ mod tests {
         }
 
         {
-            let map = DashMap::new();
+            let map = ClashMap::new();
             map.insert("Johnny", 21);
 
             *map.try_get_mut("Johnny").unwrap() += 1;
@@ -1376,8 +1360,8 @@ mod tests {
 
     #[test]
     fn test_try_reserve() {
-        let mut map: DashMap<i32, i32> = DashMap::new();
-        // DashMap is empty and doesn't allocate memory
+        let mut map: ClashMap<i32, i32> = ClashMap::new();
+        // ClashMap is empty and doesn't allocate memory
         assert_eq!(map.capacity(), 0);
 
         map.try_reserve(10).unwrap();
@@ -1388,7 +1372,7 @@ mod tests {
 
     #[test]
     fn test_try_reserve_errors() {
-        let mut map: DashMap<i32, i32> = DashMap::new();
+        let mut map: ClashMap<i32, i32> = ClashMap::new();
 
         match map.try_reserve(usize::MAX) {
             Err(_) => {}

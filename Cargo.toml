@@ -1,15 +1,15 @@
 [package]
-name = "dashmap"
+name = "clashmap"
 version = "6.1.0"
-authors = ["Acrimon <joel.wejdenstal@gmail.com>"]
-edition = "2018"
+authors = ["Conrad Ludgate <conradludgate@gmail.com>", "Acrimon <joel.wejdenstal@gmail.com>"]
+edition = "2021"
 rust-version = "1.67"
 license = "MIT"
-repository = "https://github.com/xacrimon/dashmap"
-homepage = "https://github.com/xacrimon/dashmap"
-description = "Blazing fast concurrent HashMap for Rust."
+repository = "https://github.com/conradludgate/clashmap"
+homepage = "https://github.com/conradludgate/clashmap"
+description = "Sharded hashmap suitable for fast concurrent access"
 readme = "README.md"
-documentation = "https://docs.rs/dashmap"
+documentation = "https://docs.rs/clashmap"
 keywords = ["atomic", "concurrent", "hashmap"]
 categories = ["concurrency", "algorithms", "data-structures"]
 
@@ -36,4 +36,4 @@ serde = { version = "1.0.188", optional = true, features = ["derive"] }
 typesize = { version = "0.1.8", default-features = false, optional = true }
 
 [package.metadata.docs.rs]
-features = ["rayon", "raw-api", "serde"]
+features = ["rayon", "raw-api", "serde", "typesize"]

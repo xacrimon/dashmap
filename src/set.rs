@@ -2,32 +2,32 @@ use crate::iter_set::{Iter, OwningIter};
 #[cfg(feature = "raw-api")]
 use crate::lock::RwLock;
 use crate::setref::one::Ref;
-use crate::DashMap;
+use crate::ClashMap;
 #[cfg(feature = "raw-api")]
 use crate::HashMap;
-use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
 use core::iter::FromIterator;
 #[cfg(feature = "raw-api")]
 use crossbeam_utils::CachePadded;
+use hashbrown::Equivalent;
 use std::collections::hash_map::RandomState;
 
-/// DashSet is a thin wrapper around [`DashMap`] using `()` as the value type. It uses
+/// ClashSet is a thin wrapper around [`ClashMap`] using `()` as the value type. It uses
 /// methods and types which are more convenient to work with on a set.
 ///
-/// [`DashMap`]: struct.DashMap.html
-pub struct DashSet<K, S = RandomState> {
-    pub(crate) inner: DashMap<K, (), S>,
+/// [`ClashMap`]: struct.ClashMap.html
+pub struct ClashSet<K, S = RandomState> {
+    pub(crate) inner: ClashMap<K, (), S>,
 }
 
-impl<K: Eq + Hash + fmt::Debug, S: BuildHasher + Clone> fmt::Debug for DashSet<K, S> {
+impl<K: Eq + Hash + fmt::Debug, S: BuildHasher + Clone> fmt::Debug for ClashSet<K, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.inner, f)
     }
 }
 
-impl<K: Eq + Hash + Clone, S: Clone> Clone for DashSet<K, S> {
+impl<K: Eq + Hash + Clone, S: Clone> Clone for ClashSet<K, S> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -39,7 +39,7 @@ impl<K: Eq + Hash + Clone, S: Clone> Clone for DashSet<K, S> {
     }
 }
 
-impl<K, S> Default for DashSet<K, S>
+impl<K, S> Default for ClashSet<K, S>
 where
     K: Eq + Hash,
     S: Default + BuildHasher + Clone,
@@ -49,29 +49,29 @@ where
     }
 }
 
-impl<K: Eq + Hash> DashSet<K, RandomState> {
-    /// Creates a new DashSet with a capacity of 0.
+impl<K: Eq + Hash> ClashSet<K, RandomState> {
+    /// Creates a new ClashSet with a capacity of 0.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let games = DashSet::new();
+    /// let games = ClashSet::new();
     /// games.insert("Veloren");
     /// ```
     pub fn new() -> Self {
         Self::with_hasher(RandomState::default())
     }
 
-    /// Creates a new DashMap with a specified starting capacity.
+    /// Creates a new ClashMap with a specified starting capacity.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let numbers = DashSet::with_capacity(2);
+    /// let numbers = ClashSet::with_capacity(2);
     /// numbers.insert(2);
     /// numbers.insert(8);
     /// ```
@@ -80,39 +80,39 @@ impl<K: Eq + Hash> DashSet<K, RandomState> {
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
-    /// Creates a new DashMap with a capacity of 0 and the provided hasher.
+impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> ClashSet<K, S> {
+    /// Creates a new ClashMap with a capacity of 0 and the provided hasher.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     /// use std::collections::hash_map::RandomState;
     ///
     /// let s = RandomState::new();
-    /// let games = DashSet::with_hasher(s);
+    /// let games = ClashSet::with_hasher(s);
     /// games.insert("Veloren");
     /// ```
     pub fn with_hasher(hasher: S) -> Self {
         Self::with_capacity_and_hasher(0, hasher)
     }
 
-    /// Creates a new DashMap with a specified starting capacity and hasher.
+    /// Creates a new ClashMap with a specified starting capacity and hasher.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     /// use std::collections::hash_map::RandomState;
     ///
     /// let s = RandomState::new();
-    /// let numbers = DashSet::with_capacity_and_hasher(2, s);
+    /// let numbers = ClashSet::with_capacity_and_hasher(2, s);
     /// numbers.insert(2);
     /// numbers.insert(8);
     /// ```
     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self {
-            inner: DashMap::with_capacity_and_hasher(capacity, hasher),
+            inner: ClashMap::with_capacity_and_hasher(capacity, hasher),
         }
     }
 
@@ -131,9 +131,9 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let set = DashSet::<()>::new();
+    /// let set = ClashSet::<()>::new();
     /// println!("Amount of shards: {}", set.shards().len());
     /// ```
     pub fn shards(&self) -> &[CachePadded<RwLock<HashMap<K, ()>>>] {
@@ -150,16 +150,15 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let set = DashSet::new();
+    /// let set = ClashSet::new();
     /// set.insert("coca-cola");
     /// println!("coca-cola is stored in shard: {}", set.determine_map("coca-cola"));
     /// ```
     pub fn determine_map<Q>(&self, key: &Q) -> usize
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.inner.determine_map(key)
     }
@@ -172,9 +171,9 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let set: DashSet<i32> = DashSet::new();
+    /// let set: ClashSet<i32> = ClashSet::new();
     /// let key = "key";
     /// let hash = set.hash_usize(&key);
     /// println!("hash is stored in shard: {}", set.determine_shard(hash));
@@ -188,9 +187,9 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let set = DashSet::new();
+    /// let set = ClashSet::new();
     /// set.insert("I am the key!");
     /// ```
     pub fn insert(&self, key: K) -> bool {
@@ -202,16 +201,15 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let soccer_team = DashSet::new();
+    /// let soccer_team = ClashSet::new();
     /// soccer_team.insert("Jack");
     /// assert_eq!(soccer_team.remove("Jack").unwrap(), "Jack");
     /// ```
     pub fn remove<Q>(&self, key: &Q) -> Option<K>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.inner.remove(key).map(|(k, _)| k)
     }
@@ -220,38 +218,37 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// if the entry existed and the provided conditional function returned true.
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let soccer_team = DashSet::new();
+    /// let soccer_team = ClashSet::new();
     /// soccer_team.insert("Sam");
     /// soccer_team.remove_if("Sam", |player| player.starts_with("Ja"));
     /// assert!(soccer_team.contains("Sam"));
     /// ```
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let soccer_team = DashSet::new();
+    /// let soccer_team = ClashSet::new();
     /// soccer_team.insert("Sam");
     /// soccer_team.remove_if("Jacob", |player| player.starts_with("Ja"));
     /// assert!(!soccer_team.contains("Jacob"));
     /// ```
     pub fn remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K) -> bool) -> Option<K>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         // TODO: Don't create another closure around f
         self.inner.remove_if(key, |k, _| f(k)).map(|(k, _)| k)
     }
 
-    /// Creates an iterator over a DashMap yielding immutable references.
+    /// Creates an iterator over a ClashMap yielding immutable references.
     ///
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let words = DashSet::new();
+    /// let words = ClashSet::new();
     /// words.insert("hello");
     /// assert_eq!(words.iter().count(), 1);
     /// ```
@@ -266,16 +263,15 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let youtubers = DashSet::new();
+    /// let youtubers = ClashSet::new();
     /// youtubers.insert("Bosnian Bill");
     /// assert_eq!(*youtubers.get("Bosnian Bill").unwrap(), "Bosnian Bill");
     /// ```
     pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.inner.get(key).map(Ref::new)
     }
@@ -291,9 +287,9 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let people = DashSet::new();
+    /// let people = ClashSet::new();
     /// people.insert("Albin");
     /// people.insert("Jones");
     /// people.insert("Charlie");
@@ -309,9 +305,9 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let people = DashSet::new();
+    /// let people = ClashSet::new();
     /// people.insert("Albin");
     /// people.insert("Jones");
     /// people.insert("Charlie");
@@ -326,9 +322,9 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let map = DashSet::<()>::new();
+    /// let map = ClashSet::<()>::new();
     /// assert!(map.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
@@ -340,9 +336,9 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let people = DashSet::new();
+    /// let people = ClashSet::new();
     /// people.insert("Albin");
     /// assert!(!people.is_empty());
     /// people.clear();
@@ -362,22 +358,21 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashSet;
+    /// use clashmap::ClashSet;
     ///
-    /// let people = DashSet::new();
+    /// let people = ClashSet::new();
     /// people.insert("Dakota Cherries");
     /// assert!(people.contains("Dakota Cherries"));
     /// ```
     pub fn contains<Q>(&self, key: &Q) -> bool
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.inner.contains_key(key)
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
+impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for ClashSet<K, S> {
     type Item = K;
 
     type IntoIter = OwningIter<K, S>;
@@ -387,7 +382,7 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for DashSet<K, S> {
+impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for ClashSet<K, S> {
     fn extend<T: IntoIterator<Item = K>>(&mut self, iter: T) {
         let iter = iter.into_iter().map(|k| (k, ()));
 
@@ -395,9 +390,9 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for DashSet<K, S> {
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone + Default> FromIterator<K> for DashSet<K, S> {
+impl<K: Eq + Hash, S: BuildHasher + Clone + Default> FromIterator<K> for ClashSet<K, S> {
     fn from_iter<I: IntoIterator<Item = K>>(iter: I) -> Self {
-        let mut set = DashSet::default();
+        let mut set = ClashSet::default();
 
         set.extend(iter);
 
@@ -406,7 +401,7 @@ impl<K: Eq + Hash, S: BuildHasher + Clone + Default> FromIterator<K> for DashSet
 }
 
 #[cfg(feature = "typesize")]
-impl<K, S> typesize::TypeSize for DashSet<K, S>
+impl<K, S> typesize::TypeSize for ClashSet<K, S>
 where
     K: typesize::TypeSize + Eq + Hash,
     S: typesize::TypeSize + Clone + BuildHasher,
@@ -424,11 +419,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::DashSet;
+    use crate::ClashSet;
 
     #[test]
     fn test_basic() {
-        let set = DashSet::new();
+        let set = ClashSet::new();
 
         set.insert(0);
 
@@ -437,7 +432,7 @@ mod tests {
 
     #[test]
     fn test_default() {
-        let set: DashSet<u32> = DashSet::default();
+        let set: ClashSet<u32> = ClashSet::default();
 
         set.insert(0);
 
@@ -446,7 +441,7 @@ mod tests {
 
     #[test]
     fn test_multiple_hashes() {
-        let set = DashSet::<u32>::default();
+        let set = ClashSet::<u32>::default();
 
         for i in 0..100 {
             assert!(set.insert(i));

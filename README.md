@@ -1,26 +1,29 @@
-# DashMap
+# ClashMap
 
-Blazingly fast concurrent map in Rust.
+> Conrad Ludgate's Dashmap Fork:
+> Removes much of the unsafe from dashmap, and improves on the API
 
-DashMap is an implementation of a concurrent associative array/hashmap in Rust.
+Sharded hashmap suitable for fast concurrent access.
 
-DashMap tries to implement an easy to use API similar to `std::collections::HashMap`
+ClashMap is an implementation of a concurrent associative array/hashmap in Rust.
+
+ClashMap tries to implement an easy to use API similar to `std::collections::HashMap`
 with some slight changes to handle concurrency.
 
-DashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V>>`.
+ClashMap tries to be very simple to use and to be a direct replacement for `RwLock<HashMap<K, V>>`.
 To accomplish these goals, all methods take `&self` instead of modifying methods taking `&mut self`.
-This allows you to put a DashMap in an `Arc<T>` and share it between threads while still being able to modify it.
+This allows you to put a ClashMap in an `Arc<T>` and share it between threads while still being able to modify it.
 
-DashMap puts great effort into performance and aims to be as fast as possible.
+ClashMap puts great effort into performance and aims to be as fast as possible.
 If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
-[![version](https://img.shields.io/crates/v/dashmap)](https://crates.io/crates/dashmap)
+[![version](https://img.shields.io/crates/v/clashmap)](https://crates.io/crates/clashmap)
 
-[![documentation](https://docs.rs/dashmap/badge.svg)](https://docs.rs/dashmap)
+[![documentation](https://docs.rs/clashmap/badge.svg)](https://docs.rs/clashmap)
 
-[![downloads](https://img.shields.io/crates/d/dashmap)](https://crates.io/crates/dashmap)
+[![downloads](https://img.shields.io/crates/d/clashmap)](https://crates.io/crates/clashmap)
 
-[![minimum rustc version](https://img.shields.io/badge/rustc-1.65-orange.svg)](https://crates.io/crates/dashmap)
+[![minimum rustc version](https://img.shields.io/badge/rustc-1.65-orange.svg)](https://crates.io/crates/clashmap)
 
 ## Cargo features
 
@@ -32,11 +35,9 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 - `inline` - Enables `inline-more` feature from the `hashbrown` crate. Can lead to better performance, but with the cost of longer compile-time.
 
-- `arbitrary` - Enables support for the `arbitrary` crate.
-
 ## Contributing
 
-DashMap gladly accepts contributions!
+ClashMap gladly accepts contributions!
 Do not hesitate to open issues or PR's.
 
 I will take a look as soon as I have time for it.
@@ -46,13 +47,15 @@ that my time is limited and my work here comes after my personal life.
 
 ## Performance
 
-A comprehensive benchmark suite including DashMap can be found [here](https://github.com/xacrimon/conc-map-bench).
+A comprehensive benchmark suite, not yet including ClashMap, can be found [here](https://github.com/xacrimon/conc-map-bench).
 
 ## Special thanks
 
+- [Joel Wejdenstål](https://github.com/xacrimon)
+
 - [Jon Gjengset](https://github.com/jonhoo)
 
-- [Yato](https://github.com/RustyYato) 
+- [Yato](https://github.com/RustyYato)
 
 - [Karl Bergström](https://github.com/kabergstrom)
 

@@ -1,32 +1,32 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
-use crate::{DashMap, ShardIdx};
+use crate::{ClashMap, ShardIdx};
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 use std::collections::hash_map::RandomState;
 use std::sync::Arc;
 
-/// Iterator over a DashMap yielding key value pairs.
+/// Iterator over a ClashMap yielding key value pairs.
 ///
 /// # Examples
 ///
 /// ```
-/// use dashmap::DashMap;
+/// use clashmap::ClashMap;
 ///
-/// let map = DashMap::new();
+/// let map = ClashMap::new();
 /// map.insert("hello", "world");
 /// map.insert("alex", "steve");
 /// let pairs: Vec<(&'static str, &'static str)> = map.into_iter().collect();
 /// assert_eq!(pairs.len(), 2);
 /// ```
 pub struct OwningIter<K, V, S = RandomState> {
-    map: DashMap<K, V, S>,
+    map: ClashMap<K, V, S>,
     shard_i: usize,
     current: Option<GuardOwningIter<K, V>>,
 }
 
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> OwningIter<K, V, S> {
-    pub(crate) fn new(map: DashMap<K, V, S>) -> Self {
+    pub(crate) fn new(map: ClashMap<K, V, S>) -> Self {
         Self {
             map,
             shard_i: 0,
@@ -76,14 +76,14 @@ type GuardIterMut<'a, K, V> = (
     hashbrown::hash_table::IterMut<'a, (K, V)>,
 );
 
-/// Iterator over a DashMap yielding immutable references.
+/// Iterator over a ClashMap yielding immutable references.
 ///
 /// # Examples
 ///
 /// ```
-/// use dashmap::DashMap;
+/// use clashmap::ClashMap;
 ///
-/// let map = DashMap::new();
+/// let map = ClashMap::new();
 /// map.insert("hello", "world");
 /// assert_eq!(map.iter().count(), 1);
 /// ```
@@ -102,7 +102,7 @@ impl<K, V> Clone for Iter<'_, K, V> {
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> Iter<'a, K, V> {
-    pub(crate) fn new<S: BuildHasher + Clone>(map: &'a DashMap<K, V, S>) -> Self {
+    pub(crate) fn new<S: BuildHasher + Clone>(map: &'a ClashMap<K, V, S>) -> Self {
         Self {
             shard_i: Some(map.first_shard()),
             current: None,
@@ -136,14 +136,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Iterator for Iter<'a, K, V> {
     }
 }
 
-/// Iterator over a DashMap yielding mutable references.
+/// Iterator over a ClashMap yielding mutable references.
 ///
 /// # Examples
 ///
 /// ```
-/// use dashmap::DashMap;
+/// use clashmap::ClashMap;
 ///
-/// let map = DashMap::new();
+/// let map = ClashMap::new();
 /// map.insert("Johnny", 21);
 /// map.iter_mut().for_each(|mut r| *r += 1);
 /// assert_eq!(*map.get("Johnny").unwrap(), 22);
@@ -154,7 +154,7 @@ pub struct IterMut<'a, K, V> {
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> IterMut<'a, K, V> {
-    pub(crate) fn new<S: BuildHasher + Clone>(map: &'a DashMap<K, V, S>) -> Self {
+    pub(crate) fn new<S: BuildHasher + Clone>(map: &'a ClashMap<K, V, S>) -> Self {
         Self {
             shard_i: Some(map.first_shard()),
             current: None,
@@ -190,11 +190,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> Iterator for IterMut<'a, K, V> {
 
 #[cfg(test)]
 mod tests {
-    use crate::DashMap;
+    use crate::ClashMap;
 
     #[test]
     fn iter_mut_manual_count() {
-        let map = DashMap::new();
+        let map = ClashMap::new();
 
         map.insert("Johnny", 21);
 
@@ -211,7 +211,7 @@ mod tests {
 
     #[test]
     fn into_iter_count() {
-        let map = DashMap::new();
+        let map = ClashMap::new();
 
         map.insert("Johnny", 21);
         let c = map.into_iter().count();
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn iter_mut_count() {
-        let map = DashMap::new();
+        let map = ClashMap::new();
 
         map.insert("Johnny", 21);
 
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn iter_count() {
-        let map = DashMap::new();
+        let map = ClashMap::new();
 
         map.insert("Johnny", 21);
 
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn iter_clone() {
-        let map = DashMap::new();
+        let map = ClashMap::new();
 
         map.insert("Johnny", 21);
         map.insert("Chucky", 22);

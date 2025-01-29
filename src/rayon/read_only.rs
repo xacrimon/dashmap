@@ -83,11 +83,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::DashMap;
+    use crate::ClashMap;
     use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
-    fn construct_sample_map() -> DashMap<i32, String> {
-        let map = DashMap::new();
+    fn construct_sample_map() -> ClashMap<i32, String> {
+        let map = ClashMap::new();
 
         map.insert(1, "one".to_string());
 

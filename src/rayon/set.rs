@@ -1,10 +1,10 @@
 use crate::setref::multiple::RefMulti;
-use crate::DashSet;
+use crate::ClashSet;
 use core::hash::{BuildHasher, Hash};
 use rayon::iter::plumbing::UnindexedConsumer;
 use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, ParallelIterator};
 
-impl<K, S> ParallelExtend<K> for DashSet<K, S>
+impl<K, S> ParallelExtend<K> for ClashSet<K, S>
 where
     K: Send + Sync + Eq + Hash,
     S: Send + Sync + Clone + BuildHasher,
@@ -19,7 +19,7 @@ where
 
 // Since we don't actually need mutability, we can implement this on a
 // reference, similar to `io::Write for &File`.
-impl<K, S> ParallelExtend<K> for &'_ DashSet<K, S>
+impl<K, S> ParallelExtend<K> for &'_ ClashSet<K, S>
 where
     K: Send + Sync + Eq + Hash,
     S: Send + Sync + Clone + BuildHasher,
@@ -35,7 +35,7 @@ where
     }
 }
 
-impl<K, S> FromParallelIterator<K> for DashSet<K, S>
+impl<K, S> FromParallelIterator<K> for ClashSet<K, S>
 where
     K: Send + Sync + Eq + Hash,
     S: Send + Sync + Clone + Default + BuildHasher,
@@ -50,7 +50,7 @@ where
     }
 }
 
-impl<K, S> IntoParallelIterator for DashSet<K, S>
+impl<K, S> IntoParallelIterator for ClashSet<K, S>
 where
     K: Send + Eq + Hash,
     S: Send + Clone + BuildHasher,
@@ -84,7 +84,7 @@ where
 }
 
 // This impl also enables `IntoParallelRefIterator::par_iter`
-impl<'a, K, S> IntoParallelIterator for &'a DashSet<K, S>
+impl<'a, K, S> IntoParallelIterator for &'a ClashSet<K, S>
 where
     K: Send + Sync + Eq + Hash,
     S: Send + Sync + Clone + BuildHasher,

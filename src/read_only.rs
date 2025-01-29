@@ -1,14 +1,14 @@
 use crate::lock::RwLock;
-use crate::DashMap;
+use crate::ClashMap;
 use crate::HashMap;
-use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
 use crossbeam_utils::CachePadded;
+use hashbrown::Equivalent;
 use std::collections::hash_map::RandomState;
 use std::hash::Hasher;
 
-/// A read-only view into a `DashMap`. Allows to obtain raw references to the stored values.
+/// A read-only view into a `ClashMap`. Allows to obtain raw references to the stored values.
 pub struct ReadOnlyView<K, V, S = RandomState> {
     shift: usize,
     pub(crate) shards: Box<[HashMap<K, V>]>,
@@ -34,7 +34,7 @@ impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debu
 }
 
 impl<K, V, S> ReadOnlyView<K, V, S> {
-    pub(crate) fn new(map: DashMap<K, V, S>) -> Self {
+    pub(crate) fn new(map: ClashMap<K, V, S>) -> Self {
         Self {
             shards: Vec::from(map.shards)
                 .into_iter()
@@ -45,9 +45,9 @@ impl<K, V, S> ReadOnlyView<K, V, S> {
         }
     }
 
-    /// Consumes this `ReadOnlyView`, returning the underlying `DashMap`.
-    pub fn into_inner(self) -> DashMap<K, V, S> {
-        DashMap {
+    /// Consumes this `ReadOnlyView`, returning the underlying `ClashMap`.
+    pub fn into_inner(self) -> ClashMap<K, V, S> {
+        ClashMap {
             shards: Vec::from(self.shards)
                 .into_iter()
                 .map(|s| CachePadded::new(RwLock::new(s)))
@@ -93,8 +93,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// Returns `true` if the map contains a value for the specified key.
     pub fn contains_key<Q>(&'a self, key: &Q) -> bool
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.get(key).is_some()
     }
@@ -102,8 +101,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// Returns a reference to the value corresponding to the key.
     pub fn get<Q>(&'a self, key: &Q) -> Option<&'a V>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.get_key_value(key).map(|(_k, v)| v)
     }
@@ -111,15 +109,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// Returns the key-value pair corresponding to the supplied key.
     pub fn get_key_value<Q>(&'a self, key: &Q) -> Option<(&'a K, &'a V)>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
         let idx = self._determine_shard(hash as usize);
         let shard = idx.shard();
 
         shard
-            .find(hash, |(k, _v)| key == k.borrow())
+            .find(hash, |(k, _v)| key.equivalent(k))
             .map(|(k, v)| (k, v))
     }
 
@@ -157,9 +154,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     /// # Examples
     ///
     /// ```
-    /// use dashmap::DashMap;
+    /// use clashmap::ClashMap;
     ///
-    /// let map = DashMap::<(), ()>::new().into_read_only();
+    /// let map = ClashMap::<(), ()>::new().into_read_only();
     /// println!("Amount of shards: {}", map.shards().len());
     /// ```
     pub fn shards(&self) -> &[HashMap<K, V>] {
@@ -198,10 +195,10 @@ impl<'a, K, V> ShardIdx<'a, K, V> {
 
 #[cfg(test)]
 mod tests {
-    use crate::DashMap;
+    use crate::ClashMap;
 
-    fn construct_sample_map() -> DashMap<i32, String> {
-        let map = DashMap::new();
+    fn construct_sample_map() -> ClashMap<i32, String> {
+        let map = ClashMap::new();
 
         map.insert(1, "one".to_string());
 

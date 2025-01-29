@@ -47,11 +47,11 @@ impl<'a, K: 'a + Eq + Hash> Iterator for Iter<'a, K> {
 
 #[cfg(test)]
 mod tests {
-    use crate::DashSet;
+    use crate::ClashSet;
 
     #[test]
     fn into_iter_count() {
-        let set = DashSet::new();
+        let set = ClashSet::new();
 
         set.insert("Johnny");
         let c = set.into_iter().count();
@@ -61,7 +61,7 @@ mod tests {
 
     #[test]
     fn iter_count() {
-        let set = DashSet::new();
+        let set = ClashSet::new();
 
         set.insert("Johnny");
 
@@ -72,7 +72,7 @@ mod tests {
 
     #[test]
     fn iter_clone() {
-        let set = DashSet::new();
+        let set = ClashSet::new();
 
         set.insert("Johnny");
         set.insert("Chucky");

@@ -211,13 +211,13 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
 
 #[cfg(test)]
 mod tests {
-    use crate::DashMap;
+    use crate::ClashMap;
 
     use super::*;
 
     #[test]
     fn test_insert_entry_into_vacant() {
-        let map: DashMap<u32, u32> = DashMap::new();
+        let map: ClashMap<u32, u32> = ClashMap::new();
 
         let entry = map.entry(1);
 
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_insert_entry_into_occupied() {
-        let map: DashMap<u32, u32> = DashMap::new();
+        let map: ClashMap<u32, u32> = ClashMap::new();
 
         map.insert(1, 1000);
 

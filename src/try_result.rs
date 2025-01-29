@@ -1,4 +1,4 @@
-/// Represents the result of a non-blocking read from a [DashMap](crate::DashMap).
+/// Represents the result of a non-blocking read from a [ClashMap](crate::ClashMap).
 #[derive(Debug)]
 pub enum TryResult<R> {
     /// The value was present in the map, and the lock for the shard was successfully obtained.

@@ -1,13 +1,13 @@
 use crate::lock::{RwLock, RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::mapref::multiple::{RefMulti, RefMutMulti};
-use crate::{DashMap, HashMap, Shard};
+use crate::{ClashMap, HashMap, Shard};
 use core::hash::{BuildHasher, Hash};
 use crossbeam_utils::CachePadded;
 use rayon::iter::plumbing::UnindexedConsumer;
 use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, ParallelIterator};
 use std::sync::Arc;
 
-impl<K, V, S> ParallelExtend<(K, V)> for DashMap<K, V, S>
+impl<K, V, S> ParallelExtend<(K, V)> for ClashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
@@ -23,7 +23,7 @@ where
 
 // Since we don't actually need mutability, we can implement this on a
 // reference, similar to `io::Write for &File`.
-impl<K, V, S> ParallelExtend<(K, V)> for &'_ DashMap<K, V, S>
+impl<K, V, S> ParallelExtend<(K, V)> for &'_ ClashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
@@ -40,7 +40,7 @@ where
     }
 }
 
-impl<K, V, S> FromParallelIterator<(K, V)> for DashMap<K, V, S>
+impl<K, V, S> FromParallelIterator<(K, V)> for ClashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
@@ -62,7 +62,7 @@ where
 // There is real parallel support in the `hashbrown/rayon` feature, but we don't
 // always use that map.
 
-impl<K, V, S> IntoParallelIterator for DashMap<K, V, S>
+impl<K, V, S> IntoParallelIterator for ClashMap<K, V, S>
 where
     K: Send + Eq + Hash,
     V: Send,
@@ -101,7 +101,7 @@ where
 }
 
 // This impl also enables `IntoParallelRefIterator::par_iter`
-impl<'a, K, V, S> IntoParallelIterator for &'a DashMap<K, V, S>
+impl<'a, K, V, S> IntoParallelIterator for &'a ClashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
@@ -149,7 +149,7 @@ where
 }
 
 // This impl also enables `IntoParallelRefMutIterator::par_iter_mut`
-impl<'a, K, V> IntoParallelIterator for &'a mut DashMap<K, V>
+impl<'a, K, V> IntoParallelIterator for &'a mut ClashMap<K, V>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
@@ -164,7 +164,7 @@ where
     }
 }
 
-impl<K, V, S> DashMap<K, V, S>
+impl<K, V, S> ClashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
