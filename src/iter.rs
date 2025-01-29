@@ -25,7 +25,7 @@ pub struct OwningIter<K, V, S = RandomState> {
     current: Option<GuardOwningIter<K, V>>,
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> OwningIter<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher> OwningIter<K, V, S> {
     pub(crate) fn new(map: ClashMap<K, V, S>) -> Self {
         Self {
             map,
@@ -37,7 +37,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> OwningIter<K, V, S> {
 
 type GuardOwningIter<K, V> = hashbrown::hash_table::IntoIter<(K, V)>;
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher> Iterator for OwningIter<K, V, S> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -102,7 +102,7 @@ impl<K, V> Clone for Iter<'_, K, V> {
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> Iter<'a, K, V> {
-    pub(crate) fn new<S: BuildHasher + Clone>(map: &'a ClashMap<K, V, S>) -> Self {
+    pub(crate) fn new<S: BuildHasher>(map: &'a ClashMap<K, V, S>) -> Self {
         Self {
             shard_i: Some(map.first_shard()),
             current: None,
@@ -154,7 +154,7 @@ pub struct IterMut<'a, K, V> {
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a> IterMut<'a, K, V> {
-    pub(crate) fn new<S: BuildHasher + Clone>(map: &'a ClashMap<K, V, S>) -> Self {
+    pub(crate) fn new<S: BuildHasher>(map: &'a ClashMap<K, V, S>) -> Self {
         Self {
             shard_i: Some(map.first_shard()),
             current: None,

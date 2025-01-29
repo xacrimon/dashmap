@@ -7,7 +7,7 @@ use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, Pa
 impl<K, S> ParallelExtend<K> for ClashSet<K, S>
 where
     K: Send + Sync + Eq + Hash,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync + BuildHasher,
 {
     fn par_extend<I>(&mut self, par_iter: I)
     where
@@ -22,7 +22,7 @@ where
 impl<K, S> ParallelExtend<K> for &'_ ClashSet<K, S>
 where
     K: Send + Sync + Eq + Hash,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync + BuildHasher,
 {
     fn par_extend<I>(&mut self, par_iter: I)
     where
@@ -38,7 +38,7 @@ where
 impl<K, S> FromParallelIterator<K> for ClashSet<K, S>
 where
     K: Send + Sync + Eq + Hash,
-    S: Send + Sync + Clone + Default + BuildHasher,
+    S: Send + Sync + Default + BuildHasher,
 {
     fn from_par_iter<I>(par_iter: I) -> Self
     where
@@ -53,7 +53,7 @@ where
 impl<K, S> IntoParallelIterator for ClashSet<K, S>
 where
     K: Send + Eq + Hash,
-    S: Send + Clone + BuildHasher,
+    S: Send + BuildHasher,
 {
     type Iter = OwningIter<K>;
     type Item = K;
@@ -87,7 +87,7 @@ where
 impl<'a, K, S> IntoParallelIterator for &'a ClashSet<K, S>
 where
     K: Send + Sync + Eq + Hash,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync + BuildHasher,
 {
     type Iter = Iter<'a, K>;
     type Item = RefMulti<'a, K>;

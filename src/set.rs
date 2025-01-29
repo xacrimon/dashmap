@@ -21,7 +21,7 @@ pub struct ClashSet<K, S = RandomState> {
     pub(crate) inner: ClashMap<K, (), S>,
 }
 
-impl<K: Eq + Hash + fmt::Debug, S: BuildHasher + Clone> fmt::Debug for ClashSet<K, S> {
+impl<K: Eq + Hash + fmt::Debug, S: BuildHasher> fmt::Debug for ClashSet<K, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.inner, f)
     }
@@ -42,7 +42,7 @@ impl<K: Eq + Hash + Clone, S: Clone> Clone for ClashSet<K, S> {
 impl<K, S> Default for ClashSet<K, S>
 where
     K: Eq + Hash,
-    S: Default + BuildHasher + Clone,
+    S: Default + BuildHasher,
 {
     fn default() -> Self {
         Self::with_hasher(Default::default())
@@ -80,7 +80,7 @@ impl<K: Eq + Hash> ClashSet<K, RandomState> {
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> ClashSet<K, S> {
+impl<'a, K: 'a + Eq + Hash, S: BuildHasher> ClashSet<K, S> {
     /// Creates a new ClashMap with a capacity of 0 and the provided hasher.
     ///
     /// # Examples
@@ -372,7 +372,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> ClashSet<K, S> {
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for ClashSet<K, S> {
+impl<K: Eq + Hash, S: BuildHasher> IntoIterator for ClashSet<K, S> {
     type Item = K;
 
     type IntoIter = OwningIter<K, S>;
@@ -382,7 +382,7 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for ClashSet<K, S> {
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for ClashSet<K, S> {
+impl<K: Eq + Hash, S: BuildHasher> Extend<K> for ClashSet<K, S> {
     fn extend<T: IntoIterator<Item = K>>(&mut self, iter: T) {
         let iter = iter.into_iter().map(|k| (k, ()));
 
@@ -390,7 +390,7 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for ClashSet<K, S> {
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone + Default> FromIterator<K> for ClashSet<K, S> {
+impl<K: Eq + Hash, S: BuildHasher + Default> FromIterator<K> for ClashSet<K, S> {
     fn from_iter<I: IntoIterator<Item = K>>(iter: I) -> Self {
         let mut set = ClashSet::default();
 
@@ -404,7 +404,7 @@ impl<K: Eq + Hash, S: BuildHasher + Clone + Default> FromIterator<K> for ClashSe
 impl<K, S> typesize::TypeSize for ClashSet<K, S>
 where
     K: typesize::TypeSize + Eq + Hash,
-    S: typesize::TypeSize + Clone + BuildHasher,
+    S: typesize::TypeSize + BuildHasher,
 {
     fn extra_size(&self) -> usize {
         self.inner.extra_size()

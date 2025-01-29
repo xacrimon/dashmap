@@ -5,13 +5,13 @@ pub struct OwningIter<K, S> {
     inner: crate::iter::OwningIter<K, (), S>,
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> OwningIter<K, S> {
+impl<K: Eq + Hash, S: BuildHasher> OwningIter<K, S> {
     pub(crate) fn new(inner: crate::iter::OwningIter<K, (), S>) -> Self {
         Self { inner }
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> Iterator for OwningIter<K, S> {
+impl<K: Eq + Hash, S: BuildHasher> Iterator for OwningIter<K, S> {
     type Item = K;
 
     fn next(&mut self) -> Option<Self::Item> {

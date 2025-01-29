@@ -108,7 +108,7 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for ClashMap<K, V, S> {
 impl<K, V, S> Default for ClashMap<K, V, S>
 where
     K: Eq + Hash,
-    S: Default + BuildHasher + Clone,
+    S: Default + BuildHasher,
 {
     fn default() -> Self {
         Self::with_hasher(Default::default())
@@ -187,7 +187,7 @@ impl<K: Eq + Hash, V> ClashMap<K, V, RandomState> {
 }
 
 #[cfg(feature = "raw-api")]
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> ClashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
     /// Allows you to peek at the inner shards that store your data.
     /// You should probably not use this unless you know what you are doing.
     ///
@@ -285,7 +285,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> ClashMap<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> ClashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
     /// Wraps this `ClashMap` into a read-only view. This view allows to obtain raw references to the stored values.
     pub fn into_read_only(self) -> ReadOnlyView<K, V, S> {
         ReadOnlyView::new(self)
@@ -1077,7 +1077,7 @@ impl<'a, K, V> ShardIdx<'a, K, V> {
     }
 }
 
-impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debug
+impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher> fmt::Debug
     for ClashMap<K, V, S>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1093,7 +1093,7 @@ impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debu
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> Shl<(K, V)> for &'a ClashMap<K, V, S> {
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher> Shl<(K, V)> for &'a ClashMap<K, V, S> {
     type Output = Option<V>;
 
     fn shl(self, pair: (K, V)) -> Self::Output {
@@ -1101,7 +1101,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> Shl<(K, V)> for &'a C
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> Shr<&Q> for &'a ClashMap<K, V, S>
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher, Q> Shr<&Q> for &'a ClashMap<K, V, S>
 where
     Q: Hash + Equivalent<K> + ?Sized,
 {
@@ -1112,7 +1112,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> BitOr<&Q> for &'a ClashMap<K, V, S>
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher, Q> BitOr<&Q> for &'a ClashMap<K, V, S>
 where
     Q: Hash + Equivalent<K> + ?Sized,
 {
@@ -1123,7 +1123,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> Sub<&Q> for &'a ClashMap<K, V, S>
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher, Q> Sub<&Q> for &'a ClashMap<K, V, S>
 where
     Q: Hash + Equivalent<K> + ?Sized,
 {
@@ -1134,7 +1134,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> BitAnd<&Q> for &'a ClashMap<K, V, S>
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher, Q> BitAnd<&Q> for &'a ClashMap<K, V, S>
 where
     Q: Hash + Equivalent<K> + ?Sized,
 {
@@ -1145,7 +1145,7 @@ where
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for ClashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher> IntoIterator for ClashMap<K, V, S> {
     type Item = (K, V);
 
     type IntoIter = OwningIter<K, V, S>;
@@ -1155,7 +1155,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for ClashMap<K, V, S>
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a ClashMap<K, V, S> {
+impl<'a, K: Eq + Hash, V, S: BuildHasher> IntoIterator for &'a ClashMap<K, V, S> {
     type Item = RefMulti<'a, K, V>;
 
     type IntoIter = Iter<'a, K, V>;
@@ -1165,7 +1165,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a ClashMap<
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> Extend<(K, V)> for ClashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher> Extend<(K, V)> for ClashMap<K, V, S> {
     fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, intoiter: I) {
         for pair in intoiter.into_iter() {
             self.insert(pair.0, pair.1);
@@ -1173,7 +1173,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> Extend<(K, V)> for ClashMap<K, V, 
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone + Default> FromIterator<(K, V)> for ClashMap<K, V, S> {
+impl<K: Eq + Hash, V, S: BuildHasher + Default> FromIterator<(K, V)> for ClashMap<K, V, S> {
     fn from_iter<I: IntoIterator<Item = (K, V)>>(intoiter: I) -> Self {
         let mut map = ClashMap::default();
 
@@ -1188,7 +1188,7 @@ impl<K, V, S> typesize::TypeSize for ClashMap<K, V, S>
 where
     K: typesize::TypeSize + Eq + Hash,
     V: typesize::TypeSize,
-    S: typesize::TypeSize + Clone + BuildHasher,
+    S: typesize::TypeSize + BuildHasher,
 {
     fn extra_size(&self) -> usize {
         let shards_extra_size: usize = self

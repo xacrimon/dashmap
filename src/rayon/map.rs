@@ -11,7 +11,7 @@ impl<K, V, S> ParallelExtend<(K, V)> for ClashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync + BuildHasher,
 {
     fn par_extend<I>(&mut self, par_iter: I)
     where
@@ -27,7 +27,7 @@ impl<K, V, S> ParallelExtend<(K, V)> for &'_ ClashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync + BuildHasher,
 {
     fn par_extend<I>(&mut self, par_iter: I)
     where
@@ -44,7 +44,7 @@ impl<K, V, S> FromParallelIterator<(K, V)> for ClashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + Default + BuildHasher,
+    S: Send + Sync + Default + BuildHasher,
 {
     fn from_par_iter<I>(par_iter: I) -> Self
     where
@@ -66,7 +66,7 @@ impl<K, V, S> IntoParallelIterator for ClashMap<K, V, S>
 where
     K: Send + Eq + Hash,
     V: Send,
-    S: Send + Clone + BuildHasher,
+    S: Send + BuildHasher,
 {
     type Iter = OwningIter<K, V>;
     type Item = (K, V);
@@ -105,7 +105,7 @@ impl<'a, K, V, S> IntoParallelIterator for &'a ClashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync + BuildHasher,
 {
     type Iter = Iter<'a, K, V>;
     type Item = RefMulti<'a, K, V>;

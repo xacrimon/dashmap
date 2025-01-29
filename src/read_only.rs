@@ -25,7 +25,7 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for ReadOnlyView<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debug
+impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher> fmt::Debug
     for ReadOnlyView<K, V, S>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -36,7 +36,9 @@ impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debu
 impl<K, V, S> ReadOnlyView<K, V, S> {
     pub(crate) fn new(map: ClashMap<K, V, S>) -> Self {
         Self {
-            shards: Vec::from(map.shards)
+            shards: map
+                .shards
+                .into_vec()
                 .into_iter()
                 .map(|s| s.into_inner().into_inner())
                 .collect(),
@@ -48,7 +50,9 @@ impl<K, V, S> ReadOnlyView<K, V, S> {
     /// Consumes this `ReadOnlyView`, returning the underlying `ClashMap`.
     pub fn into_inner(self) -> ClashMap<K, V, S> {
         ClashMap {
-            shards: Vec::from(self.shards)
+            shards: self
+                .shards
+                .into_vec()
                 .into_iter()
                 .map(|s| CachePadded::new(RwLock::new(s)))
                 .collect(),
@@ -58,7 +62,7 @@ impl<K, V, S> ReadOnlyView<K, V, S> {
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S> {
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher> ReadOnlyView<K, V, S> {
     fn hash_u64<T: Hash>(&self, item: &T) -> u64 {
         let mut hasher = self.hasher.build_hasher();
 

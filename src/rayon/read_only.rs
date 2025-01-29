@@ -8,7 +8,7 @@ impl<K, V, S> IntoParallelIterator for ReadOnlyView<K, V, S>
 where
     K: Send + Eq + Hash,
     V: Send,
-    S: Send + Clone + BuildHasher,
+    S: Send + BuildHasher,
 {
     type Iter = ReadOnlyOwningIter<K, V>;
     type Item = (K, V);
@@ -47,7 +47,7 @@ impl<'a, K, V, S> IntoParallelIterator for &'a ReadOnlyView<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync + BuildHasher,
 {
     type Iter = ReadOnlyIter<'a, K, V>;
     type Item = &'a (K, V);

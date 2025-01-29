@@ -14,7 +14,7 @@ pub struct ClashMapVisitor<K, V, S> {
 impl<K, V, S> ClashMapVisitor<K, V, S>
 where
     K: Eq + Hash,
-    S: BuildHasher + Clone,
+    S: BuildHasher,
 {
     fn new() -> Self {
         ClashMapVisitor {
@@ -27,7 +27,7 @@ impl<'de, K, V, S> Visitor<'de> for ClashMapVisitor<K, V, S>
 where
     K: Deserialize<'de> + Eq + Hash,
     V: Deserialize<'de>,
-    S: BuildHasher + Clone + Default,
+    S: BuildHasher + Default,
 {
     type Value = ClashMap<K, V, S>;
 
@@ -54,7 +54,7 @@ impl<'de, K, V, S> Deserialize<'de> for ClashMap<K, V, S>
 where
     K: Deserialize<'de> + Eq + Hash,
     V: Deserialize<'de>,
-    S: BuildHasher + Clone + Default,
+    S: BuildHasher + Default,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -68,7 +68,7 @@ impl<K, V, H> Serialize for ClashMap<K, V, H>
 where
     K: Serialize + Eq + Hash,
     V: Serialize,
-    H: BuildHasher + Clone,
+    H: BuildHasher,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -91,7 +91,7 @@ pub struct ClashSetVisitor<K, S> {
 impl<K, S> ClashSetVisitor<K, S>
 where
     K: Eq + Hash,
-    S: BuildHasher + Clone,
+    S: BuildHasher,
 {
     fn new() -> Self {
         ClashSetVisitor {
@@ -103,7 +103,7 @@ where
 impl<'de, K, S> Visitor<'de> for ClashSetVisitor<K, S>
 where
     K: Deserialize<'de> + Eq + Hash,
-    S: BuildHasher + Clone + Default,
+    S: BuildHasher + Default,
 {
     type Value = ClashSet<K, S>;
 
@@ -129,7 +129,7 @@ where
 impl<'de, K, S> Deserialize<'de> for ClashSet<K, S>
 where
     K: Deserialize<'de> + Eq + Hash,
-    S: BuildHasher + Clone + Default,
+    S: BuildHasher + Default,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -142,7 +142,7 @@ where
 impl<K, H> Serialize for ClashSet<K, H>
 where
     K: Serialize + Eq + Hash,
-    H: BuildHasher + Clone,
+    H: BuildHasher,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
