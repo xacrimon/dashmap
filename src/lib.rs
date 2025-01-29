@@ -47,7 +47,6 @@ use replace_with::replace_with_or_abort;
 pub use set::ClashSet;
 use std::collections::hash_map::RandomState;
 use std::convert::Infallible;
-use std::hint::unreachable_unchecked;
 use std::sync::OnceLock;
 use try_result::TryResult;
 
@@ -415,7 +414,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
                 // and shift is calculated such that the resulting idx is always
                 // less than the shards length
                 unsafe {
-                    unreachable_unchecked();
+                    std::hint::unreachable_unchecked();
                 }
             }
         }

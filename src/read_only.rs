@@ -11,6 +11,8 @@ use std::hash::Hasher;
 /// A read-only view into a `ClashMap`. Allows to obtain raw references to the stored values.
 pub struct ReadOnlyView<K, V, S = RandomState> {
     shift: usize,
+    // It is necessary to re-alloc the shards here
+    // to allow ReadOnlyView to be covariant over K and V
     pub(crate) shards: Box<[HashMap<K, V>]>,
     hasher: S,
 }
@@ -71,12 +73,25 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher> ReadOnlyView<K, V, S> {
         hasher.finish()
     }
 
-    fn _determine_shard(&self, hash: usize) -> ShardIdx<'_, K, V> {
-        ShardIdx {
-            // Leave the high 7 bits for the HashBrown SIMD tag.
-            idx: (hash << 7) >> self.shift,
-            map: &self.shards,
+    fn _determine_shard(&self, hash: usize) -> usize {
+        // Leave the high 7 bits for the HashBrown SIMD tag.
+        let idx = (hash << 7) >> self.shift;
+
+        // hint to llvm that the panic bounds check can be removed
+        if idx >= self.shards.len() {
+            if cfg!(debug_assertions) {
+                unreachable!("invalid shard index")
+            } else {
+                // SAFETY: shards is always a power of two,
+                // and shift is calculated such that the resulting idx is always
+                // less than the shards length
+                unsafe {
+                    std::hint::unreachable_unchecked();
+                }
+            }
         }
+
+        idx
     }
 
     /// Returns the number of elements in the map.
@@ -117,24 +132,16 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher> ReadOnlyView<K, V, S> {
     {
         let hash = self.hash_u64(&key);
         let idx = self._determine_shard(hash as usize);
-        let shard = idx.shard();
 
-        shard
+        self.shards[idx]
             .find(hash, |(k, _v)| key.equivalent(k))
             .map(|(k, v)| (k, v))
     }
 
-    fn first_shard(&self) -> ShardIdx<'_, K, V> {
-        ShardIdx {
-            idx: 0,
-            map: &self.shards,
-        }
-    }
-
     /// An iterator visiting all key-value pairs in arbitrary order. The iterator element type is `(&'a K, &'a V)`.
     pub fn iter(&'a self) -> impl Iterator<Item = (&'a K, &'a V)> {
-        std::iter::successors(Some(self.first_shard()), |s| s.next_shard())
-            .map(|shard_i| shard_i.shard())
+        self.shards
+            .iter()
             .flat_map(|shard| shard.iter())
             .map(|(k, v)| (k, v))
     }
@@ -165,35 +172,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher> ReadOnlyView<K, V, S> {
     /// ```
     pub fn shards(&self) -> &[HashMap<K, V>] {
         &self.shards
-    }
-}
-
-struct ShardIdx<'a, K, V> {
-    idx: usize,
-    map: &'a [HashMap<K, V>],
-}
-
-impl<K, V> Copy for ShardIdx<'_, K, V> {}
-
-impl<K, V> Clone for ShardIdx<'_, K, V> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<'a, K, V> ShardIdx<'a, K, V> {
-    fn shard(&self) -> &'a HashMap<K, V> {
-        // SAFETY: `idx` is inbounds.
-        unsafe { self.map.get_unchecked(self.idx) }
-    }
-
-    fn next_shard(mut self) -> Option<Self> {
-        self.idx += 1;
-        if self.idx == self.map.len() {
-            None
-        } else {
-            Some(self)
-        }
     }
 }
 
