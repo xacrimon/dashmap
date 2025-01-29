@@ -42,13 +42,13 @@ pub use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::entrymut::{EntryMut, OccupiedEntryMut, VacantEntryMut};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
-use once_cell::sync::OnceCell;
 pub use read_only::ReadOnlyView;
 use replace_with::replace_with_or_abort;
 pub use set::ClashSet;
 use std::collections::hash_map::RandomState;
 use std::convert::Infallible;
 use std::hint::unreachable_unchecked;
+use std::sync::OnceLock;
 use try_result::TryResult;
 
 pub(crate) type HashMap<K, V> = hash_table::HashTable<(K, V)>;
@@ -62,8 +62,9 @@ pub(crate) type Shard<K, V> = CachePadded<RwLock<HashMap<K, V>>>;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct TryReserveError {}
 
+#[no_mangle]
 fn default_shard_amount() -> usize {
-    static DEFAULT_SHARD_AMOUNT: OnceCell<usize> = OnceCell::new();
+    static DEFAULT_SHARD_AMOUNT: OnceLock<usize> = OnceLock::new();
     *DEFAULT_SHARD_AMOUNT.get_or_init(|| {
         (std::thread::available_parallelism().map_or(1, usize::from) * 4).next_power_of_two()
     })
@@ -605,6 +606,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         }
     }
 
+    #[allow(dead_code)]
     fn try_for_each<E>(&self, mut f: impl FnMut(&(K, V)) -> Result<(), E>) -> Result<(), E> {
         self.try_fold((), |(), kv| f(kv))
     }

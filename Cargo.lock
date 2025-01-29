@@ -22,12 +22,11 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "clashmap"
-version = "6.1.0"
+version = "1.0.0"
 dependencies = [
  "crossbeam-utils",
  "hashbrown",
  "lock_api",
- "once_cell",
  "parking_lot_core",
  "polonius-the-crab",
  "rayon",
@@ -146,12 +145,6 @@ dependencies = [
  "hermit-abi",
  "libc",
 ]
-
-[[package]]
-name = "once_cell"
-version = "1.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 
 [[package]]
 name = "parking_lot_core"
