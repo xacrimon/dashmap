@@ -189,6 +189,20 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher> ClashSet<K, S> {
     /// ```
     /// use clashmap::ClashSet;
     ///
+    /// let mut set = ClashSet::new();
+    /// set.insert_mut("I am the key!");
+    /// ```
+    pub fn insert_mut(&mut self, key: K) -> bool {
+        self.inner.insert_mut(key, ()).is_none()
+    }
+
+    /// Inserts a key into the set. Returns true if the key was not already in the set.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use clashmap::ClashSet;
+    ///
     /// let set = ClashSet::new();
     /// set.insert("I am the key!");
     /// ```

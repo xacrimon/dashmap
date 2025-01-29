@@ -39,11 +39,11 @@ where
     where
         M: MapAccess<'de>,
     {
-        let map =
+        let mut map =
             ClashMap::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
 
         while let Some((key, value)) = access.next_entry()? {
-            map.insert(key, value);
+            map.insert_mut(key, value);
         }
 
         Ok(map)
@@ -75,11 +75,7 @@ where
         S: Serializer,
     {
         let mut map = serializer.serialize_map(Some(self.len()))?;
-
-        for ref_multi in self.iter() {
-            map.serialize_entry(ref_multi.key(), ref_multi.value())?;
-        }
-
+        self.try_for_each(|(k, v)| map.serialize_entry(k, v))?;
         map.end()
     }
 }
@@ -115,11 +111,11 @@ where
     where
         M: SeqAccess<'de>,
     {
-        let map =
+        let mut map =
             ClashSet::with_capacity_and_hasher(access.size_hint().unwrap_or(0), Default::default());
 
         while let Some(key) = access.next_element()? {
-            map.insert(key);
+            map.insert_mut(key);
         }
 
         Ok(map)
@@ -149,11 +145,8 @@ where
         S: Serializer,
     {
         let mut seq = serializer.serialize_seq(Some(self.len()))?;
-
-        for ref_multi in self.iter() {
-            seq.serialize_element(ref_multi.key())?;
-        }
-
+        self.inner
+            .try_for_each(|(k, ())| seq.serialize_element(k))?;
         seq.end()
     }
 }

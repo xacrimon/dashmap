@@ -9,6 +9,16 @@ pub struct RefMulti<'a, K, V> {
     v: &'a V,
 }
 
+impl<K, V> Clone for RefMulti<'_, K, V> {
+    fn clone(&self) -> Self {
+        Self {
+            _guard: self._guard.clone(),
+            k: self.k,
+            v: self.v,
+        }
+    }
+}
+
 impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     pub(crate) fn new(guard: Arc<RwLockReadGuardDetached<'a>>, k: &'a K, v: &'a V) -> Self {
         Self {

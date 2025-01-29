@@ -17,7 +17,9 @@ where
     where
         I: IntoParallelIterator<Item = (K, V)>,
     {
-        (&*self).par_extend(par_iter);
+        par_iter.into_par_iter().for_each(move |(key, value)| {
+            self.insert(key, value);
+        });
     }
 }
 

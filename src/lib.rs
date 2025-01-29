@@ -39,6 +39,7 @@ use hashbrown::{hash_table, Equivalent};
 use iter::{Iter, IterMut, OwningIter};
 use lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 pub use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
+use mapref::entrymut::{EntryMut, OccupiedEntryMut, VacantEntryMut};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
 use once_cell::sync::OnceCell;
@@ -46,6 +47,8 @@ pub use read_only::ReadOnlyView;
 use replace_with::replace_with_or_abort;
 pub use set::ClashSet;
 use std::collections::hash_map::RandomState;
+use std::convert::Infallible;
+use std::hint::unreachable_unchecked;
 use try_result::TryResult;
 
 pub(crate) type HashMap<K, V> = hash_table::HashTable<(K, V)>;
@@ -456,6 +459,26 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         }
     }
 
+    /// Inserts a key and a value into the map. Returns the old value associated with the key if there was one.
+    //
+    /// # Examples
+    ///
+    /// ```
+    /// use clashmap::ClashMap;
+    ///
+    /// let mut map = ClashMap::new();
+    /// map.insert_mut("I am the key!", "And I am the value!");
+    /// ```
+    pub fn insert_mut(&mut self, key: K, value: V) -> Option<V> {
+        match self.entry_mut(key) {
+            EntryMut::Occupied(mut o) => Some(o.insert(value)),
+            EntryMut::Vacant(v) => {
+                v.insert(value);
+                None
+            }
+        }
+    }
+
     /// Removes an entry from the map, returning the key and value if they existed in the map.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
@@ -569,6 +592,33 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
     /// ```
     pub fn iter(&self) -> Iter<'_, K, V> {
         Iter::new(self)
+    }
+
+    fn for_each(&self, mut f: impl FnMut(&(K, V))) {
+        self.fold((), |(), kv| f(kv))
+    }
+
+    fn fold<R>(&self, r: R, mut f: impl FnMut(R, &(K, V)) -> R) -> R {
+        match self.try_fold::<R, Infallible>(r, |r, kv| Ok(f(r, kv))) {
+            Ok(r) => r,
+            Err(x) => match x {},
+        }
+    }
+
+    fn try_for_each<E>(&self, mut f: impl FnMut(&(K, V)) -> Result<(), E>) -> Result<(), E> {
+        self.try_fold((), |(), kv| f(kv))
+    }
+
+    fn try_fold<R, E>(
+        &self,
+        mut r: R,
+        mut f: impl FnMut(R, &(K, V)) -> Result<R, E>,
+    ) -> Result<R, E> {
+        for shard in &self.shards {
+            let shard = shard.read();
+            r = shard.iter().try_fold(r, &mut f)?;
+        }
+        Ok(r)
     }
 
     /// Iterator over a ClashMap yielding mutable references.
@@ -962,6 +1012,33 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
     }
 
     /// Advanced entry API that tries to mimic `std::collections::HashMap`.
+    pub fn entry_mut(&mut self, key: K) -> EntryMut<'_, K, V> {
+        let hash = self.hash_u64(&key);
+
+        let idx = self._determine_shard(hash as usize).idx;
+
+        // SAFETY: idx is in-bounds
+        let shard = unsafe { self.shards.get_unchecked_mut(idx) }.get_mut();
+
+        match shard.entry(
+            hash,
+            |(k, _v)| k == &key,
+            |(k, _v)| {
+                let mut hasher = self.hasher.build_hasher();
+                k.hash(&mut hasher);
+                hasher.finish()
+            },
+        ) {
+            hash_table::Entry::Occupied(occupied_entry) => {
+                EntryMut::Occupied(OccupiedEntryMut::new(key, occupied_entry))
+            }
+            hash_table::Entry::Vacant(vacant_entry) => {
+                EntryMut::Vacant(VacantEntryMut::new(key, vacant_entry))
+            }
+        }
+    }
+
+    /// Advanced entry API that tries to mimic `std::collections::HashMap`.
     /// See the documentation on `clashmap::mapref::entry` for more details.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
@@ -1077,18 +1154,12 @@ impl<'a, K, V> ShardIdx<'a, K, V> {
     }
 }
 
-impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher> fmt::Debug
-    for ClashMap<K, V, S>
-{
+impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher> fmt::Debug for ClashMap<K, V, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut pmap = f.debug_map();
-
-        for r in self {
-            let (k, v) = r.pair();
-
+        self.for_each(|(k, v)| {
             pmap.entry(k, v);
-        }
-
+        });
         pmap.finish()
     }
 }
@@ -1168,7 +1239,7 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher> IntoIterator for &'a ClashMap<K, V, S>
 impl<K: Eq + Hash, V, S: BuildHasher> Extend<(K, V)> for ClashMap<K, V, S> {
     fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, intoiter: I) {
         for pair in intoiter.into_iter() {
-            self.insert(pair.0, pair.1);
+            self.insert_mut(pair.0, pair.1);
         }
     }
 }
