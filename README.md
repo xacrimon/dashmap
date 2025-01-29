@@ -23,7 +23,7 @@ If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 [![downloads](https://img.shields.io/crates/d/clashmap)](https://crates.io/crates/clashmap)
 
-[![minimum rustc version](https://img.shields.io/badge/rustc-1.65-orange.svg)](https://crates.io/crates/clashmap)
+[![minimum rustc version](https://img.shields.io/badge/rustc-1.70-orange.svg)](https://crates.io/crates/clashmap)
 
 ## Cargo features
 
@@ -42,12 +42,10 @@ Do not hesitate to open issues or PR's.
 
 I will take a look as soon as I have time for it.
 
-That said I do not get paid (yet) to work on open-source. This means
-that my time is limited and my work here comes after my personal life.
-
 ## Performance
 
 A comprehensive benchmark suite, not yet including ClashMap, can be found [here](https://github.com/xacrimon/conc-map-bench).
+As of the time of writing this, `clashmap@1.0.0` is equivalent in performance to `dashmap@6.1.0`.
 
 ## Special thanks
 
