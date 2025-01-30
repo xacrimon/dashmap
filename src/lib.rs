@@ -615,7 +615,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ClashMap<K, V, S> {
         mut r: R,
         mut f: impl FnMut(R, &(K, V)) -> Result<R, E>,
     ) -> Result<R, E> {
-        for shard in &self.shards {
+        for shard in self.shards.iter() {
             let shard = shard.read();
             r = shard.iter().try_fold(r, &mut f)?;
         }
