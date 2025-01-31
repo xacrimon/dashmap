@@ -7,16 +7,20 @@
 
 pub mod iter;
 pub mod iter_set;
-mod lock;
-mod map;
 pub mod mapref;
-mod read_only;
-#[cfg(feature = "serde")]
-mod serde;
-mod set;
 pub mod setref;
 pub mod try_result;
+pub mod tableref;
+
+mod lock;
+mod map;
+mod read_only;
+mod set;
+mod table;
 mod util;
+
+#[cfg(feature = "serde")]
+mod serde;
 
 #[cfg(feature = "rayon")]
 pub mod rayon {
@@ -39,6 +43,7 @@ pub use map::ClashMap;
 pub use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 pub use read_only::ReadOnlyView;
 pub use set::ClashSet;
+pub use table::ClashTable;
 
 pub(crate) type HashMap<K, V> = hash_table::HashTable<(K, V)>;
 pub(crate) type Shard<K, V> = CachePadded<RwLock<HashMap<K, V>>>;
