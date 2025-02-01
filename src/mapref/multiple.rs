@@ -27,7 +27,7 @@ impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        (&*self.k, &*self.v)
+        (self.k, self.v)
     }
 }
 
@@ -71,11 +71,11 @@ impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        (&*self.k, &*self.v)
+        (self.k, self.v)
     }
 
     pub fn pair_mut(&mut self) -> (&K, &mut V) {
-        (&*self.k, &mut *self.v)
+        (self.k, self.v)
     }
 }
 

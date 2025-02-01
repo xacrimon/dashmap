@@ -27,7 +27,7 @@ impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        (&*self.k, &*self.v)
+        (self.k, self.v)
     }
 
     pub fn map<F, T>(self, f: F) -> MappedRef<'a, K, T>
@@ -37,7 +37,7 @@ impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
         MappedRef {
             _guard: self._guard,
             k: self.k,
-            v: f(&*self.v),
+            v: f(self.v),
         }
     }
 
@@ -45,7 +45,7 @@ impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
     where
         F: FnOnce(&V) -> Option<&T>,
     {
-        if let Some(v) = f(&*self.v) {
+        if let Some(v) = f(self.v) {
             Ok(MappedRef {
                 _guard: self._guard,
                 k: self.k,
@@ -98,11 +98,11 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        (&*self.k, &*self.v)
+        (self.k, self.v)
     }
 
     pub fn pair_mut(&mut self) -> (&K, &mut V) {
-        (&*self.k, &mut *self.v)
+        (self.k, self.v)
     }
 
     pub fn downgrade(self) -> Ref<'a, K, V> {
@@ -183,7 +183,7 @@ impl<'a, K: Eq + Hash, T> MappedRef<'a, K, T> {
     }
 
     pub fn pair(&self) -> (&K, &T) {
-        (&*self.k, &*self.v)
+        (self.k, self.v)
     }
 
     pub fn map<F, T2>(self, f: F) -> MappedRef<'a, K, T2>
@@ -193,7 +193,7 @@ impl<'a, K: Eq + Hash, T> MappedRef<'a, K, T> {
         MappedRef {
             _guard: self._guard,
             k: self.k,
-            v: f(&*self.v),
+            v: f(self.v),
         }
     }
 
@@ -201,7 +201,7 @@ impl<'a, K: Eq + Hash, T> MappedRef<'a, K, T> {
     where
         F: FnOnce(&T) -> Option<&T2>,
     {
-        let v = match f(&*self.v) {
+        let v = match f(self.v) {
             Some(v) => v,
             None => return Err(self),
         };
@@ -263,11 +263,11 @@ impl<'a, K: Eq + Hash, T> MappedRefMut<'a, K, T> {
     }
 
     pub fn pair(&self) -> (&K, &T) {
-        (&*self.k, &*self.v)
+        (self.k, self.v)
     }
 
     pub fn pair_mut(&mut self) -> (&K, &mut T) {
-        (&*self.k, &mut *self.v)
+        (self.k, self.v)
     }
 
     pub fn map<F, T2>(self, f: F) -> MappedRefMut<'a, K, T2>
@@ -277,7 +277,7 @@ impl<'a, K: Eq + Hash, T> MappedRefMut<'a, K, T> {
         MappedRefMut {
             _guard: self._guard,
             k: self.k,
-            v: f(&mut *self.v),
+            v: f(self.v),
         }
     }
 
