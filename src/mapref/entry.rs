@@ -118,7 +118,7 @@ pub struct VacantEntry<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
-    pub(crate) unsafe fn new(
+    pub(crate) fn new(
         shard: RwLockWriteGuardDetached<'a>,
         key: K,
         entry: hash_table::VacantEntry<'a, (K, V)>,
@@ -127,13 +127,11 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     }
 
     pub fn insert(self, value: V) -> RefMut<'a, K, V> {
-        unsafe {
-            let occupied = self.entry.insert((self.key, value));
+        let occupied = self.entry.insert((self.key, value));
 
-            let (k, v) = occupied.into_mut();
+        let (k, v) = occupied.into_mut();
 
-            RefMut::new(self.shard, k, v)
-        }
+        RefMut::new(self.shard, k, v)
     }
 
     /// Sets the value of the entry with the VacantEntry’s key, and returns an OccupiedEntry.
@@ -141,10 +139,8 @@ impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
     where
         K: Clone,
     {
-        unsafe {
-            let entry = self.entry.insert((self.key.clone(), value));
-            OccupiedEntry::new(self.shard, self.key, entry)
-        }
+        let entry = self.entry.insert((self.key.clone(), value));
+        OccupiedEntry::new(self.shard, self.key, entry)
     }
 
     pub fn into_key(self) -> K {
@@ -163,7 +159,7 @@ pub struct OccupiedEntry<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
-    pub(crate) unsafe fn new(
+    pub(crate) fn new(
         shard: RwLockWriteGuardDetached<'a>,
         key: K,
         entry: hash_table::OccupiedEntry<'a, (K, V)>,
@@ -184,10 +180,8 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
     }
 
     pub fn into_ref(self) -> RefMut<'a, K, V> {
-        unsafe {
-            let (k, v) = self.entry.into_mut();
-            RefMut::new(self.shard, k, v)
-        }
+        let (k, v) = self.entry.into_mut();
+        RefMut::new(self.shard, k, v)
     }
 
     pub fn into_key(self) -> K {

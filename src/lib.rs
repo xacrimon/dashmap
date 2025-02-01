@@ -923,14 +923,6 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 }
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S> {
-    fn _shard_count(&self) -> usize {
-        self.shards.len()
-    }
-
-    fn _shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>] {
-        &self.shards
-    }
-
     fn _insert(&self, key: K, value: V) -> Option<V> {
         match self.entry(key) {
             Entry::Occupied(mut o) => Some(o.insert(value)),
@@ -1030,7 +1022,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
         if let Some((k, v)) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            unsafe { Some(Ref::new(guard, k, v)) }
+            Some(Ref::new(guard, k, v))
         } else {
             None
         }
@@ -1050,7 +1042,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         if let Some((k, v)) = shard.find_mut(hash, |(k, _v)| key == k.borrow()) {
-            unsafe { Some(RefMut::new(guard, k, v)) }
+            Some(RefMut::new(guard, k, v))
         } else {
             None
         }
@@ -1073,7 +1065,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
         if let Some((k, v)) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            unsafe { TryResult::Present(Ref::new(guard, k, v)) }
+            TryResult::Present(Ref::new(guard, k, v))
         } else {
             TryResult::Absent
         }
@@ -1096,7 +1088,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         if let Some((k, v)) = shard.find_mut(hash, |(k, _v)| key == k.borrow()) {
-            unsafe { TryResult::Present(RefMut::new(guard, k, v)) }
+            TryResult::Present(RefMut::new(guard, k, v))
         } else {
             TryResult::Absent
         }
@@ -1173,11 +1165,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
             },
         ) {
             hash_table::Entry::Occupied(entry) => {
-                Entry::Occupied(unsafe { OccupiedEntry::new(guard, key, entry) })
+                Entry::Occupied(OccupiedEntry::new(guard, key, entry))
             }
-            hash_table::Entry::Vacant(entry) => {
-                Entry::Vacant(unsafe { VacantEntry::new(guard, key, entry) })
-            }
+            hash_table::Entry::Vacant(entry) => Entry::Vacant(VacantEntry::new(guard, key, entry)),
         }
     }
 
@@ -1202,17 +1192,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
                 hasher.finish()
             },
         ) {
-            hash_table::Entry::Occupied(entry) => Some(Entry::Occupied(unsafe {
-                OccupiedEntry::new(guard, key, entry)
-            })),
-            hash_table::Entry::Vacant(entry) => Some(Entry::Vacant(unsafe {
-                VacantEntry::new(guard, key, entry)
-            })),
+            hash_table::Entry::Occupied(entry) => {
+                Some(Entry::Occupied(OccupiedEntry::new(guard, key, entry)))
+            }
+            hash_table::Entry::Vacant(entry) => {
+                Some(Entry::Vacant(VacantEntry::new(guard, key, entry)))
+            }
         }
-    }
-
-    fn _hasher(&self) -> S {
-        self.hasher.clone()
     }
 
     fn _clear(&self) {
