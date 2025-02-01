@@ -22,7 +22,7 @@ unsafe impl lock_api::RawRwLock for RawRwLock {
         state: AtomicUsize::new(0),
     };
 
-    type GuardMarker = lock_api::GuardNoSend;
+    type GuardMarker = lock_api::GuardSend;
 
     #[inline]
     fn try_lock_exclusive(&self) -> bool {

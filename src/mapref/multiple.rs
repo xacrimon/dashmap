@@ -9,9 +9,6 @@ pub struct RefMulti<'a, K, V> {
     v: &'a V,
 }
 
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMulti<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMulti<'a, K, V> {}
-
 impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     pub(crate) unsafe fn new(guard: Arc<RwLockReadGuardDetached<'a>>, k: &'a K, v: &'a V) -> Self {
         Self {
@@ -47,9 +44,6 @@ pub struct RefMutMulti<'a, K, V> {
     k: &'a K,
     v: &'a mut V,
 }
-
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMutMulti<'a, K, V> {}
-unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMutMulti<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     pub(crate) unsafe fn new(
