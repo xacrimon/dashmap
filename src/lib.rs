@@ -11,7 +11,6 @@ mod read_only;
 mod serde;
 mod set;
 pub mod setref;
-mod t;
 pub mod try_result;
 mod util;
 
@@ -45,7 +44,6 @@ use once_cell::sync::OnceCell;
 pub use read_only::ReadOnlyView;
 pub use set::DashSet;
 use std::collections::hash_map::RandomState;
-pub use t::Map;
 use try_result::TryResult;
 
 pub(crate) type HashMap<K, V> = hash_table::HashTable<(K, V)>;
@@ -565,7 +563,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// words.insert("hello", "world");
     /// assert_eq!(words.iter().count(), 1);
     /// ```
-    pub fn iter(&'a self) -> Iter<'a, K, V, S, DashMap<K, V, S>> {
+    pub fn iter(&'a self) -> Iter<'a, K, V, S> {
         self._iter()
     }
 
@@ -583,7 +581,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// map.iter_mut().for_each(|mut r| *r += 1);
     /// assert_eq!(*map.get("Johnny").unwrap(), 22);
     /// ```
-    pub fn iter_mut(&'a self) -> IterMut<'a, K, V, S, DashMap<K, V, S>> {
+    pub fn iter_mut(&'a self) -> IterMut<'a, K, V, S> {
         self._iter_mut()
     }
 
@@ -924,9 +922,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
-    for DashMap<K, V, S>
-{
+impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S> {
     fn _shard_count(&self) -> usize {
         self.shards.len()
     }
@@ -1012,11 +1008,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         }
     }
 
-    fn _iter(&'a self) -> Iter<'a, K, V, S, DashMap<K, V, S>> {
+    fn _iter(&'a self) -> Iter<'a, K, V, S> {
         Iter::new(self)
     }
 
-    fn _iter_mut(&'a self) -> IterMut<'a, K, V, S, DashMap<K, V, S>> {
+    fn _iter_mut(&'a self) -> IterMut<'a, K, V, S> {
         IterMut::new(self)
     }
 
@@ -1218,6 +1214,22 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
     fn _hasher(&self) -> S {
         self.hasher.clone()
     }
+
+    fn _clear(&self) {
+        self._retain(|_, _| false)
+    }
+
+    fn _contains_key<Q>(&'a self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self._get(key).is_some()
+    }
+
+    fn _is_empty(&self) -> bool {
+        self._len() == 0
+    }
 }
 
 impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debug
@@ -1305,7 +1317,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> 
 impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a DashMap<K, V, S> {
     type Item = RefMulti<'a, K, V>;
 
-    type IntoIter = Iter<'a, K, V, S, DashMap<K, V, S>>;
+    type IntoIter = Iter<'a, K, V, S>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()

@@ -3,7 +3,6 @@ use hashbrown::hash_table;
 
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use crate::lock::{RwLock, RwLockReadGuardDetached, RwLockWriteGuardDetached};
-use crate::t::Map;
 use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
 use std::collections::hash_map::RandomState;
@@ -79,10 +78,10 @@ type GuardIterMut<'a, K, V> = (
 /// map.insert("hello", "world");
 /// assert_eq!(map.iter().count(), 1);
 /// ```
-pub struct Iter<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
+pub struct Iter<'a, K, V, S = RandomState> {
     shards: std::slice::Iter<'a, CachePadded<RwLock<HashMap<K, V>>>>,
     current: Option<GuardIter<'a, K, V>>,
-    marker: PhantomData<(M, S)>,
+    marker: PhantomData<S>,
 }
 
 impl<'i, K: Clone + Hash + Eq, V: Clone, S: Clone + BuildHasher> Clone for Iter<'i, K, V, S> {
@@ -95,10 +94,8 @@ impl<'i, K: Clone + Hash + Eq, V: Clone, S: Clone + BuildHasher> Clone for Iter<
     }
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>>
-    Iter<'a, K, V, S, M>
-{
-    pub(crate) fn new(map: &'a M) -> Self {
+impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone> Iter<'a, K, V, S> {
+    pub(crate) fn new(map: &'a DashMap<K, V, S>) -> Self {
         Self {
             shards: map._shards().iter(),
             current: None,
@@ -107,9 +104,7 @@ impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V,
     }
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iterator
-    for Iter<'a, K, V, S, M>
-{
+impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone> Iterator for Iter<'a, K, V, S> {
     type Item = RefMulti<'a, K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -147,16 +142,14 @@ impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V,
 /// map.iter_mut().for_each(|mut r| *r += 1);
 /// assert_eq!(*map.get("Johnny").unwrap(), 22);
 /// ```
-pub struct IterMut<'a, K, V, S = RandomState, M = DashMap<K, V, S>> {
+pub struct IterMut<'a, K, V, S = RandomState> {
     shards: std::slice::Iter<'a, CachePadded<RwLock<HashMap<K, V>>>>,
     current: Option<GuardIterMut<'a, K, V>>,
-    marker: PhantomData<(M, S)>,
+    marker: PhantomData<S>,
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>>
-    IterMut<'a, K, V, S, M>
-{
-    pub(crate) fn new(map: &'a M) -> Self {
+impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone> IterMut<'a, K, V, S> {
+    pub(crate) fn new(map: &'a DashMap<K, V, S>) -> Self {
         Self {
             shards: map._shards().iter(),
             current: None,
@@ -165,9 +158,7 @@ impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V,
     }
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iterator
-    for IterMut<'a, K, V, S, M>
-{
+impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone> Iterator for IterMut<'a, K, V, S> {
     type Item = RefMutMulti<'a, K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
