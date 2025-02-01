@@ -140,9 +140,8 @@ where
                 let (guard, shard) = RwLockReadGuardDetached::detach_from(shard.read());
 
                 let guard = Arc::new(guard);
-                shard.iter().map(move |b| {
+                shard.iter().map(move |(k, v)| {
                     let guard = Arc::clone(&guard);
-                    let (k, v) = b.as_ref();
                     RefMulti::new(guard, k, v)
                 })
             })
@@ -202,9 +201,8 @@ where
                 let (guard, shard) = RwLockWriteGuardDetached::detach_from(shard.write());
 
                 let guard = Arc::new(guard);
-                shard.iter().map(move |b| {
+                shard.iter_mut().map(move |(k, v)| {
                     let guard = Arc::clone(&guard);
-                    let (k, v) = b.as_mut();
                     RefMutMulti::new(guard, k, v)
                 })
             })

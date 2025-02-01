@@ -35,6 +35,7 @@ use core::hash::{BuildHasher, Hash, Hasher};
 use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use crossbeam_utils::CachePadded;
+use hashbrown::hash_table;
 use iter::{Iter, IterMut, OwningIter};
 use lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 pub use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
@@ -47,7 +48,7 @@ use std::collections::hash_map::RandomState;
 pub use t::Map;
 use try_result::TryResult;
 
-pub(crate) type HashMap<K, V> = hashbrown::raw::RawTable<(K, V)>;
+pub(crate) type HashMap<K, V> = hash_table::HashTable<(K, V)>;
 
 // Temporary reimplementation of [`std::collections::TryReserveError`]
 // util [`std::collections::TryReserveError`] stabilises.
@@ -336,7 +337,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// };
             /// let data = (42, "forty two");
             /// let hash = hasher(&data);
-            /// map.shards_mut()[shard_ind].get_mut().insert(hash, data, hasher);
+            /// map.shards_mut()[shard_ind].get_mut().insert_unique(hash, data, hasher);
             /// assert_eq!(*map.get(&42).unwrap(), "forty two");
             /// ```
             pub fn shards_mut(&mut self) -> &mut [CachePadded<RwLock<HashMap<K, V>>>] {
@@ -955,8 +956,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         let mut shard = unsafe { self._yield_write_shard(idx) };
 
-        if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            let ((k, v), _) = unsafe { shard.remove(bucket) };
+        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
+            let ((k, v), _) = entry.remove();
             Some((k, v))
         } else {
             None
@@ -974,10 +975,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         let mut shard = unsafe { self._yield_write_shard(idx) };
 
-        if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            let (k, v) = unsafe { bucket.as_ref() };
+        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
+            let (k, v) = entry.get();
             if f(k, v) {
-                let ((k, v), _) = unsafe { shard.remove(bucket) };
+                let ((k, v), _) = entry.remove();
                 Some((k, v))
             } else {
                 None
@@ -998,10 +999,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         let mut shard = unsafe { self._yield_write_shard(idx) };
 
-        if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            let (k, v) = unsafe { bucket.as_mut() };
+        if let Ok(mut entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
+            let (k, v) = entry.get_mut();
             if f(k, v) {
-                let ((k, v), _) = unsafe { shard.remove(bucket) };
+                let ((k, v), _) = entry.remove();
                 Some((k, v))
             } else {
                 None
@@ -1032,11 +1033,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Ref`.
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
-        if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            unsafe {
-                let (k, v) = bucket.as_ref();
-                Some(Ref::new(guard, k, v))
-            }
+        if let Some((k, v)) = shard.find(hash, |(k, _v)| key == k.borrow()) {
+            unsafe { Some(Ref::new(guard, k, v)) }
         } else {
             None
         }
@@ -1055,11 +1053,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         // SAFETY: The data will not outlive the guard, since we pass the guard to `RefMut`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
-        if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            unsafe {
-                let (k, v) = bucket.as_mut();
-                Some(RefMut::new(guard, k, v))
-            }
+        if let Some((k, v)) = shard.find_mut(hash, |(k, _v)| key == k.borrow()) {
+            unsafe { Some(RefMut::new(guard, k, v)) }
         } else {
             None
         }
@@ -1081,11 +1076,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Ref`.
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
-        if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            unsafe {
-                let (k, v) = bucket.as_ref();
-                TryResult::Present(Ref::new(guard, k, v))
-            }
+        if let Some((k, v)) = shard.find(hash, |(k, _v)| key == k.borrow()) {
+            unsafe { TryResult::Present(Ref::new(guard, k, v)) }
         } else {
             TryResult::Absent
         }
@@ -1107,11 +1099,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         // SAFETY: The data will not outlive the guard, since we pass the guard to `RefMut`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
-        if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
-            unsafe {
-                let (k, v) = bucket.as_mut();
-                TryResult::Present(RefMut::new(guard, k, v))
-            }
+        if let Some((k, v)) = shard.find_mut(hash, |(k, _v)| key == k.borrow()) {
+            unsafe { TryResult::Present(RefMut::new(guard, k, v)) }
         } else {
             TryResult::Absent
         }
@@ -1131,16 +1120,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
     fn _retain(&self, mut f: impl FnMut(&K, &mut V) -> bool) {
         self.shards.iter().for_each(|s| {
-            unsafe {
-                let mut shard = s.write();
-                // Here we only use `iter` as a temporary, preventing use-after-free
-                for bucket in shard.iter() {
-                    let (k, v) = bucket.as_mut();
-                    if !f(&*k, v) {
-                        shard.erase(bucket);
-                    }
-                }
-            }
+            s.write().retain(|(k, v)| f(k, v));
         });
     }
 
@@ -1187,7 +1167,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
-        match shard.find_or_find_insert_slot(
+        match shard.entry(
             hash,
             |(k, _v)| k == &key,
             |(k, _v)| {
@@ -1196,8 +1176,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
                 hasher.finish()
             },
         ) {
-            Ok(elem) => Entry::Occupied(unsafe { OccupiedEntry::new(guard, key, shard, elem) }),
-            Err(slot) => Entry::Vacant(unsafe { VacantEntry::new(guard, key, hash, shard, slot) }),
+            hash_table::Entry::Occupied(entry) => {
+                Entry::Occupied(unsafe { OccupiedEntry::new(guard, key, entry) })
+            }
+            hash_table::Entry::Vacant(entry) => {
+                Entry::Vacant(unsafe { VacantEntry::new(guard, key, entry) })
+            }
         }
     }
 
@@ -1213,7 +1197,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
-        match shard.find_or_find_insert_slot(
+        match shard.entry(
             hash,
             |(k, _v)| k == &key,
             |(k, _v)| {
@@ -1222,11 +1206,11 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
                 hasher.finish()
             },
         ) {
-            Ok(elem) => Some(Entry::Occupied(unsafe {
-                OccupiedEntry::new(guard, key, shard, elem)
+            hash_table::Entry::Occupied(entry) => Some(Entry::Occupied(unsafe {
+                OccupiedEntry::new(guard, key, entry)
             })),
-            Err(slot) => Some(Entry::Vacant(unsafe {
-                VacantEntry::new(guard, key, hash, shard, slot)
+            hash_table::Entry::Vacant(entry) => Some(Entry::Vacant(unsafe {
+                VacantEntry::new(guard, key, entry)
             })),
         }
     }
@@ -1359,15 +1343,12 @@ where
             .iter()
             .map(|shard_lock| {
                 let shard = shard_lock.read();
-                let hashtable_size = shard.allocation_info().1.size();
+                let hashtable_size = shard.allocation_size();
 
                 // Safety: The iterator is dropped before the HashTable
-                let iter = unsafe { shard.iter() };
-                let entry_size_iter = iter.map(|bucket| {
-                    // Safety: The iterator returns buckets with valid pointers to entries
-                    let (key, value) = unsafe { bucket.as_ref() };
-                    key.extra_size() + value.extra_size()
-                });
+                let iter = shard.iter();
+                let entry_size_iter =
+                    iter.map(|(key, value)| key.extra_size() + value.extra_size());
 
                 core::mem::size_of::<CachePadded<RwLock<HashMap<K, V>>>>()
                     + hashtable_size
