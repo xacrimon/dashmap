@@ -4,9 +4,7 @@ use hashbrown::hash_table;
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use crate::lock::{RwLock, RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::{DashMap, HashMap};
-use core::hash::{BuildHasher, Hash};
-use std::collections::hash_map::RandomState;
-use std::marker::PhantomData;
+use core::hash::Hash;
 use std::sync::Arc;
 
 /// Iterator over a DashMap yielding key value pairs.
@@ -22,17 +20,15 @@ use std::sync::Arc;
 /// let pairs: Vec<(&'static str, &'static str)> = map.into_iter().collect();
 /// assert_eq!(pairs.len(), 2);
 /// ```
-pub struct OwningIter<K, V, S = RandomState> {
+pub struct OwningIter<K, V> {
     shards: std::vec::IntoIter<CachePadded<RwLock<HashMap<K, V>>>>,
     current: Option<GuardOwningIter<K, V>>,
-    marker: PhantomData<S>,
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> OwningIter<K, V, S> {
-    pub(crate) fn new(map: DashMap<K, V, S>) -> Self {
+impl<K: Eq + Hash, V> OwningIter<K, V> {
+    pub(crate) fn new<S>(map: DashMap<K, V, S>) -> Self {
         Self {
             shards: map.shards.into_vec().into_iter(),
-            marker: PhantomData,
             current: None,
         }
     }
@@ -40,7 +36,7 @@ impl<K: Eq + Hash, V, S: BuildHasher + Clone> OwningIter<K, V, S> {
 
 type GuardOwningIter<K, V> = hash_table::IntoIter<(K, V)>;
 
-impl<K: Eq + Hash, V, S: BuildHasher + Clone> Iterator for OwningIter<K, V, S> {
+impl<K: Eq + Hash, V> Iterator for OwningIter<K, V> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -78,33 +74,30 @@ type GuardIterMut<'a, K, V> = (
 /// map.insert("hello", "world");
 /// assert_eq!(map.iter().count(), 1);
 /// ```
-pub struct Iter<'a, K, V, S = RandomState> {
+pub struct Iter<'a, K, V> {
     shards: std::slice::Iter<'a, CachePadded<RwLock<HashMap<K, V>>>>,
     current: Option<GuardIter<'a, K, V>>,
-    marker: PhantomData<S>,
 }
 
-impl<'i, K: Clone + Hash + Eq, V: Clone, S: Clone + BuildHasher> Clone for Iter<'i, K, V, S> {
+impl<'i, K: Clone + Hash + Eq, V: Clone> Clone for Iter<'i, K, V> {
     fn clone(&self) -> Self {
         Iter {
             shards: self.shards.clone(),
             current: self.current.clone(),
-            marker: self.marker,
         }
     }
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone> Iter<'a, K, V, S> {
-    pub(crate) fn new(map: &'a DashMap<K, V, S>) -> Self {
+impl<'a, K: Eq + Hash + 'a, V: 'a> Iter<'a, K, V> {
+    pub(crate) fn new<S>(map: &'a DashMap<K, V, S>) -> Self {
         Self {
-            shards: map._shards().iter(),
+            shards: map.shards.iter(),
             current: None,
-            marker: PhantomData,
         }
     }
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone> Iterator for Iter<'a, K, V, S> {
+impl<'a, K: Eq + Hash + 'a, V: 'a> Iterator for Iter<'a, K, V> {
     type Item = RefMulti<'a, K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -142,23 +135,21 @@ impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone> Iterator for Ite
 /// map.iter_mut().for_each(|mut r| *r += 1);
 /// assert_eq!(*map.get("Johnny").unwrap(), 22);
 /// ```
-pub struct IterMut<'a, K, V, S = RandomState> {
+pub struct IterMut<'a, K, V> {
     shards: std::slice::Iter<'a, CachePadded<RwLock<HashMap<K, V>>>>,
     current: Option<GuardIterMut<'a, K, V>>,
-    marker: PhantomData<S>,
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone> IterMut<'a, K, V, S> {
-    pub(crate) fn new(map: &'a DashMap<K, V, S>) -> Self {
+impl<'a, K: Eq + Hash + 'a, V: 'a> IterMut<'a, K, V> {
+    pub(crate) fn new<S>(map: &'a DashMap<K, V, S>) -> Self {
         Self {
-            shards: map._shards().iter(),
+            shards: map.shards.iter(),
             current: None,
-            marker: PhantomData,
         }
     }
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone> Iterator for IterMut<'a, K, V, S> {
+impl<'a, K: Eq + Hash + 'a, V: 'a> Iterator for IterMut<'a, K, V> {
     type Item = RefMutMulti<'a, K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
