@@ -54,13 +54,13 @@ where
 {
 }
 
-impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iter<'a, K, S, M> {
+impl<'a, K: Eq + Hash + 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iter<'a, K, S, M> {
     pub(crate) fn new(inner: crate::iter::Iter<'a, K, (), S, M>) -> Self {
         Self { inner }
     }
 }
 
-impl<'a, K: Eq + Hash, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iterator
+impl<'a, K: Eq + Hash + 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, (), S>> Iterator
     for Iter<'a, K, S, M>
 {
     type Item = RefMulti<'a, K>;

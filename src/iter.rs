@@ -1,7 +1,7 @@
 use super::mapref::multiple::{RefMulti, RefMutMulti};
-use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
+use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::t::Map;
-use crate::{DashMap, HashMap};
+use crate::DashMap;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 use std::collections::hash_map::RandomState;
@@ -86,12 +86,12 @@ where
 }
 
 type GuardIter<'a, K, V> = (
-    Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
+    Arc<RwLockReadGuardDetached<'a>>,
     hashbrown::raw::RawIter<(K, V)>,
 );
 
 type GuardIterMut<'a, K, V> = (
-    Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
+    Arc<RwLockWriteGuardDetached<'a>>,
     hashbrown::raw::RawIter<(K, V)>,
 );
 
@@ -137,7 +137,9 @@ where
 {
 }
 
-impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter<'a, K, V, S, M> {
+impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>>
+    Iter<'a, K, V, S, M>
+{
     pub(crate) fn new(map: &'a M) -> Self {
         Self {
             map,
@@ -148,7 +150,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iterator
+impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iterator
     for Iter<'a, K, V, S, M>
 {
     type Item = RefMulti<'a, K, V>;
@@ -170,8 +172,11 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
             }
 
             let guard = unsafe { self.map._yield_read_shard(self.shard_i) };
+            // SAFETY: we keep the guard alive with the shard iterator,
+            // and with any refs produced by the iterator
+            let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(guard) };
 
-            let iter = unsafe { guard.iter() };
+            let iter = unsafe { shard.iter() };
 
             self.current = Some((Arc::new(guard), iter));
 
@@ -217,7 +222,7 @@ where
 {
 }
 
-impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>>
+impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>>
     IterMut<'a, K, V, S, M>
 {
     pub(crate) fn new(map: &'a M) -> Self {
@@ -230,7 +235,7 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>>
     }
 }
 
-impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iterator
+impl<'a, K: Eq + Hash + 'a, V: 'a, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iterator
     for IterMut<'a, K, V, S, M>
 {
     type Item = RefMutMulti<'a, K, V>;
@@ -253,7 +258,11 @@ impl<'a, K: Eq + Hash, V, S: 'a + BuildHasher + Clone, M: Map<'a, K, V, S>> Iter
 
             let guard = unsafe { self.map._yield_write_shard(self.shard_i) };
 
-            let iter = unsafe { guard.iter() };
+            // SAFETY: we keep the guard alive with the shard iterator,
+            // and with any refs produced by the iterator
+            let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(guard) };
+
+            let iter = unsafe { shard.iter() };
 
             self.current = Some((Arc::new(guard), iter));
 

@@ -1,24 +1,19 @@
-use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
-use crate::HashMap;
+use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 pub struct RefMulti<'a, K, V> {
-    _guard: Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
-    k: *const K,
-    v: *const V,
+    _guard: Arc<RwLockReadGuardDetached<'a>>,
+    k: &'a K,
+    v: &'a V,
 }
 
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMulti<'a, K, V> {}
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMulti<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
-    pub(crate) unsafe fn new(
-        guard: Arc<RwLockReadGuard<'a, HashMap<K, V>>>,
-        k: *const K,
-        v: *const V,
-    ) -> Self {
+    pub(crate) unsafe fn new(guard: Arc<RwLockReadGuardDetached<'a>>, k: &'a K, v: &'a V) -> Self {
         Self {
             _guard: guard,
             k,
@@ -35,7 +30,7 @@ impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        unsafe { (&*self.k, &*self.v) }
+        (&*self.k, &*self.v)
     }
 }
 
@@ -48,9 +43,9 @@ impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
 }
 
 pub struct RefMutMulti<'a, K, V> {
-    _guard: Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
-    k: *const K,
-    v: *mut V,
+    _guard: Arc<RwLockWriteGuardDetached<'a>>,
+    k: &'a K,
+    v: &'a mut V,
 }
 
 unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Send for RefMutMulti<'a, K, V> {}
@@ -58,9 +53,9 @@ unsafe impl<'a, K: Eq + Hash + Sync, V: Sync> Sync for RefMutMulti<'a, K, V> {}
 
 impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     pub(crate) unsafe fn new(
-        guard: Arc<RwLockWriteGuard<'a, HashMap<K, V>>>,
-        k: *const K,
-        v: *mut V,
+        guard: Arc<RwLockWriteGuardDetached<'a>>,
+        k: &'a K,
+        v: &'a mut V,
     ) -> Self {
         Self {
             _guard: guard,
@@ -82,11 +77,11 @@ impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     }
 
     pub fn pair(&self) -> (&K, &V) {
-        unsafe { (&*self.k, &*self.v) }
+        (&*self.k, &*self.v)
     }
 
     pub fn pair_mut(&mut self) -> (&K, &mut V) {
-        unsafe { (&*self.k, &mut *self.v) }
+        (&*self.k, &mut *self.v)
     }
 }
 
