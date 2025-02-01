@@ -1,7 +1,9 @@
 //! Central map trait to ease modifications and extensions down the road.
 
+use crossbeam_utils::CachePadded;
+
 use crate::iter::{Iter, IterMut};
-use crate::lock::{RwLockReadGuard, RwLockWriteGuard};
+use crate::lock::RwLock;
 use crate::mapref::entry::Entry;
 use crate::mapref::one::{Ref, RefMut};
 use crate::try_result::TryResult;
@@ -13,36 +15,7 @@ use core::hash::{BuildHasher, Hash};
 pub trait Map<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + Clone + BuildHasher> {
     fn _shard_count(&self) -> usize;
 
-    /// # Safety
-    ///
-    /// The index must not be out of bounds.
-    unsafe fn _get_read_shard(&'a self, i: usize) -> &'a HashMap<K, V>;
-
-    /// # Safety
-    ///
-    /// The index must not be out of bounds.
-    unsafe fn _yield_read_shard(&'a self, i: usize) -> RwLockReadGuard<'a, HashMap<K, V>>;
-
-    /// # Safety
-    ///
-    /// The index must not be out of bounds.
-    unsafe fn _yield_write_shard(&'a self, i: usize) -> RwLockWriteGuard<'a, HashMap<K, V>>;
-
-    /// # Safety
-    ///
-    /// The index must not be out of bounds.
-    unsafe fn _try_yield_read_shard(
-        &'a self,
-        i: usize,
-    ) -> Option<RwLockReadGuard<'a, HashMap<K, V>>>;
-
-    /// # Safety
-    ///
-    /// The index must not be out of bounds.
-    unsafe fn _try_yield_write_shard(
-        &'a self,
-        i: usize,
-    ) -> Option<RwLockWriteGuard<'a, HashMap<K, V>>>;
+    fn _shards(&self) -> &[CachePadded<RwLock<HashMap<K, V>>>];
 
     fn _insert(&self, key: K, value: V) -> Option<V>;
 
