@@ -36,6 +36,7 @@ use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use crossbeam_utils::CachePadded;
 use iter::{Iter, IterMut, OwningIter};
+use lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 pub use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
@@ -1032,11 +1033,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let idx = self.determine_shard(hash as usize);
 
         let shard = unsafe { self._yield_read_shard(idx) };
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `Ref`.
+        let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
         if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
             unsafe {
                 let (k, v) = bucket.as_ref();
-                Some(Ref::new(shard, k, v))
+                Some(Ref::new(guard, k, v))
             }
         } else {
             None
@@ -1053,11 +1056,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         let idx = self.determine_shard(hash as usize);
 
         let shard = unsafe { self._yield_write_shard(idx) };
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `RefMut`.
+        let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
             unsafe {
                 let (k, v) = bucket.as_mut();
-                Some(RefMut::new(shard, k, v))
+                Some(RefMut::new(guard, k, v))
             }
         } else {
             None
@@ -1077,11 +1082,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `Ref`.
+        let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
         if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
             unsafe {
                 let (k, v) = bucket.as_ref();
-                TryResult::Present(Ref::new(shard, k, v))
+                TryResult::Present(Ref::new(guard, k, v))
             }
         } else {
             TryResult::Absent
@@ -1101,11 +1108,13 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             Some(shard) => shard,
             None => return TryResult::Locked,
         };
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `RefMut`.
+        let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
             unsafe {
                 let (k, v) = bucket.as_mut();
-                TryResult::Present(RefMut::new(shard, k, v))
+                TryResult::Present(RefMut::new(guard, k, v))
             }
         } else {
             TryResult::Absent
@@ -1178,7 +1187,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         let idx = self.determine_shard(hash as usize);
 
-        let mut shard = unsafe { self._yield_write_shard(idx) };
+        let shard = unsafe { self._yield_write_shard(idx) };
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
+        let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         match shard.find_or_find_insert_slot(
             hash,
@@ -1189,8 +1200,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
                 hasher.finish()
             },
         ) {
-            Ok(elem) => Entry::Occupied(unsafe { OccupiedEntry::new(shard, key, elem) }),
-            Err(slot) => Entry::Vacant(unsafe { VacantEntry::new(shard, key, hash, slot) }),
+            Ok(elem) => Entry::Occupied(unsafe { OccupiedEntry::new(guard, key, shard, elem) }),
+            Err(slot) => Entry::Vacant(unsafe { VacantEntry::new(guard, key, hash, shard, slot) }),
         }
     }
 
@@ -1199,10 +1210,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         let idx = self.determine_shard(hash as usize);
 
-        let mut shard = match unsafe { self._try_yield_write_shard(idx) } {
+        let shard = match unsafe { self._try_yield_write_shard(idx) } {
             Some(shard) => shard,
             None => return None,
         };
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
+        let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
         match shard.find_or_find_insert_slot(
             hash,
@@ -1214,10 +1227,10 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
             },
         ) {
             Ok(elem) => Some(Entry::Occupied(unsafe {
-                OccupiedEntry::new(shard, key, elem)
+                OccupiedEntry::new(guard, key, shard, elem)
             })),
             Err(slot) => Some(Entry::Vacant(unsafe {
-                VacantEntry::new(shard, key, hash, slot)
+                VacantEntry::new(guard, key, hash, shard, slot)
             })),
         }
     }

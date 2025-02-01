@@ -34,7 +34,6 @@ impl Drop for AbortOnPanic {
     }
 }
 
-
 /// A [`RwLockReadGuard`], without the data
 pub(crate) struct RwLockReadGuardDetached<'a, R: RawRwLock> {
     lock: &'a R,
