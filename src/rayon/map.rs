@@ -95,13 +95,7 @@ where
     {
         Vec::from(self.shards)
             .into_par_iter()
-            .flat_map_iter(|shard| {
-                shard
-                    .into_inner()
-                    .into_inner()
-                    .into_iter()
-                    .map(|(k, v)| (k, v.into_inner()))
-            })
+            .flat_map_iter(|shard| shard.into_inner().into_inner().into_iter())
             .drive_unindexed(consumer)
     }
 }
@@ -145,7 +139,7 @@ where
                 guard.iter().map(move |b| {
                     let guard = Arc::clone(&guard);
                     let (k, v) = b.as_ref();
-                    RefMulti::new(guard, k, v.get())
+                    RefMulti::new(guard, k, v)
                 })
             })
             .drive_unindexed(consumer)
@@ -203,7 +197,7 @@ where
                 guard.iter().map(move |b| {
                     let guard = Arc::clone(&guard);
                     let (k, v) = b.as_mut();
-                    RefMutMulti::new(guard, k, v.get_mut())
+                    RefMutMulti::new(guard, k, v)
                 })
             })
             .drive_unindexed(consumer)

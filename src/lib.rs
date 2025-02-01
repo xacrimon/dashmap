@@ -46,15 +46,7 @@ use std::collections::hash_map::RandomState;
 pub use t::Map;
 use try_result::TryResult;
 
-cfg_if! {
-    if #[cfg(feature = "raw-api")] {
-        pub use util::SharedValue;
-    } else {
-        use util::SharedValue;
-    }
-}
-
-pub(crate) type HashMap<K, V> = hashbrown::raw::RawTable<(K, SharedValue<V>)>;
+pub(crate) type HashMap<K, V> = hashbrown::raw::RawTable<(K, V)>;
 
 // Temporary reimplementation of [`std::collections::TryReserveError`]
 // util [`std::collections::TryReserveError`] stabilises.
@@ -331,18 +323,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             ///
             /// ```
             /// use dashmap::DashMap;
-            /// use dashmap::SharedValue;
             /// use std::hash::{Hash, Hasher, BuildHasher};
             ///
             /// let mut map = DashMap::<i32, &'static str>::new();
             /// let shard_ind = map.determine_map(&42);
             /// let mut factory = map.hasher().clone();
-            /// let hasher = |tuple: &(i32, SharedValue<&'static str>)| {
+            /// let hasher = |tuple: &(i32, &'static str)| {
             ///     let mut hasher = factory.build_hasher();
             ///     tuple.0.hash(&mut hasher);
             ///     hasher.finish()
             /// };
-            /// let data = (42, SharedValue::new("forty two"));
+            /// let data = (42, "forty two");
             /// let hash = hasher(&data);
             /// map.shards_mut()[shard_ind].get_mut().insert(hash, data, hasher);
             /// assert_eq!(*map.get(&42).unwrap(), "forty two");
@@ -965,7 +956,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
             let ((k, v), _) = unsafe { shard.remove(bucket) };
-            Some((k, v.into_inner()))
+            Some((k, v))
         } else {
             None
         }
@@ -984,9 +975,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
             let (k, v) = unsafe { bucket.as_ref() };
-            if f(k, v.get()) {
+            if f(k, v) {
                 let ((k, v), _) = unsafe { shard.remove(bucket) };
-                Some((k, v.into_inner()))
+                Some((k, v))
             } else {
                 None
             }
@@ -1008,9 +999,9 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
             let (k, v) = unsafe { bucket.as_mut() };
-            if f(k, v.get_mut()) {
+            if f(k, v) {
                 let ((k, v), _) = unsafe { shard.remove(bucket) };
-                Some((k, v.into_inner()))
+                Some((k, v))
             } else {
                 None
             }
@@ -1041,7 +1032,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
             unsafe {
                 let (k, v) = bucket.as_ref();
-                Some(Ref::new(shard, k, v.as_ptr()))
+                Some(Ref::new(shard, k, v))
             }
         } else {
             None
@@ -1061,8 +1052,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
             unsafe {
-                let (k, v) = bucket.as_ref();
-                Some(RefMut::new(shard, k, v.as_ptr()))
+                let (k, v) = bucket.as_mut();
+                Some(RefMut::new(shard, k, v))
             }
         } else {
             None
@@ -1086,7 +1077,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
             unsafe {
                 let (k, v) = bucket.as_ref();
-                TryResult::Present(Ref::new(shard, k, v.as_ptr()))
+                TryResult::Present(Ref::new(shard, k, v))
             }
         } else {
             TryResult::Absent
@@ -1109,8 +1100,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         if let Some(bucket) = shard.find(hash, |(k, _v)| key == k.borrow()) {
             unsafe {
-                let (k, v) = bucket.as_ref();
-                TryResult::Present(RefMut::new(shard, k, v.as_ptr()))
+                let (k, v) = bucket.as_mut();
+                TryResult::Present(RefMut::new(shard, k, v))
             }
         } else {
             TryResult::Absent
@@ -1136,7 +1127,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
                 // Here we only use `iter` as a temporary, preventing use-after-free
                 for bucket in shard.iter() {
                     let (k, v) = bucket.as_mut();
-                    if !f(&*k, v.get_mut()) {
+                    if !f(&*k, v) {
                         shard.erase(bucket);
                     }
                 }
@@ -1362,7 +1353,7 @@ where
                 let entry_size_iter = iter.map(|bucket| {
                     // Safety: The iterator returns buckets with valid pointers to entries
                     let (key, value) = unsafe { bucket.as_ref() };
-                    key.extra_size() + value.get().extra_size()
+                    key.extra_size() + value.extra_size()
                 });
 
                 core::mem::size_of::<CachePadded<RwLock<HashMap<K, V>>>>()

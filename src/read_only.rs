@@ -88,7 +88,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
 
         shard.find(hash, |(k, _v)| key == k.borrow()).map(|b| {
             let (k, v) = unsafe { b.as_ref() };
-            (k, v.get())
+            (k, v)
         })
     }
 
@@ -100,7 +100,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
                 .flat_map(|shard| shard.iter())
                 .map(|b| {
                     let (k, v) = b.as_ref();
-                    (k, v.get())
+                    (k, v)
                 })
         }
     }
