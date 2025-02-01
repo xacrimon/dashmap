@@ -4,6 +4,8 @@ use parking_lot_core::{ParkToken, SpinWait, UnparkToken};
 pub type RwLock<T> = lock_api::RwLock<RawRwLock, T>;
 pub type RwLockReadGuard<'a, T> = lock_api::RwLockReadGuard<'a, RawRwLock, T>;
 pub type RwLockWriteGuard<'a, T> = lock_api::RwLockWriteGuard<'a, RawRwLock, T>;
+pub type RwLockReadGuardDetached<'a> = crate::util::RwLockReadGuardDetached<'a, RawRwLock>;
+pub type RwLockWriteGuardDetached<'a> = crate::util::RwLockWriteGuardDetached<'a, RawRwLock>;
 
 const READERS_PARKED: usize = 0b0001;
 const WRITERS_PARKED: usize = 0b0010;
