@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 #![allow(clippy::type_complexity)]
 
 #[cfg(feature = "arbitrary")]
