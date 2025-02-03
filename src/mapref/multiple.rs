@@ -46,11 +46,7 @@ pub struct RefMutMulti<'a, K, V> {
 }
 
 impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
-    pub(crate) fn new(
-        guard: Arc<RwLockWriteGuardDetached<'a>>,
-        k: &'a K,
-        v: &'a mut V,
-    ) -> Self {
+    pub(crate) fn new(guard: Arc<RwLockWriteGuardDetached<'a>>, k: &'a K, v: &'a mut V) -> Self {
         Self {
             _guard: guard,
             k,
