@@ -113,11 +113,15 @@ impl<'a, R: RawRwLockDowngrade> RwLockWriteGuardDetached<'a, R> {
     ///
     /// The associated data must not mut mutated after downgrading
     pub(crate) unsafe fn downgrade(self) -> RwLockReadGuardDetached<'a, R> {
+        // Do not drop the write guard - otherwise we will trigger a downgrade + unlock_exclusive,
+        // which is incorrect
+        let this = ManuallyDrop::new(self);
+
         // Safety: An RwLockWriteGuardDetached always holds an exclusive lock.
-        unsafe { self.lock.downgrade() }
+        unsafe { this.lock.downgrade() }
         RwLockReadGuardDetached {
-            lock: self.lock,
-            _marker: self._marker,
+            lock: this.lock,
+            _marker: this._marker,
         }
     }
 }
