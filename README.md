@@ -14,13 +14,16 @@ This allows you to put a DashMap in an `Arc<T>` and share it between threads whi
 DashMap puts great effort into performance and aims to be as fast as possible.
 If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
+The current MSRV is 1.70 and is not changed in patch releases. You can pin a minor version if you want
+perfect stability. Though `dashmap` always stays at least 15 full stable releases (or about 9 months) behind the current stable release.
+
 [![version](https://img.shields.io/crates/v/dashmap)](https://crates.io/crates/dashmap)
 
 [![documentation](https://docs.rs/dashmap/badge.svg)](https://docs.rs/dashmap)
 
 [![downloads](https://img.shields.io/crates/d/dashmap)](https://crates.io/crates/dashmap)
 
-[![minimum rustc version](https://img.shields.io/badge/rustc-1.65-orange.svg)](https://crates.io/crates/dashmap)
+[![minimum rustc version](https://img.shields.io/badge/rustc-1.70-orange.svg)](https://crates.io/crates/dashmap)
 
 ## Cargo features
 
