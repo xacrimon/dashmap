@@ -353,6 +353,19 @@ mod tests {
     }
 
     #[test]
+    fn mapped_mut_again() {
+        let data = DashMap::with_capacity(123);
+        data.insert("test", *b"hello world");
+        if let Some(b_ref) = data.get_mut("test") {
+            let s_ref = b_ref.try_map(|b| std::str::from_utf8_mut(b).ok()).unwrap();
+            let mut hello_ref = s_ref.try_map(|s| s.get_mut(..5)).unwrap();
+            hello_ref.value_mut().make_ascii_uppercase();
+        }
+
+        assert_eq!(data.get("test").unwrap().value(), b"HELLO world");
+    }
+
+    #[test]
     fn mapped_ref() {
         let data = DashMap::with_capacity(123);
         data.insert("test", *b"test");
@@ -360,6 +373,21 @@ mod tests {
             let s_ref = b_ref.try_map(|b| std::str::from_utf8(b).ok()).unwrap();
 
             assert_eq!(s_ref.value(), "test");
+        }
+
+        // TODO: Why does it not compile without this explicit drop?
+        drop(data);
+    }
+
+    #[test]
+    fn mapped_ref_again() {
+        let data = DashMap::with_capacity(123);
+        data.insert("test", *b"hello world");
+        if let Some(b_ref) = data.get("test") {
+            let s_ref = b_ref.try_map(|b| std::str::from_utf8(b).ok()).unwrap();
+            let hello_ref = s_ref.try_map(|s| s.get(..5)).unwrap();
+
+            assert_eq!(hello_ref.value(), "hello");
         }
 
         // TODO: Why does it not compile without this explicit drop?
