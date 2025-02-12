@@ -79,6 +79,46 @@ impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
     pub fn with_capacity(capacity: usize) -> Self {
         Self::with_capacity_and_hasher(capacity, RandomState::default())
     }
+
+    /// Creates a new DashSet with a specified shard amount
+    ///
+    /// shard_amount should greater than 0 and be a power of two.
+    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let numbers = DashSet::with_shard_amount(32);
+    /// numbers.insert(2);
+    /// numbers.insert(8);
+    /// ```
+    pub fn with_shard_amount(shard_amount: usize) -> Self {
+        Self::with_capacity_and_hasher_and_shard_amount(0, RandomState::default(), shard_amount)
+    }
+
+    /// Creates a new DashSet with a specified capacity and shard amount.
+    ///
+    /// shard_amount should greater than 0 and be a power of two.
+    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let numbers = DashSet::with_capacity_and_shard_amount(32, 32);
+    /// numbers.insert(2);
+    /// numbers.insert(8);
+    /// ```
+    pub fn with_capacity_and_shard_amount(capacity: usize, shard_amount: usize) -> Self {
+        Self::with_capacity_and_hasher_and_shard_amount(
+            capacity,
+            RandomState::default(),
+            shard_amount,
+        )
+    }
 }
 
 impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
@@ -114,6 +154,56 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self {
             inner: DashMap::with_capacity_and_hasher(capacity, hasher),
+        }
+    }
+
+    /// Creates a new DashSet with a specified hasher and shard amount
+    ///
+    /// shard_amount should be greater than 0 and a power of two.
+    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let numbers = DashSet::with_hasher_and_shard_amount(s, 32);
+    /// numbers.insert(2);
+    /// numbers.insert(8);
+    /// ```
+    pub fn with_hasher_and_shard_amount(hasher: S, shard_amount: usize) -> Self {
+        Self::with_capacity_and_hasher_and_shard_amount(0, hasher, shard_amount)
+    }
+
+    /// Creates a new DashSet with a specified starting capacity, hasher and shard_amount.
+    ///
+    /// shard_amount should greater than 0 and be a power of two.
+    /// If a shard_amount which is not a power of two is provided, the function will panic.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let numbers = DashSet::with_capacity_and_hasher_and_shard_amount(2, s, 32);
+    /// numbers.insert(2);
+    /// numbers.insert(8);
+    /// ```
+    pub fn with_capacity_and_hasher_and_shard_amount(
+        capacity: usize,
+        hasher: S,
+        shard_amount: usize,
+    ) -> Self {
+        Self {
+            inner: DashMap::with_capacity_and_hasher_and_shard_amount(
+                capacity,
+                hasher,
+                shard_amount,
+            ),
         }
     }
 
