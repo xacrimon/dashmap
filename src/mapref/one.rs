@@ -319,3 +319,22 @@ impl<'a, K: Eq + Hash, T> DerefMut for MappedRefMut<'a, K, T> {
         self.value_mut()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::DashMap;
+
+    #[test]
+    fn downgrade() {
+        let data = DashMap::with_capacity(123);
+        data.insert("test", "test");
+        if let Some(mut w_ref) = data.get_mut("test") {
+            *w_ref.value_mut() = "test2";
+            let r_ref = w_ref.downgrade();
+            assert_eq!(*r_ref.value(), "test2");
+        }
+
+        // TODO: Why does it not compile without this explicit drop?
+        drop(data);
+    }
+}
