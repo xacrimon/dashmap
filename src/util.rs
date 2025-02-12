@@ -1,5 +1,3 @@
-//! This module is full of hackery and dark magic.
-//! Either spend a day fixing it and quietly submit a PR or don't mention it to anybody.
 use core::{mem, ptr};
 use std::{marker::PhantomData, mem::ManuallyDrop};
 
