@@ -328,21 +328,18 @@ mod tests {
 
     #[test]
     fn downgrade() {
-        let data = DashMap::with_capacity(123);
+        let data = DashMap::new();
         data.insert("test", "test");
         if let Some(mut w_ref) = data.get_mut("test") {
             *w_ref.value_mut() = "test2";
             let r_ref = w_ref.downgrade();
             assert_eq!(*r_ref.value(), "test2");
-        }
-
-        // TODO: Why does it not compile without this explicit drop?
-        drop(data);
+        };
     }
 
     #[test]
     fn mapped_mut() {
-        let data = DashMap::with_capacity(123);
+        let data = DashMap::new();
         data.insert("test", *b"test");
         if let Some(b_ref) = data.get_mut("test") {
             let mut s_ref = b_ref.try_map(|b| std::str::from_utf8_mut(b).ok()).unwrap();
@@ -354,7 +351,7 @@ mod tests {
 
     #[test]
     fn mapped_mut_again() {
-        let data = DashMap::with_capacity(123);
+        let data = DashMap::new();
         data.insert("test", *b"hello world");
         if let Some(b_ref) = data.get_mut("test") {
             let s_ref = b_ref.try_map(|b| std::str::from_utf8_mut(b).ok()).unwrap();
@@ -367,30 +364,24 @@ mod tests {
 
     #[test]
     fn mapped_ref() {
-        let data = DashMap::with_capacity(123);
+        let data = DashMap::new();
         data.insert("test", *b"test");
         if let Some(b_ref) = data.get("test") {
             let s_ref = b_ref.try_map(|b| std::str::from_utf8(b).ok()).unwrap();
 
             assert_eq!(s_ref.value(), "test");
-        }
-
-        // TODO: Why does it not compile without this explicit drop?
-        drop(data);
+        };
     }
 
     #[test]
     fn mapped_ref_again() {
-        let data = DashMap::with_capacity(123);
+        let data = DashMap::new();
         data.insert("test", *b"hello world");
         if let Some(b_ref) = data.get("test") {
             let s_ref = b_ref.try_map(|b| std::str::from_utf8(b).ok()).unwrap();
             let hello_ref = s_ref.try_map(|s| s.get(..5)).unwrap();
 
             assert_eq!(hello_ref.value(), "hello");
-        }
-
-        // TODO: Why does it not compile without this explicit drop?
-        drop(data);
+        };
     }
 }
