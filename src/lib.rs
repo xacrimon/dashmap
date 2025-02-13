@@ -29,12 +29,12 @@ use crate::lock::RwLock;
 pub use crate::lock::{RawRwLock, RwLock};
 
 use cfg_if::cfg_if;
-use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash, Hasher};
 use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use crossbeam_utils::CachePadded;
+pub use equivalent::Equivalent;
 use hashbrown::hash_table;
 use iter::{Iter, IterMut, OwningIter};
 use lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
@@ -389,8 +389,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             /// ```
             pub fn determine_map<Q>(&self, key: &Q) -> usize
             where
-                K: Borrow<Q>,
-                Q: Hash + Eq + ?Sized,
+                Q: Hash + Equivalent<K> + ?Sized,
             {
                 let hash = self.hash_usize(&key);
                 self.determine_shard(hash)
@@ -508,8 +507,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._remove(key)
     }
@@ -537,16 +535,14 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._remove_if(key, f)
     }
 
     pub fn remove_if_mut<Q>(&self, key: &Q, f: impl FnOnce(&K, &mut V) -> bool) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._remove_if_mut(key, f)
     }
@@ -601,8 +597,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._get(key)
     }
@@ -623,8 +618,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._get_mut(key)
     }
@@ -650,8 +644,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn try_get<Q>(&'a self, key: &Q) -> TryResult<Ref<'a, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._try_get(key)
     }
@@ -678,8 +671,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn try_get_mut<Q>(&'a self, key: &Q) -> TryResult<RefMut<'a, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._try_get_mut(key)
     }
@@ -806,8 +798,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// If the given closure panics, then `alter` will abort the process
     pub fn alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._alter(key, f);
     }
@@ -857,8 +848,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// If the given closure panics, then `view` will abort the process
     pub fn view<Q, R>(&self, key: &Q, f: impl FnOnce(&K, &V) -> R) -> Option<R>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._view(key, f)
     }
@@ -878,8 +868,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._contains_key(key)
     }
@@ -936,8 +925,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _remove<Q>(&self, key: &Q) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -945,7 +933,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
         let mut shard = self.shards[idx].write();
 
-        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
+        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key.equivalent(k)) {
             let ((k, v), _) = entry.remove();
             Some((k, v))
         } else {
@@ -955,8 +943,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K, &V) -> bool) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -964,7 +951,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
         let mut shard = self.shards[idx].write();
 
-        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
+        if let Ok(entry) = shard.find_entry(hash, |(k, _v)| key.equivalent(k)) {
             let (k, v) = entry.get();
             if f(k, v) {
                 let ((k, v), _) = entry.remove();
@@ -979,8 +966,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _remove_if_mut<Q>(&self, key: &Q, f: impl FnOnce(&K, &mut V) -> bool) -> Option<(K, V)>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -988,7 +974,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
         let mut shard = self.shards[idx].write();
 
-        if let Ok(mut entry) = shard.find_entry(hash, |(k, _v)| key == k.borrow()) {
+        if let Ok(mut entry) = shard.find_entry(hash, |(k, _v)| key.equivalent(k)) {
             let (k, v) = entry.get_mut();
             if f(k, v) {
                 let ((k, v), _) = entry.remove();
@@ -1011,8 +997,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -1022,7 +1007,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Ref`.
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
-        if let Some((k, v)) = shard.find(hash, |(k, _v)| key == k.borrow()) {
+        if let Some((k, v)) = shard.find(hash, |(k, _v)| key.equivalent(k)) {
             Some(Ref::new(guard, k, v))
         } else {
             None
@@ -1031,8 +1016,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _get_mut<Q>(&'a self, key: &Q) -> Option<RefMut<'a, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -1042,7 +1026,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
         // SAFETY: The data will not outlive the guard, since we pass the guard to `RefMut`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
-        if let Some((k, v)) = shard.find_mut(hash, |(k, _v)| key == k.borrow()) {
+        if let Some((k, v)) = shard.find_mut(hash, |(k, _v)| key.equivalent(k)) {
             Some(RefMut::new(guard, k, v))
         } else {
             None
@@ -1051,8 +1035,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _try_get<Q>(&'a self, key: &Q) -> TryResult<Ref<'a, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -1065,7 +1048,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Ref`.
         let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard) };
 
-        if let Some((k, v)) = shard.find(hash, |(k, _v)| key == k.borrow()) {
+        if let Some((k, v)) = shard.find(hash, |(k, _v)| key.equivalent(k)) {
             TryResult::Present(Ref::new(guard, k, v))
         } else {
             TryResult::Absent
@@ -1074,8 +1057,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _try_get_mut<Q>(&'a self, key: &Q) -> TryResult<RefMut<'a, K, V>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -1088,7 +1070,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
         // SAFETY: The data will not outlive the guard, since we pass the guard to `RefMut`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
-        if let Some((k, v)) = shard.find_mut(hash, |(k, _v)| key == k.borrow()) {
+        if let Some((k, v)) = shard.find_mut(hash, |(k, _v)| key.equivalent(k)) {
             TryResult::Present(RefMut::new(guard, k, v))
         } else {
             TryResult::Absent
@@ -1123,8 +1105,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _alter<Q>(&self, key: &Q, f: impl FnOnce(&K, V) -> V)
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         if let Some(mut r) = self.get_mut(key) {
             util::map_in_place_2(r.pair_mut(), f);
@@ -1138,8 +1119,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _view<Q, R>(&self, key: &Q, f: impl FnOnce(&K, &V) -> R) -> Option<R>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.get(key).map(|r| {
             let (k, v) = r.pair();
@@ -1208,8 +1188,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _contains_key<Q>(&'a self, key: &Q) -> bool
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._get(key).is_some()
     }
@@ -1245,8 +1224,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> Shl<(K, V)> for &'a D
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> Shr<&Q> for &'a DashMap<K, V, S>
 where
-    K: Borrow<Q>,
-    Q: Hash + Eq + ?Sized,
+    Q: Hash + Equivalent<K> + ?Sized,
 {
     type Output = Ref<'a, K, V>;
 
@@ -1257,8 +1235,7 @@ where
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> BitOr<&Q> for &'a DashMap<K, V, S>
 where
-    K: Borrow<Q>,
-    Q: Hash + Eq + ?Sized,
+    Q: Hash + Equivalent<K> + ?Sized,
 {
     type Output = RefMut<'a, K, V>;
 
@@ -1269,8 +1246,7 @@ where
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> Sub<&Q> for &'a DashMap<K, V, S>
 where
-    K: Borrow<Q>,
-    Q: Hash + Eq + ?Sized,
+    Q: Hash + Equivalent<K> + ?Sized,
 {
     type Output = Option<(K, V)>;
 
@@ -1281,8 +1257,7 @@ where
 
 impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone, Q> BitAnd<&Q> for &'a DashMap<K, V, S>
 where
-    K: Borrow<Q>,
-    Q: Hash + Eq + ?Sized,
+    Q: Hash + Equivalent<K> + ?Sized,
 {
     type Output = bool;
 
