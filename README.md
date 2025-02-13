@@ -15,7 +15,7 @@ DashMap puts great effort into performance and aims to be as fast as possible.
 If you have any suggestions or tips do not hesitate to open an issue or a PR.
 
 The current MSRV is 1.70 and is not changed in patch releases. You can pin a minor version if you want
-perfect stability. Though `dashmap` always stays at least 15 full stable releases (or about 9 months) behind the current stable release.
+perfect stability. Though `dashmap` always stays at least 1 year behind the current stable release.
 
 [![version](https://img.shields.io/crates/v/dashmap)](https://crates.io/crates/dashmap)
 
