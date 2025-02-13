@@ -53,6 +53,8 @@ A comprehensive benchmark suite including DashMap can be found [here](https://gi
 
 ## Special thanks
 
+- [Conrad Ludgate](https://github.com/conradludgate)
+
 - [Jon Gjengset](https://github.com/jonhoo)
 
 - [Yato](https://github.com/RustyYato)
