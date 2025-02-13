@@ -41,10 +41,10 @@ use lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 pub use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
 use mapref::multiple::RefMulti;
 use mapref::one::{Ref, RefMut};
-use once_cell::sync::OnceCell;
 pub use read_only::ReadOnlyView;
 pub use set::DashSet;
 use std::collections::hash_map::RandomState;
+use std::sync::OnceLock;
 use try_result::TryResult;
 
 pub(crate) type HashMap<K, V> = hash_table::HashTable<(K, V)>;
@@ -58,7 +58,7 @@ pub(crate) type HashMap<K, V> = hash_table::HashTable<(K, V)>;
 pub struct TryReserveError {}
 
 fn default_shard_amount() -> usize {
-    static DEFAULT_SHARD_AMOUNT: OnceCell<usize> = OnceCell::new();
+    static DEFAULT_SHARD_AMOUNT: OnceLock<usize> = OnceLock::new();
     *DEFAULT_SHARD_AMOUNT.get_or_init(|| {
         (std::thread::available_parallelism().map_or(1, usize::from) * 4).next_power_of_two()
     })
