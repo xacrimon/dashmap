@@ -33,7 +33,7 @@ perfect stability. Though `dashmap` always stays at least 15 full stable release
 
 - `rayon` - Enables rayon support.
 
-- `inline` - Enables `inline-more` feature from the `hashbrown` crate. Can lead to better performance, but with the cost of longer compile-time.
+- `inline-more` - Enables `inline-more` feature from the `hashbrown` crate. Comes with the usual tradeoffs of possibly excessive inlining.
 
 - `arbitrary` - Enables support for the `arbitrary` crate.
 
@@ -55,7 +55,7 @@ A comprehensive benchmark suite including DashMap can be found [here](https://gi
 
 - [Jon Gjengset](https://github.com/jonhoo)
 
-- [Yato](https://github.com/RustyYato) 
+- [Yato](https://github.com/RustyYato)
 
 - [Karl Bergström](https://github.com/kabergstrom)
 

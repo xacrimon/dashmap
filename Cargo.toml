@@ -17,7 +17,7 @@ categories = ["concurrency", "algorithms", "data-structures"]
 all = ["raw-api", "typesize", "serde", "rayon", "arbitrary"]
 raw-api = []
 typesize = ["dep:typesize"]
-inline = ["hashbrown/inline-more"]
+inline-more = ["hashbrown/inline-more"]
 
 [dependencies]
 lock_api = "0.4.12"
