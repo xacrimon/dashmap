@@ -22,6 +22,7 @@ inline = ["hashbrown/inline-more"]
 [dependencies]
 lock_api = "0.4.12"
 parking_lot_core = "0.9.10"
+equivalent = "1.0.1"
 hashbrown = { version = "0.15.2", default-features = false }
 serde = { version = "1.0.217", optional = true, features = ["derive"] }
 cfg-if = "1.0.0"

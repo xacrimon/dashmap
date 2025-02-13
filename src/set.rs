@@ -6,12 +6,12 @@ use crate::DashMap;
 #[cfg(feature = "raw-api")]
 use crate::HashMap;
 use cfg_if::cfg_if;
-use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
 use core::iter::FromIterator;
 #[cfg(feature = "raw-api")]
 use crossbeam_utils::CachePadded;
+use equivalent::Equivalent;
 use std::collections::hash_map::RandomState;
 
 /// DashSet is a thin wrapper around [`DashMap`] using `()` as the value type. It uses
@@ -163,8 +163,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
             /// ```
             pub fn determine_map<Q>(&self, key: &Q) -> usize
             where
-                K: Borrow<Q>,
-                Q: Hash + Eq + ?Sized,
+            Q: Hash + Equivalent<K> + ?Sized,
             {
                 self.inner.determine_map(key)
             }
@@ -220,8 +219,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// ```
     pub fn remove<Q>(&self, key: &Q) -> Option<K>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.inner.remove(key).map(|(k, _)| k)
     }
@@ -247,8 +245,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// ```
     pub fn remove_if<Q>(&self, key: &Q, f: impl FnOnce(&K) -> bool) -> Option<K>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         // TODO: Don't create another closure around f
         self.inner.remove_if(key, |k, _| f(k)).map(|(k, _)| k)
@@ -284,8 +281,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// ```
     pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K>>
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.inner.get(key).map(Ref::new)
     }
@@ -380,8 +376,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// ```
     pub fn contains<Q>(&self, key: &Q) -> bool
     where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self.inner.contains_key(key)
     }
