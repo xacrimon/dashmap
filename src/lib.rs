@@ -27,6 +27,9 @@ use crate::lock::RwLock;
 
 #[cfg(feature = "raw-api")]
 pub use crate::lock::{RawRwLock, RwLock};
+use crate::mapref::entry_ref::EntryRef;
+use crate::mapref::entry_ref::OccupiedEntryRef;
+use crate::mapref::entry_ref::VacantEntryRef;
 
 use cfg_if::cfg_if;
 use core::fmt;
@@ -889,6 +892,17 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._try_entry(key)
     }
 
+    /// Advanced entry API that tries to mimic `hashbrown::HashMap::entry_ref`.
+    /// See the documentation on `dashmap::mapref::entry_ref` for more details.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
+    pub fn entry_ref<'q, Q>(&'a self, key: &'q Q) -> EntryRef<'a, 'q, K, Q, V>
+    where
+        Q: Hash + Equivalent<K>,
+    {
+        self._entry_ref(key)
+    }
+
     /// Advanced entry API that tries to mimic `std::collections::HashMap::try_reserve`.
     /// Tries to reserve capacity for at least `shard * additional`
     /// and may reserve more space to avoid frequent reallocations.
@@ -1178,6 +1192,69 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
             }
             hash_table::Entry::Vacant(entry) => {
                 Some(Entry::Vacant(VacantEntry::new(guard, key, entry)))
+            }
+        }
+    }
+
+    fn _entry_ref<'q, Q>(&'a self, key: &'q Q) -> EntryRef<'a, 'q, K, Q, V>
+    where
+        Q: Hash + Equivalent<K>,
+    {
+        let hash = self.hash_u64(&key);
+
+        let idx = self.determine_shard(hash as usize);
+
+        let shard = self.shards[idx].write();
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
+        let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
+
+        match shard.entry(
+            hash,
+            |(k, _v)| key.equivalent(k),
+            |(k, _v)| {
+                let mut hasher = self.hasher.build_hasher();
+                k.hash(&mut hasher);
+                hasher.finish()
+            },
+        ) {
+            hash_table::Entry::Occupied(entry) => {
+                EntryRef::Occupied(OccupiedEntryRef::new(guard, key, entry))
+            }
+            hash_table::Entry::Vacant(entry) => {
+                EntryRef::Vacant(VacantEntryRef::new(guard, key, entry))
+            }
+        }
+    }
+
+    fn _try_entry_ref<'q, Q>(&'a self, key: &'q Q) -> Option<EntryRef<'a, 'q, K, Q, V>>
+    where
+        Q: Hash + Equivalent<K>,
+    {
+        let hash = self.hash_u64(&key);
+
+        let idx = self.determine_shard(hash as usize);
+
+        let shard = match self.shards[idx].try_write() {
+            Some(shard) => shard,
+            None => return None,
+        };
+        // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
+        let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
+
+        match shard.entry(
+            hash,
+            |(k, _v)| key.equivalent(k),
+            |(k, _v)| {
+                let mut hasher = self.hasher.build_hasher();
+                k.hash(&mut hasher);
+                hasher.finish()
+            },
+        ) {
+            hash_table::Entry::Occupied(entry) => {
+                Some(EntryRef::Occupied(OccupiedEntryRef::new(guard, key, entry)))
+            }
+            hash_table::Entry::Vacant(entry) => {
+                Some(EntryRef::Vacant(VacantEntryRef::new(guard, key, entry)))
             }
         }
     }

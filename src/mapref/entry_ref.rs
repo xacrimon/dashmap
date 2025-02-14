@@ -3,40 +3,43 @@ use hashbrown::hash_table;
 use super::one::RefMut;
 use crate::lock::RwLockWriteGuardDetached;
 use core::hash::Hash;
-use core::mem;
+use std::mem;
 
-pub enum Entry<'a, K, V> {
-    Occupied(OccupiedEntry<'a, K, V>),
-    Vacant(VacantEntry<'a, K, V>),
+/// Entry with a borrowed key.
+pub enum EntryRef<'a, 'q, K, Q, V> {
+    Occupied(OccupiedEntryRef<'a, 'q, K, Q, V>),
+    Vacant(VacantEntryRef<'a, 'q, K, Q, V>),
 }
 
-impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
+impl<'a, 'q, K: Eq + Hash, Q, V> EntryRef<'a, 'q, K, Q, V> {
     /// Apply a function to the stored value if it exists.
     pub fn and_modify(self, f: impl FnOnce(&mut V)) -> Self {
         match self {
-            Entry::Occupied(mut entry) => {
+            EntryRef::Occupied(mut entry) => {
                 f(entry.get_mut());
 
-                Entry::Occupied(entry)
+                EntryRef::Occupied(entry)
             }
 
-            Entry::Vacant(entry) => Entry::Vacant(entry),
+            EntryRef::Vacant(entry) => EntryRef::Vacant(entry),
         }
     }
+}
 
+impl<'a, 'q, K: Eq + Hash + From<&'q Q>, Q, V> EntryRef<'a, 'q, K, Q, V> {
     /// Get the key of the entry.
-    pub fn key(&self) -> &K {
+    pub fn key(&self) -> &Q {
         match *self {
-            Entry::Occupied(ref entry) => entry.key(),
-            Entry::Vacant(ref entry) => entry.key(),
+            EntryRef::Occupied(ref entry) => entry.key(),
+            EntryRef::Vacant(ref entry) => entry.key(),
         }
     }
 
     /// Into the key of the entry.
     pub fn into_key(self) -> K {
         match self {
-            Entry::Occupied(entry) => entry.into_key(),
-            Entry::Vacant(entry) => entry.into_key(),
+            EntryRef::Occupied(entry) => entry.into_key(),
+            EntryRef::Vacant(entry) => entry.into_key(),
         }
     }
 
@@ -47,8 +50,8 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         V: Default,
     {
         match self {
-            Entry::Occupied(entry) => entry.into_ref(),
-            Entry::Vacant(entry) => entry.insert(V::default()),
+            EntryRef::Occupied(entry) => entry.into_ref(),
+            EntryRef::Vacant(entry) => entry.insert(V::default()),
         }
     }
 
@@ -56,8 +59,8 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
     /// otherwise a provided value and return a mutable reference to that.
     pub fn or_insert(self, value: V) -> RefMut<'a, K, V> {
         match self {
-            Entry::Occupied(entry) => entry.into_ref(),
-            Entry::Vacant(entry) => entry.insert(value),
+            EntryRef::Occupied(entry) => entry.into_ref(),
+            EntryRef::Vacant(entry) => entry.insert(value),
         }
     }
 
@@ -65,8 +68,8 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
     /// otherwise insert the result of a provided function and return a mutable reference to that.
     pub fn or_insert_with(self, value: impl FnOnce() -> V) -> RefMut<'a, K, V> {
         match self {
-            Entry::Occupied(entry) => entry.into_ref(),
-            Entry::Vacant(entry) => entry.insert(value()),
+            EntryRef::Occupied(entry) => entry.into_ref(),
+            EntryRef::Vacant(entry) => entry.insert(value()),
         }
     }
 
@@ -75,93 +78,100 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         value: impl FnOnce() -> Result<V, E>,
     ) -> Result<RefMut<'a, K, V>, E> {
         match self {
-            Entry::Occupied(entry) => Ok(entry.into_ref()),
-            Entry::Vacant(entry) => Ok(entry.insert(value()?)),
+            EntryRef::Occupied(entry) => Ok(entry.into_ref()),
+            EntryRef::Vacant(entry) => Ok(entry.insert(value()?)),
         }
     }
 
     /// Sets the value of the entry, and returns a reference to the inserted value.
     pub fn insert(self, value: V) -> RefMut<'a, K, V> {
         match self {
-            Entry::Occupied(mut entry) => {
+            EntryRef::Occupied(mut entry) => {
                 entry.insert(value);
                 entry.into_ref()
             }
-            Entry::Vacant(entry) => entry.insert(value),
+            EntryRef::Vacant(entry) => entry.insert(value),
         }
     }
 
-    /// Sets the value of the entry, and returns an OccupiedEntry.
+    /// Sets the value of the entry, and returns an OccupiedEntryRef.
     ///
     /// If you are not interested in the occupied entry,
     /// consider [`insert`] as it doesn't need to clone the key.
     ///
-    /// [`insert`]: Entry::insert
-    pub fn insert_entry(self, value: V) -> OccupiedEntry<'a, K, V>
+    /// [`insert`]: EntryRef::insert
+    pub fn insert_entry(self, value: V) -> OccupiedEntryRef<'a, 'q, K, Q, V>
     where
         K: Clone,
     {
         match self {
-            Entry::Occupied(mut entry) => {
+            EntryRef::Occupied(mut entry) => {
                 entry.insert(value);
                 entry
             }
-            Entry::Vacant(entry) => entry.insert_entry(value),
+            EntryRef::Vacant(entry) => entry.insert_entry(value),
         }
     }
 }
 
-pub struct VacantEntry<'a, K, V> {
+pub struct VacantEntryRef<'a, 'q, K, Q, V> {
     shard: RwLockWriteGuardDetached<'a>,
-    key: K,
     entry: hash_table::VacantEntry<'a, (K, V)>,
+    key: &'q Q,
 }
 
-impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
+impl<'a, 'q, K: Eq + Hash, Q, V> VacantEntryRef<'a, 'q, K, Q, V> {
     pub(crate) fn new(
         shard: RwLockWriteGuardDetached<'a>,
-        key: K,
+        key: &'q Q,
         entry: hash_table::VacantEntry<'a, (K, V)>,
     ) -> Self {
-        Self { shard, key, entry }
+        Self { shard, entry, key }
     }
 
-    pub fn insert(self, value: V) -> RefMut<'a, K, V> {
-        let occupied = self.entry.insert((self.key, value));
-
+    pub fn insert(self, value: V) -> RefMut<'a, K, V>
+    where
+        K: From<&'q Q>,
+    {
+        let k = K::from(self.key);
+        let occupied = self.entry.insert((k, value));
         let (k, v) = occupied.into_mut();
 
         RefMut::new(self.shard, k, v)
     }
 
-    /// Sets the value of the entry with the VacantEntry’s key, and returns an OccupiedEntry.
-    pub fn insert_entry(self, value: V) -> OccupiedEntry<'a, K, V>
+    /// Sets the value of the entry with the VacantEntryRef’s key, and returns an OccupiedEntry.
+    pub fn insert_entry(self, value: V) -> OccupiedEntryRef<'a, 'q, K, Q, V>
     where
-        K: Clone,
+        K: From<&'q Q>,
     {
-        let entry = self.entry.insert((self.key.clone(), value));
-        OccupiedEntry::new(self.shard, self.key, entry)
+        let k = K::from(self.key);
+        let entry = self.entry.insert((k, value));
+        OccupiedEntryRef::new(self.shard, self.key, entry)
     }
 
-    pub fn into_key(self) -> K {
+    pub fn into_key(self) -> K
+    where
+        K: From<&'q Q>,
+    {
+        K::from(self.key)
+    }
+
+    pub fn key(&self) -> &'q Q {
         self.key
     }
-
-    pub fn key(&self) -> &K {
-        &self.key
-    }
 }
 
-pub struct OccupiedEntry<'a, K, V> {
+pub struct OccupiedEntryRef<'a, 'q, K, Q, V> {
     shard: RwLockWriteGuardDetached<'a>,
     entry: hash_table::OccupiedEntry<'a, (K, V)>,
-    key: K,
+    key: &'q Q,
 }
 
-impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
+impl<'a, 'q, K: Eq + Hash, Q, V> OccupiedEntryRef<'a, 'q, K, Q, V> {
     pub(crate) fn new(
         shard: RwLockWriteGuardDetached<'a>,
-        key: K,
+        key: &'q Q,
         entry: hash_table::OccupiedEntry<'a, (K, V)>,
     ) -> Self {
         Self { shard, entry, key }
@@ -184,12 +194,15 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
         RefMut::new(self.shard, k, v)
     }
 
-    pub fn into_key(self) -> K {
-        self.key
+    pub fn into_key(self) -> K
+    where
+        K: From<&'q Q>,
+    {
+        K::from(self.key)
     }
 
-    pub fn key(&self) -> &K {
-        &self.entry.get().0
+    pub fn key(&self) -> &'q Q {
+        self.key
     }
 
     pub fn remove(self) -> V {
@@ -202,25 +215,43 @@ impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
         (k, v)
     }
 
-    pub fn replace_entry(self, value: V) -> (K, V) {
-        let (k, v) = mem::replace(self.entry.into_mut(), (self.key, value));
+    pub fn replace_entry(self, value: V) -> (K, V)
+    where
+        K: From<&'q Q>,
+    {
+        let (k, v) = mem::replace(self.entry.into_mut(), (K::from(self.key), value));
         (k, v)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use equivalent::Equivalent;
+
     use crate::DashMap;
 
     use super::*;
+
+    #[derive(Hash, PartialEq, Eq, Debug)]
+    struct K(u32);
+    impl From<&K> for u32 {
+        fn from(value: &K) -> Self {
+            value.0
+        }
+    }
+    impl Equivalent<u32> for K {
+        fn equivalent(&self, key: &u32) -> bool {
+            self.0 == *key
+        }
+    }
 
     #[test]
     fn test_insert_into_vacant() {
         let map: DashMap<u32, u32> = DashMap::new();
 
-        let entry = map.entry(1);
+        let entry = map.entry_ref(&K(1));
 
-        assert!(matches!(entry, Entry::Vacant(_)));
+        assert!(matches!(entry, EntryRef::Vacant(_)));
 
         let val = entry.insert(2);
 
@@ -237,9 +268,9 @@ mod tests {
 
         map.insert(1, 1000);
 
-        let entry = map.entry(1);
+        let entry = map.entry_ref(&K(1));
 
-        assert!(matches!(&entry, Entry::Occupied(entry) if *entry.get() == 1000));
+        assert!(matches!(&entry, EntryRef::Occupied(entry) if *entry.get() == 1000));
 
         let val = entry.insert(2);
 
@@ -254,9 +285,9 @@ mod tests {
     fn test_insert_entry_into_vacant() {
         let map: DashMap<u32, u32> = DashMap::new();
 
-        let entry = map.entry(1);
+        let entry = map.entry_ref(&K(1));
 
-        assert!(matches!(entry, Entry::Vacant(_)));
+        assert!(matches!(entry, EntryRef::Vacant(_)));
 
         let entry = entry.insert_entry(2);
 
@@ -273,9 +304,9 @@ mod tests {
 
         map.insert(1, 1000);
 
-        let entry = map.entry(1);
+        let entry = map.entry_ref(&K(1));
 
-        assert!(matches!(&entry, Entry::Occupied(entry) if *entry.get() == 1000));
+        assert!(matches!(&entry, EntryRef::Occupied(entry) if *entry.get() == 1000));
 
         let entry = entry.insert_entry(2);
 
