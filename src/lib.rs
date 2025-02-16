@@ -1396,7 +1396,6 @@ where
                 let shard = shard_lock.read();
                 let hashtable_size = shard.allocation_size();
 
-                // Safety: The iterator is dropped before the HashTable
                 let iter = shard.iter();
                 let entry_size_iter =
                     iter.map(|(key, value)| key.extra_size() + value.extra_size());
