@@ -1393,16 +1393,8 @@ where
             .shards
             .iter()
             .map(|shard_lock| {
-                let shard = shard_lock.read();
-                let hashtable_size = shard.allocation_size();
-
-                let iter = shard.iter();
-                let entry_size_iter =
-                    iter.map(|(key, value)| key.extra_size() + value.extra_size());
-
                 core::mem::size_of::<CachePadded<RwLock<HashMap<K, V>>>>()
-                    + hashtable_size
-                    + entry_size_iter.sum::<usize>()
+                    + shard_lock.read().extra_size()
             })
             .sum();
 
