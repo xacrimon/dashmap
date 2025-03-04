@@ -480,6 +480,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     /// Inserts a key and a value into the map. Returns the old value associated with the key if there was one.
+    /// Does not update the key if it was already present.
     ///
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
     ///

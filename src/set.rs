@@ -193,6 +193,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     }
 
     /// Inserts a key into the set. Returns true if the key was not already in the set.
+    /// Does not update the key if it was already present.
     ///
     /// # Examples
     ///
