@@ -53,7 +53,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "dashmap"
-version = "7.0.0-rc1"
+version = "7.0.0-rc2"
 dependencies = [
  "arbitrary",
  "cfg-if",
