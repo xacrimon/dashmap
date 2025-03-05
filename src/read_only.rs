@@ -133,6 +133,84 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
             }
         }
     }
+
+    cfg_if! {
+        if #[cfg(feature = "raw-api")] {
+            /// Finds which shard a certain key is stored in.
+            /// You should probably not use this unless you know what you are doing.
+            /// Note that shard selection is dependent on the default or provided HashBuilder.
+            ///
+            /// Requires the `raw-api` feature to be enabled.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use dashmap::DashMap;
+            ///
+            /// let map = DashMap::new();
+            /// map.insert("coca-cola", 1.4);
+            /// let read_only_map = map.into_read_only();
+            /// println!("coca-cola is stored in shard: {}", read_only_map.determine_map("coca-cola"));
+            /// ```
+            #[inline]
+            pub fn determine_map<Q>(&self, key: &Q) -> usize
+            where
+                K: Borrow<Q>,
+                Q: Hash + Eq + ?Sized,
+            {
+                self.map.determine_map(key)
+            }
+        }
+    }
+
+    cfg_if! {
+        if #[cfg(feature = "raw-api")] {
+            /// Finds which shard a certain hash is stored in.
+            ///
+            /// Requires the `raw-api` feature to be enabled.
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use dashmap::DashMap;
+            ///
+            /// let map: DashMap<i32, i32> = DashMap::new();
+            /// let key = "key";
+            /// let hash = map.hash_usize(&key);
+            /// let read_only_map = map.into_read_only();
+            /// println!("hash is stored in shard: {}", read_only_map.determine_shard(hash));
+            #[inline]
+            pub fn determine_shard(&self, hash: usize) -> usize {
+                self.map.determine_shard(hash)
+            }
+        } else {
+            #[allow(dead_code)]
+            #[inline]
+            pub(crate) fn determine_shard(&self, hash: usize) -> usize {
+                self.map.determine_shard(hash)
+            }
+        }
+    }
+
+    /// Returns a reference to the underlying map's [`BuildHasher`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use dashmap::DashMap;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let hasher = RandomState::new();
+    /// let map: DashMap<i32, i32> = DashMap::new();
+    /// let read_only_map = map.into_read_only();
+    /// let hasher: &RandomState = read_only_map.hasher();
+    /// ```
+    ///
+    /// [`BuildHasher`]: https://doc.rust-lang.org/std/hash/trait.BuildHasher.html
+    #[inline]
+    pub fn hasher(&self) -> &S {
+        &self.map.hasher
+    }
 }
 
 #[cfg(test)]
