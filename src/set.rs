@@ -383,6 +383,14 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     }
 }
 
+impl<K: Eq + Hash, S: BuildHasher + Clone> PartialEq for DashSet<K, S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len() && self.iter().all(|r| other.contains(r.key()))
+    }
+}
+
+impl<K: Eq + Hash, S: BuildHasher + Clone> Eq for DashSet<K, S> {}
+
 impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
     type Item = K;
 
@@ -448,6 +456,25 @@ mod tests {
         set.insert(0);
 
         assert_eq!(set.get(&0).as_deref(), Some(&0));
+    }
+
+    #[test]
+    fn test_equal() {
+        let set1 = DashSet::new();
+        let set2 = DashSet::new();
+        assert_eq!(set1, set2);
+
+        set1.insert("Hello, world!");
+        assert_ne!(set1, set2);
+
+        set1.insert("Goodbye, world!");
+        assert_ne!(set1, set2);
+
+        set2.insert("Hello, world!");
+        assert_ne!(set1, set2);
+
+        set2.insert("Goodbye, world!");
+        assert_eq!(set1, set2);
     }
 
     #[test]

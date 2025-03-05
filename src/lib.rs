@@ -1344,6 +1344,21 @@ where
     }
 }
 
+impl<'a, K: 'a + Eq + Hash, V: 'a + PartialEq, S: BuildHasher + Clone> PartialEq
+    for DashMap<K, V, S>
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len()
+            && self.iter().all(|r| {
+                other
+                    .get(r.key())
+                    .map_or(false, |ro| r.value() == ro.value())
+            })
+    }
+}
+
+impl<'a, K: 'a + Eq + Hash, V: 'a + Eq, S: BuildHasher + Clone> Eq for DashMap<K, V, S> {}
+
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> {
     type Item = (K, V);
 
@@ -1430,6 +1445,25 @@ mod tests {
         dm.insert(0, 0);
 
         assert_eq!(dm.get(&0).unwrap().value(), &0);
+    }
+
+    #[test]
+    fn test_equal() {
+        let dm1 = DashMap::new();
+        let dm2 = DashMap::new();
+        assert_eq!(dm1, dm2);
+
+        dm1.insert(0, "Hello, world!");
+        assert_ne!(dm1, dm2);
+
+        dm1.insert(1, "Goodbye, world!");
+        assert_ne!(dm1, dm2);
+
+        dm2.insert(0, "Hello, world!");
+        assert_ne!(dm1, dm2);
+
+        dm2.insert(1, "Goodbye, world!");
+        assert_eq!(dm1, dm2);
     }
 
     #[test]
