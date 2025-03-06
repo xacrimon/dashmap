@@ -586,6 +586,27 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         self._iter_mut()
     }
 
+    /// Extends the map with the key-value pairs from an iterator.
+    ///
+    /// A replacement of [`DashMap::extend`](DashMap::extend) without the need of a mutable reference to the map.
+    ///
+    /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let map = DashMap::new();
+    /// map.extend_non_mut(vec![(1, 2), (3, 4)]);
+    /// assert_eq!(map.len(), 2);
+    /// ```
+    pub fn extend_non_mut(&self, it: impl IntoIterator<Item = (K, V)>) {
+        for (k, v) in it {
+            self.insert(k, v);
+        }
+    }
+
     /// Get an immutable reference to an entry in the map
     ///
     /// **Locking behaviour:** May deadlock if called when holding a mutable reference into the map.
@@ -1380,6 +1401,9 @@ impl<'a, K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for &'a DashMap<K
 }
 
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> Extend<(K, V)> for DashMap<K, V, S> {
+    /// Extends the map with the key-value pairs from an iterator.
+    ///
+    /// If you don't have a mutable reference to the map, you can use [`extend_non_mut`](DashMap::extend_non_mut) instead.
     fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, intoiter: I) {
         for pair in intoiter.into_iter() {
             self.insert(pair.0, pair.1);

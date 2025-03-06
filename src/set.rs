@@ -252,6 +252,25 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
         self.inner.remove_if(key, |k, _| f(k)).map(|(k, _)| k)
     }
 
+    /// Extends the set with the contents of an iterator.
+    ///
+    /// A replacement of [`DashSet::extend`](DashSet::extend) without the need of a mutable reference to the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let numbers = DashSet::new();
+    /// numbers.extend_non_mut(vec![1, 2]);
+    /// assert_eq!(numbers.len(), 2);
+    /// ```
+    pub fn extend_non_mut(&self, it: impl IntoIterator<Item = K>) {
+        for k in it {
+            self.insert(k);
+        }
+    }
+
     /// Creates an iterator over a DashMap yielding immutable references.
     ///
     /// # Examples
@@ -402,6 +421,9 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
 }
 
 impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for DashSet<K, S> {
+    /// Extends the set with the contents of an iterator.
+    ///
+    /// If you don't have a mutable reference to the set, you can use [`extend_non_mut`](DashSet::extend_non_mut) instead.
     fn extend<T: IntoIterator<Item = K>>(&mut self, iter: T) {
         let iter = iter.into_iter().map(|k| (k, ()));
 
