@@ -3,13 +3,13 @@ use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-pub struct RefMulti<'a, K, V> {
-    _guard: Arc<RwLockReadGuardDetached<'a>>,
-    k: &'a K,
-    v: &'a V,
+pub struct RefMulti<'a, K, V: ?Sized> {
+    pub(super) _guard: Arc<RwLockReadGuardDetached<'a>>,
+    pub(super) k: &'a K,
+    pub(super) v: &'a V,
 }
 
-impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V: ?Sized> RefMulti<'a, K, V> {
     pub(crate) fn new(guard: Arc<RwLockReadGuardDetached<'a>>, k: &'a K, v: &'a V) -> Self {
         Self {
             _guard: guard,
@@ -31,7 +31,7 @@ impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V: ?Sized> Deref for RefMulti<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -39,13 +39,13 @@ impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
     }
 }
 
-pub struct RefMutMulti<'a, K, V> {
-    _guard: Arc<RwLockWriteGuardDetached<'a>>,
-    k: &'a K,
-    v: &'a mut V,
+pub struct RefMutMulti<'a, K, V: ?Sized> {
+    pub(super) _guard: Arc<RwLockWriteGuardDetached<'a>>,
+    pub(super) k: &'a K,
+    pub(super) v: &'a mut V,
 }
 
-impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V: ?Sized> RefMutMulti<'a, K, V> {
     pub(crate) fn new(guard: Arc<RwLockWriteGuardDetached<'a>>, k: &'a K, v: &'a mut V) -> Self {
         Self {
             _guard: guard,
@@ -75,7 +75,7 @@ impl<'a, K: Eq + Hash, V> RefMutMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for RefMutMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V: ?Sized> Deref for RefMutMulti<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -83,7 +83,7 @@ impl<'a, K: Eq + Hash, V> Deref for RefMutMulti<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> DerefMut for RefMutMulti<'a, K, V> {
+impl<'a, K: Eq + Hash, V: ?Sized> DerefMut for RefMutMulti<'a, K, V> {
     fn deref_mut(&mut self) -> &mut V {
         self.value_mut()
     }

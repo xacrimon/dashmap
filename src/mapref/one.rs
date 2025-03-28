@@ -1,7 +1,13 @@
-use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
+use crate::{
+    lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached},
+    mapref::multiple::{RefMulti, RefMutMulti},
+};
 use core::hash::Hash;
 use core::ops::{Deref, DerefMut};
-use std::fmt::{Debug, Formatter};
+use std::{
+    fmt::{Debug, Formatter},
+    sync::Arc,
+};
 
 pub struct Ref<'a, K, V> {
     _guard: RwLockReadGuardDetached<'a>,
@@ -54,6 +60,29 @@ impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
         } else {
             Err(self)
         }
+    }
+
+    pub fn map_split<F, A: ?Sized, B: ?Sized>(
+        self,
+        f: F,
+    ) -> (RefMulti<'a, K, A>, RefMulti<'a, K, B>)
+    where
+        F: FnOnce(&V) -> (&A, &B),
+    {
+        let (a, b) = f(self.v);
+        let guard = Arc::new(self._guard);
+        (
+            RefMulti {
+                _guard: guard.clone(),
+                k: self.k,
+                v: a,
+            },
+            RefMulti {
+                _guard: guard,
+                k: self.k,
+                v: b,
+            },
+        )
     }
 }
 
@@ -139,6 +168,29 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
             k,
             v,
         })
+    }
+
+    pub fn map_split<F, A: ?Sized, B: ?Sized>(
+        self,
+        f: F,
+    ) -> (RefMutMulti<'a, K, A>, RefMutMulti<'a, K, B>)
+    where
+        F: FnOnce(&mut V) -> (&mut A, &mut B),
+    {
+        let (a, b) = f(self.v);
+        let guard = Arc::new(self.guard);
+        (
+            RefMutMulti {
+                _guard: guard.clone(),
+                k: self.k,
+                v: a,
+            },
+            RefMutMulti {
+                _guard: guard,
+                k: self.k,
+                v: b,
+            },
+        )
     }
 }
 
@@ -371,6 +423,34 @@ mod tests {
 
             assert_eq!(s_ref.value(), "test");
         };
+    }
+
+    #[test]
+    fn ref_map_split() {
+        struct Data(String, String);
+        let data = DashMap::new();
+        data.insert("test", Data("hello".to_string(), "world".to_string()));
+        if let Some(b_ref) = data.get("test") {
+            let (l_ref, r_ref) = b_ref.map_split(|d| (&d.0, &d.1));
+
+            assert_eq!(l_ref.value(), "hello");
+            assert_eq!(r_ref.value(), "world");
+        };
+    }
+
+    #[test]
+    fn ref_mut_map_split() {
+        let data = DashMap::new();
+        data.insert("test", "hello world".to_string());
+        if let Some(b_ref) = data.get_mut("test") {
+            let (mut l_ref, r_ref) = b_ref.map_split(|d| d.split_at_mut(5));
+
+            assert_eq!(l_ref.value(), "hello");
+            assert_eq!(r_ref.value(), " world");
+            l_ref.make_ascii_uppercase();
+        };
+        let Some(b_ref) = data.get("test") else { panic!("") };
+        assert_eq!(b_ref.value(), "HELLO world");
     }
 
     #[test]
