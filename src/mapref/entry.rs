@@ -53,7 +53,7 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
     }
 
     /// Return a mutable reference to the element if it exists,
-    /// otherwise a provided value and return a mutable reference to that.
+    /// otherwise insert a provided value and return a mutable reference to that.
     pub fn or_insert(self, value: V) -> RefMut<'a, K, V> {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
