@@ -24,12 +24,16 @@ pub mod rayon {
 
 #[cfg(not(feature = "raw-api"))]
 use crate::lock::RwLock;
-
 #[cfg(feature = "raw-api")]
 pub use crate::lock::{RawRwLock, RwLock};
+
 use crate::mapref::entry_ref::EntryRef;
 use crate::mapref::entry_ref::OccupiedEntryRef;
 use crate::mapref::entry_ref::VacantEntryRef;
+
+#[cfg(feature = "raw-api")]
+pub use hashbrown;
+use hashbrown::hash_table;
 
 use cfg_if::cfg_if;
 use core::fmt;
@@ -38,7 +42,6 @@ use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
 use crossbeam_utils::CachePadded;
 pub use equivalent::Equivalent;
-use hashbrown::hash_table;
 use iter::{Iter, IterMut, OwningIter};
 use lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
 pub use mapref::entry::{Entry, OccupiedEntry, VacantEntry};
