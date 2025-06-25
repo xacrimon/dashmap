@@ -11,7 +11,7 @@ impl<'a, K: Eq + Hash> Ref<'a, K> {
         Self { inner }
     }
 
-    pub fn key(&self) -> &K {
+    pub fn key(&self) -> &'a K {
         self.inner.key()
     }
 }
@@ -19,7 +19,20 @@ impl<'a, K: Eq + Hash> Ref<'a, K> {
 impl<'a, K: Eq + Hash> Deref for Ref<'a, K> {
     type Target = K;
 
-    fn deref(&self) -> &K {
+    fn deref(&self) -> &'a K {
         self.key()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::DashSet;
+
+    #[test]
+    #[allow(unused)]
+    fn lifetime() {
+        fn get_key<'a>(data: &'a DashSet<String>) -> Option<&'a str> {
+            data.get("key").map(|item| item.key().as_str())
+        }
     }
 }

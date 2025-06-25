@@ -18,15 +18,15 @@ impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
         }
     }
 
-    pub fn key(&self) -> &K {
+    pub fn key(&self) -> &'a K {
         self.pair().0
     }
 
-    pub fn value(&self) -> &V {
+    pub fn value(&self) -> &'a V {
         self.pair().1
     }
 
-    pub fn pair(&self) -> (&K, &V) {
+    pub fn pair(&self) -> (&'a K, &'a V) {
         (self.k, self.v)
     }
 
@@ -69,7 +69,7 @@ impl<'a, K: Eq + Hash + Debug, V: Debug> Debug for Ref<'a, K, V> {
 impl<'a, K: Eq + Hash, V> Deref for Ref<'a, K, V> {
     type Target = V;
 
-    fn deref(&self) -> &V {
+    fn deref(&self) -> &'a V {
         self.value()
     }
 }
@@ -172,15 +172,15 @@ pub struct MappedRef<'a, K, T: ?Sized> {
 }
 
 impl<'a, K: Eq + Hash, T: ?Sized> MappedRef<'a, K, T> {
-    pub fn key(&self) -> &K {
+    pub fn key(&self) -> &'a K {
         self.pair().0
     }
 
-    pub fn value(&self) -> &T {
+    pub fn value(&self) -> &'a T {
         self.pair().1
     }
 
-    pub fn pair(&self) -> (&K, &T) {
+    pub fn pair(&self) -> (&'a K, &'a T) {
         (self.k, self.v)
     }
 
@@ -224,7 +224,7 @@ impl<'a, K: Eq + Hash + Debug, T: Debug + ?Sized> Debug for MappedRef<'a, K, T> 
 impl<'a, K: Eq + Hash, T: ?Sized> Deref for MappedRef<'a, K, T> {
     type Target = T;
 
-    fn deref(&self) -> &T {
+    fn deref(&self) -> &'a T {
         self.value()
     }
 }
@@ -383,5 +383,30 @@ mod tests {
 
             assert_eq!(hello_ref.value(), "hello");
         };
+    }
+
+    #[test]
+    #[allow(unused)]
+    fn lifetime() {
+        fn get_key<'a>(data: &'a DashMap<String, String>) -> Option<&'a str> {
+            data.get("key").map(|item| item.key().as_str())
+        }
+        fn get_value<'a>(data: &'a DashMap<String, String>) -> Option<&'a str> {
+            data.get("key").map(|item| item.value().as_str())
+        }
+        fn get_pair(data: &DashMap<String, String>) -> Option<(&String, &String)> {
+            data.get("key").map(|item| item.pair())
+        }
+        fn get_mapped_key<'a>(data: &'a DashMap<String, String>) -> Option<&'a str> {
+            data.get("key")
+                .map(|item| item.map(|item| item).key().as_str())
+        }
+        fn get_mapped_value<'a>(data: &'a DashMap<String, String>) -> Option<&'a str> {
+            data.get("key")
+                .map(|item| item.map(|item| item).value().as_str())
+        }
+        fn get_mapped_pair(data: &DashMap<String, String>) -> Option<(&String, &String)> {
+            data.get("key").map(|item| item.map(|item| item).pair())
+        }
     }
 }

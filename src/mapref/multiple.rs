@@ -18,15 +18,15 @@ impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
         }
     }
 
-    pub fn key(&self) -> &K {
+    pub fn key(&self) -> &'a K {
         self.pair().0
     }
 
-    pub fn value(&self) -> &V {
+    pub fn value(&self) -> &'a V {
         self.pair().1
     }
 
-    pub fn pair(&self) -> (&K, &V) {
+    pub fn pair(&self) -> (&'a K, &'a V) {
         (self.k, self.v)
     }
 }
@@ -34,7 +34,7 @@ impl<'a, K: Eq + Hash, V> RefMulti<'a, K, V> {
 impl<'a, K: Eq + Hash, V> Deref for RefMulti<'a, K, V> {
     type Target = V;
 
-    fn deref(&self) -> &V {
+    fn deref(&self) -> &'a V {
         self.value()
     }
 }
@@ -86,5 +86,24 @@ impl<'a, K: Eq + Hash, V> Deref for RefMutMulti<'a, K, V> {
 impl<'a, K: Eq + Hash, V> DerefMut for RefMutMulti<'a, K, V> {
     fn deref_mut(&mut self) -> &mut V {
         self.value_mut()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::DashMap;
+
+    #[test]
+    #[allow(unused)]
+    fn lifetime() {
+        fn get_key<'a>(data: &'a DashMap<String, String>) -> impl Iterator<Item = &'a str> {
+            data.iter().map(|item| item.key().as_str())
+        }
+        fn get_value<'a>(data: &'a DashMap<String, String>) -> impl Iterator<Item = &'a str> {
+            data.iter().map(|item| item.value().as_str())
+        }
+        fn get_pair(data: &DashMap<String, String>) -> impl Iterator<Item = (&String, &String)> {
+            data.iter().map(|item| item.pair())
+        }
     }
 }
