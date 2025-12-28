@@ -1259,7 +1259,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
     }
 
     fn _clear(&self) {
-        self._retain(|_, _| false)
+        self.shards.iter().for_each(|s| s.write().clear());
     }
 
     fn _contains_key<Q>(&'a self, key: &Q) -> bool
