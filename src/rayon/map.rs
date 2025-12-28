@@ -4,7 +4,10 @@ use crate::{DashMap, HashMap};
 use core::hash::{BuildHasher, Hash};
 use crossbeam_utils::CachePadded;
 use rayon::iter::plumbing::UnindexedConsumer;
-use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, ParallelIterator};
+use rayon::iter::{
+    FromParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
+    IntoParallelRefMutIterator, ParallelExtend, ParallelIterator,
+};
 use std::sync::Arc;
 
 impl<K, V, S> ParallelExtend<(K, V)> for DashMap<K, V, S>
@@ -56,12 +59,6 @@ where
     }
 }
 
-// Implementation note: while the shards will iterate in parallel, we flatten
-// sequentially within each shard (`flat_map_iter`), because the standard
-// `HashMap` only implements `ParallelIterator` by collecting to a `Vec` first.
-// There is real parallel support in the `hashbrown/rayon` feature, but we don't
-// always use that map.
-
 impl<K, V, S> IntoParallelIterator for DashMap<K, V, S>
 where
     K: Send + Eq + Hash,
@@ -95,7 +92,7 @@ where
     {
         Vec::from(self.shards)
             .into_par_iter()
-            .flat_map_iter(|shard| shard.into_inner().into_inner().into_iter())
+            .flat_map(|shard| shard.into_inner().into_inner())
             .drive_unindexed(consumer)
     }
 }
@@ -134,13 +131,13 @@ where
     {
         self.shards
             .into_par_iter()
-            .flat_map_iter(|shard| {
+            .flat_map(|shard| {
                 // SAFETY: we keep the guard alive with the shard iterator,
                 // and with any refs produced by the iterator
                 let (guard, shard) = unsafe { RwLockReadGuardDetached::detach_from(shard.read()) };
 
                 let guard = Arc::new(guard);
-                shard.iter().map(move |(k, v)| {
+                shard.par_iter().map(move |(k, v)| {
                     let guard = Arc::clone(&guard);
                     RefMulti::new(guard, k, v)
                 })
@@ -195,14 +192,14 @@ where
     {
         self.shards
             .into_par_iter()
-            .flat_map_iter(|shard| {
+            .flat_map(|shard| {
                 // SAFETY: we keep the guard alive with the shard iterator,
                 // and with any refs produced by the iterator
                 let (guard, shard) =
                     unsafe { RwLockWriteGuardDetached::detach_from(shard.write()) };
 
                 let guard = Arc::new(guard);
-                shard.iter_mut().map(move |(k, v)| {
+                shard.par_iter_mut().map(move |(k, v)| {
                     let guard = Arc::clone(&guard);
                     RefMutMulti::new(guard, k, v)
                 })

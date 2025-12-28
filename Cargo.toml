@@ -17,6 +17,7 @@ categories = ["concurrency", "algorithms", "data-structures"]
 all = ["raw-api", "typesize", "serde", "rayon", "arbitrary"]
 raw-api = []
 typesize = ["dep:typesize"]
+rayon = ["dep:rayon", "hashbrown/rayon"]
 inline-more = ["hashbrown/inline-more"]
 
 [dependencies]
