@@ -1164,10 +1164,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
         let idx = self.determine_shard(hash as usize);
 
-        let shard = match self.shards[idx].try_write() {
-            Some(shard) => shard,
-            None => return None,
-        };
+        let shard = self.shards[idx].try_write()?;
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
@@ -1227,10 +1224,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
         let idx = self.determine_shard(hash as usize);
 
-        let shard = match self.shards[idx].try_write() {
-            Some(shard) => shard,
-            None => return None,
-        };
+        let shard = self.shards[idx].try_write()?;
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
