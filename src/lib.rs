@@ -266,7 +266,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         assert!(shard_amount > 1);
         assert!(shard_amount.is_power_of_two());
 
-        let shift = util::ptr_size_bits() - ncb(shard_amount);
+        let shift = usize::BITS as usize - ncb(shard_amount);
 
         if capacity != 0 {
             capacity = (capacity + (shard_amount - 1)) & !(shard_amount - 1);
