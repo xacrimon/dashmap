@@ -112,7 +112,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
+impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
     /// Creates a new DashMap with a capacity of 0.
     ///
     /// # Examples
@@ -1336,9 +1336,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a + PartialEq, S: BuildHasher + Clone> PartialEq
-    for DashMap<K, V, S>
-{
+impl<K: Eq + Hash, V: PartialEq, S: BuildHasher + Clone> PartialEq for DashMap<K, V, S> {
     fn eq(&self, other: &Self) -> bool {
         self.len() == other.len()
             && self.iter().all(|r| {
@@ -1349,7 +1347,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a + PartialEq, S: BuildHasher + Clone> PartialEq
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a + Eq, S: BuildHasher + Clone> Eq for DashMap<K, V, S> {}
+impl<K: Eq + Hash, V: Eq, S: BuildHasher + Clone> Eq for DashMap<K, V, S> {}
 
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> {
     type Item = (K, V);

@@ -50,7 +50,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
+impl<K: Eq + Hash> DashSet<K, RandomState> {
     /// Creates a new DashSet with a capacity of 0.
     ///
     /// # Examples
