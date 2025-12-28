@@ -259,7 +259,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// mappings.insert(8, 16);
     /// ```
     pub fn with_capacity_and_hasher_and_shard_amount(
-        mut capacity: usize,
+        capacity: usize,
         hasher: S,
         shard_amount: usize,
     ) -> Self {
@@ -267,13 +267,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         assert!(shard_amount.is_power_of_two());
 
         let shift = usize::BITS as usize - ncb(shard_amount);
-
-        if capacity != 0 {
-            capacity = (capacity + (shard_amount - 1)) & !(shard_amount - 1);
-        }
-
-        let cps = capacity / shard_amount;
-
+        let cps = (capacity + (shard_amount - 1)) / shard_amount;
         let shards = (0..shard_amount)
             .map(|_| CachePadded::new(RwLock::new(HashMap::with_capacity(cps))))
             .collect();
