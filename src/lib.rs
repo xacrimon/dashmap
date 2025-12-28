@@ -1094,9 +1094,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _shrink_to_fit(&self) {
         self.shards.iter().for_each(|s| {
-            let mut shard = s.write();
-            let size = shard.len();
-            shard.shrink_to(size, |(k, _v)| {
+            s.write().shrink_to_fit(|(k, _v)| {
                 let mut hasher = self.hasher.build_hasher();
                 k.hash(&mut hasher);
                 hasher.finish()
