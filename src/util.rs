@@ -1,11 +1,7 @@
-use core::{mem, ptr};
+use core::ptr;
 use std::{marker::PhantomData, mem::ManuallyDrop};
 
 use lock_api::{RawRwLock, RawRwLockDowngrade, RwLockReadGuard, RwLockWriteGuard};
-
-pub const fn ptr_size_bits() -> usize {
-    mem::size_of::<usize>() * 8
-}
 
 pub fn map_in_place_2<T, U, F: FnOnce(U, T) -> T>((k, v): (U, &mut T), f: F) {
     unsafe {

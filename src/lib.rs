@@ -112,7 +112,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
+impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
     /// Creates a new DashMap with a capacity of 0.
     ///
     /// # Examples
@@ -259,21 +259,15 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// mappings.insert(8, 16);
     /// ```
     pub fn with_capacity_and_hasher_and_shard_amount(
-        mut capacity: usize,
+        capacity: usize,
         hasher: S,
         shard_amount: usize,
     ) -> Self {
         assert!(shard_amount > 1);
         assert!(shard_amount.is_power_of_two());
 
-        let shift = util::ptr_size_bits() - ncb(shard_amount);
-
-        if capacity != 0 {
-            capacity = (capacity + (shard_amount - 1)) & !(shard_amount - 1);
-        }
-
-        let cps = capacity / shard_amount;
-
+        let shift = usize::BITS as usize - ncb(shard_amount);
+        let cps = (capacity + (shard_amount - 1)) / shard_amount;
         let shards = (0..shard_amount)
             .map(|_| CachePadded::new(RwLock::new(HashMap::with_capacity(cps))))
             .collect();
@@ -1094,9 +1088,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _shrink_to_fit(&self) {
         self.shards.iter().for_each(|s| {
-            let mut shard = s.write();
-            let size = shard.len();
-            shard.shrink_to(size, |(k, _v)| {
+            s.write().shrink_to_fit(|(k, _v)| {
                 let mut hasher = self.hasher.build_hasher();
                 k.hash(&mut hasher);
                 hasher.finish()
@@ -1172,10 +1164,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
         let idx = self.determine_shard(hash as usize);
 
-        let shard = match self.shards[idx].try_write() {
-            Some(shard) => shard,
-            None => return None,
-        };
+        let shard = self.shards[idx].try_write()?;
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
@@ -1235,10 +1224,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
         let idx = self.determine_shard(hash as usize);
 
-        let shard = match self.shards[idx].try_write() {
-            Some(shard) => shard,
-            None => return None,
-        };
+        let shard = self.shards[idx].try_write()?;
         // SAFETY: The data will not outlive the guard, since we pass the guard to `Entry`.
         let (guard, shard) = unsafe { RwLockWriteGuardDetached::detach_from(shard) };
 
@@ -1261,7 +1247,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
     }
 
     fn _clear(&self) {
-        self._retain(|_, _| false)
+        self.shards.iter().for_each(|s| s.write().clear());
     }
 
     fn _contains_key<Q>(&'a self, key: &Q) -> bool
@@ -1344,20 +1330,16 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a + PartialEq, S: BuildHasher + Clone> PartialEq
-    for DashMap<K, V, S>
-{
+impl<K: Eq + Hash, V: PartialEq, S: BuildHasher + Clone> PartialEq for DashMap<K, V, S> {
     fn eq(&self, other: &Self) -> bool {
         self.len() == other.len()
-            && self.iter().all(|r| {
-                other
-                    .get(r.key())
-                    .map_or(false, |ro| r.value() == ro.value())
-            })
+            && self
+                .iter()
+                .all(|r| other.get(r.key()).is_some_and(|ro| r.value() == ro.value()))
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a + Eq, S: BuildHasher + Clone> Eq for DashMap<K, V, S> {}
+impl<K: Eq + Hash, V: Eq, S: BuildHasher + Clone> Eq for DashMap<K, V, S> {}
 
 impl<K: Eq + Hash, V, S: BuildHasher + Clone> IntoIterator for DashMap<K, V, S> {
     type Item = (K, V);
