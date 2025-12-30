@@ -7,7 +7,7 @@ use rayon::iter::{FromParallelIterator, IntoParallelIterator, ParallelExtend, Pa
 impl<K, S> ParallelExtend<K> for DashSet<K, S>
 where
     K: Send + Sync + Eq + Hash,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync + BuildHasher,
 {
     fn par_extend<I>(&mut self, par_iter: I)
     where
@@ -22,7 +22,7 @@ where
 impl<K, S> ParallelExtend<K> for &'_ DashSet<K, S>
 where
     K: Send + Sync + Eq + Hash,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync + BuildHasher,
 {
     fn par_extend<I>(&mut self, par_iter: I)
     where
@@ -38,7 +38,7 @@ where
 impl<K, S> FromParallelIterator<K> for DashSet<K, S>
 where
     K: Send + Sync + Eq + Hash,
-    S: Send + Sync + Clone + Default + BuildHasher,
+    S: Send + Sync + BuildHasher + Default,
 {
     fn from_par_iter<I>(par_iter: I) -> Self
     where
@@ -52,8 +52,8 @@ where
 
 impl<K, S> IntoParallelIterator for DashSet<K, S>
 where
-    K: Send + Eq + Hash,
-    S: Send + Clone + BuildHasher,
+    K: Send,
+    S: Send,
 {
     type Iter = OwningIter<K>;
     type Item = K;
@@ -71,7 +71,7 @@ pub struct OwningIter<K> {
 
 impl<K> ParallelIterator for OwningIter<K>
 where
-    K: Send + Eq + Hash,
+    K: Send,
 {
     type Item = K;
 
@@ -86,8 +86,8 @@ where
 // This impl also enables `IntoParallelRefIterator::par_iter`
 impl<'a, K, S> IntoParallelIterator for &'a DashSet<K, S>
 where
-    K: Send + Sync + Eq + Hash,
-    S: Send + Sync + Clone + BuildHasher,
+    K: Send + Sync,
+    S: Send + Sync,
 {
     type Iter = Iter<'a, K>;
     type Item = RefMulti<'a, K>;
@@ -105,7 +105,7 @@ pub struct Iter<'a, K> {
 
 impl<'a, K> ParallelIterator for Iter<'a, K>
 where
-    K: Send + Sync + Eq + Hash,
+    K: Send + Sync,
 {
     type Item = RefMulti<'a, K>;
 

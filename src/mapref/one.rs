@@ -1,7 +1,6 @@
 use crate::lock::{RwLockReadGuardDetached, RwLockWriteGuardDetached};
-use core::hash::Hash;
+use core::fmt::{self, Debug, Display};
 use core::ops::{Deref, DerefMut};
-use std::fmt::{Debug, Formatter};
 
 pub struct Ref<'a, K, V> {
     _guard: RwLockReadGuardDetached<'a>,
@@ -9,7 +8,7 @@ pub struct Ref<'a, K, V> {
     v: &'a V,
 }
 
-impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
+impl<'a, K, V> Ref<'a, K, V> {
     pub(crate) fn new(guard: RwLockReadGuardDetached<'a>, k: &'a K, v: &'a V) -> Self {
         Self {
             _guard: guard,
@@ -57,8 +56,12 @@ impl<'a, K: Eq + Hash, V> Ref<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, V: Debug> Debug for Ref<'a, K, V> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl<'a, K, V> Debug for Ref<'a, K, V>
+where
+    K: Debug,
+    V: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Ref")
             .field("k", &self.k)
             .field("v", &self.v)
@@ -66,7 +69,7 @@ impl<'a, K: Eq + Hash + Debug, V: Debug> Debug for Ref<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for Ref<'a, K, V> {
+impl<'a, K, V> Deref for Ref<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -80,7 +83,7 @@ pub struct RefMut<'a, K, V> {
     v: &'a mut V,
 }
 
-impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
+impl<'a, K, V> RefMut<'a, K, V> {
     pub(crate) fn new(guard: RwLockWriteGuardDetached<'a>, k: &'a K, v: &'a mut V) -> Self {
         Self { guard, k, v }
     }
@@ -142,8 +145,12 @@ impl<'a, K: Eq + Hash, V> RefMut<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, V: Debug> Debug for RefMut<'a, K, V> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl<'a, K, V> Debug for RefMut<'a, K, V>
+where
+    K: Debug,
+    V: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RefMut")
             .field("k", &self.k)
             .field("v", &self.v)
@@ -151,7 +158,7 @@ impl<'a, K: Eq + Hash + Debug, V: Debug> Debug for RefMut<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> Deref for RefMut<'a, K, V> {
+impl<'a, K, V> Deref for RefMut<'a, K, V> {
     type Target = V;
 
     fn deref(&self) -> &V {
@@ -159,7 +166,7 @@ impl<'a, K: Eq + Hash, V> Deref for RefMut<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash, V> DerefMut for RefMut<'a, K, V> {
+impl<'a, K, V> DerefMut for RefMut<'a, K, V> {
     fn deref_mut(&mut self) -> &mut V {
         self.value_mut()
     }
@@ -171,7 +178,7 @@ pub struct MappedRef<'a, K, T: ?Sized> {
     v: &'a T,
 }
 
-impl<'a, K: Eq + Hash, T: ?Sized> MappedRef<'a, K, T> {
+impl<'a, K, T: ?Sized> MappedRef<'a, K, T> {
     pub fn key(&self) -> &K {
         self.pair().0
     }
@@ -212,8 +219,12 @@ impl<'a, K: Eq + Hash, T: ?Sized> MappedRef<'a, K, T> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, T: Debug + ?Sized> Debug for MappedRef<'a, K, T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl<'a, K, T: ?Sized> Debug for MappedRef<'a, K, T>
+where
+    K: Debug,
+    T: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MappedRef")
             .field("k", &self.k)
             .field("v", &self.v)
@@ -221,7 +232,7 @@ impl<'a, K: Eq + Hash + Debug, T: Debug + ?Sized> Debug for MappedRef<'a, K, T> 
     }
 }
 
-impl<'a, K: Eq + Hash, T: ?Sized> Deref for MappedRef<'a, K, T> {
+impl<'a, K, T: ?Sized> Deref for MappedRef<'a, K, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -229,16 +240,20 @@ impl<'a, K: Eq + Hash, T: ?Sized> Deref for MappedRef<'a, K, T> {
     }
 }
 
-impl<'a, K: Eq + Hash, T: std::fmt::Display + ?Sized> std::fmt::Display for MappedRef<'a, K, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self.value(), f)
+impl<'a, K, T: ?Sized> Display for MappedRef<'a, K, T>
+where
+    T: Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(self.value(), f)
     }
 }
 
-impl<'a, K: Eq + Hash, T: ?Sized + AsRef<TDeref>, TDeref: ?Sized> AsRef<TDeref>
-    for MappedRef<'a, K, T>
+impl<'a, K, T: ?Sized, U: ?Sized> AsRef<U> for MappedRef<'a, K, T>
+where
+    T: AsRef<U>,
 {
-    fn as_ref(&self) -> &TDeref {
+    fn as_ref(&self) -> &U {
         self.value().as_ref()
     }
 }
@@ -249,7 +264,7 @@ pub struct MappedRefMut<'a, K, T: ?Sized> {
     v: &'a mut T,
 }
 
-impl<'a, K: Eq + Hash, T: ?Sized> MappedRefMut<'a, K, T> {
+impl<'a, K, T: ?Sized> MappedRefMut<'a, K, T> {
     pub fn key(&self) -> &K {
         self.pair().0
     }
@@ -270,9 +285,9 @@ impl<'a, K: Eq + Hash, T: ?Sized> MappedRefMut<'a, K, T> {
         (self.k, self.v)
     }
 
-    pub fn map<F, T2: ?Sized>(self, f: F) -> MappedRefMut<'a, K, T2>
+    pub fn map<F, U: ?Sized>(self, f: F) -> MappedRefMut<'a, K, U>
     where
-        F: FnOnce(&mut T) -> &mut T2,
+        F: FnOnce(&mut T) -> &mut U,
     {
         MappedRefMut {
             _guard: self._guard,
@@ -281,9 +296,9 @@ impl<'a, K: Eq + Hash, T: ?Sized> MappedRefMut<'a, K, T> {
         }
     }
 
-    pub fn try_map<F, T2: ?Sized>(self, f: F) -> Result<MappedRefMut<'a, K, T2>, Self>
+    pub fn try_map<F, U: ?Sized>(self, f: F) -> Result<MappedRefMut<'a, K, U>, Self>
     where
-        F: FnOnce(&mut T) -> Option<&mut T2>,
+        F: FnOnce(&mut T) -> Option<&mut U>,
     {
         let v = match f(unsafe { &mut *(self.v as *mut _) }) {
             Some(v) => v,
@@ -299,8 +314,12 @@ impl<'a, K: Eq + Hash, T: ?Sized> MappedRefMut<'a, K, T> {
     }
 }
 
-impl<'a, K: Eq + Hash + Debug, T: Debug + ?Sized> Debug for MappedRefMut<'a, K, T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl<'a, K, T: ?Sized> Debug for MappedRefMut<'a, K, T>
+where
+    K: Debug,
+    T: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MappedRefMut")
             .field("k", &self.k)
             .field("v", &self.v)
@@ -308,7 +327,7 @@ impl<'a, K: Eq + Hash + Debug, T: Debug + ?Sized> Debug for MappedRefMut<'a, K, 
     }
 }
 
-impl<'a, K: Eq + Hash, T: ?Sized> Deref for MappedRefMut<'a, K, T> {
+impl<'a, K, T: ?Sized> Deref for MappedRefMut<'a, K, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -316,7 +335,7 @@ impl<'a, K: Eq + Hash, T: ?Sized> Deref for MappedRefMut<'a, K, T> {
     }
 }
 
-impl<'a, K: Eq + Hash, T: ?Sized> DerefMut for MappedRefMut<'a, K, T> {
+impl<'a, K, T: ?Sized> DerefMut for MappedRefMut<'a, K, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.value_mut()
     }

@@ -11,7 +11,7 @@ impl<K, V, S> ParallelExtend<(K, V)> for DashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync + BuildHasher,
 {
     fn par_extend<I>(&mut self, par_iter: I)
     where
@@ -27,7 +27,7 @@ impl<K, V, S> ParallelExtend<(K, V)> for &'_ DashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync + BuildHasher,
 {
     fn par_extend<I>(&mut self, par_iter: I)
     where
@@ -44,7 +44,7 @@ impl<K, V, S> FromParallelIterator<(K, V)> for DashMap<K, V, S>
 where
     K: Send + Sync + Eq + Hash,
     V: Send + Sync,
-    S: Send + Sync + Clone + Default + BuildHasher,
+    S: Send + Sync + BuildHasher + Default,
 {
     fn from_par_iter<I>(par_iter: I) -> Self
     where
@@ -64,9 +64,9 @@ where
 
 impl<K, V, S> IntoParallelIterator for DashMap<K, V, S>
 where
-    K: Send + Eq + Hash,
+    K: Send,
     V: Send,
-    S: Send + Clone + BuildHasher,
+    S: Send,
 {
     type Iter = OwningIter<K, V>;
     type Item = (K, V);
@@ -84,7 +84,7 @@ pub struct OwningIter<K, V> {
 
 impl<K, V> ParallelIterator for OwningIter<K, V>
 where
-    K: Send + Eq + Hash,
+    K: Send,
     V: Send,
 {
     type Item = (K, V);
@@ -103,9 +103,9 @@ where
 // This impl also enables `IntoParallelRefIterator::par_iter`
 impl<'a, K, V, S> IntoParallelIterator for &'a DashMap<K, V, S>
 where
-    K: Send + Sync + Eq + Hash,
+    K: Send + Sync,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync,
 {
     type Iter = Iter<'a, K, V>;
     type Item = RefMulti<'a, K, V>;
@@ -123,7 +123,7 @@ pub struct Iter<'a, K, V> {
 
 impl<'a, K, V> ParallelIterator for Iter<'a, K, V>
 where
-    K: Send + Sync + Eq + Hash,
+    K: Send + Sync,
     V: Send + Sync,
 {
     type Item = RefMulti<'a, K, V>;
@@ -152,7 +152,7 @@ where
 // This impl also enables `IntoParallelRefMutIterator::par_iter_mut`
 impl<'a, K, V> IntoParallelIterator for &'a mut DashMap<K, V>
 where
-    K: Send + Sync + Eq + Hash,
+    K: Send + Sync,
     V: Send + Sync,
 {
     type Iter = IterMut<'a, K, V>;
@@ -167,7 +167,7 @@ where
 
 impl<K, V, S> DashMap<K, V, S>
 where
-    K: Send + Sync + Eq + Hash,
+    K: Send + Sync,
     V: Send + Sync,
 {
     // Unlike `IntoParallelRefMutIterator::par_iter_mut`, we only _need_ `&self`.
@@ -184,7 +184,7 @@ pub struct IterMut<'a, K, V> {
 
 impl<'a, K, V> ParallelIterator for IterMut<'a, K, V>
 where
-    K: Send + Sync + Eq + Hash,
+    K: Send + Sync,
     V: Send + Sync,
 {
     type Item = RefMutMulti<'a, K, V>;

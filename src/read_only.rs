@@ -1,7 +1,7 @@
 use crate::lock::RwLock;
 use crate::{DashMap, HashMap};
 use cfg_if::cfg_if;
-use core::fmt;
+use core::fmt::{self, Debug};
 use core::hash::{BuildHasher, Hash};
 use crossbeam_utils::CachePadded;
 use equivalent::Equivalent;
@@ -12,7 +12,12 @@ pub struct ReadOnlyView<K, V, S = RandomState> {
     pub(crate) map: DashMap<K, V, S>,
 }
 
-impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for ReadOnlyView<K, V, S> {
+impl<K, V, S> Clone for ReadOnlyView<K, V, S>
+where
+    K: Clone,
+    V: Clone,
+    S: Clone,
+{
     fn clone(&self) -> Self {
         Self {
             map: self.map.clone(),
@@ -20,8 +25,10 @@ impl<K: Eq + Hash + Clone, V: Clone, S: Clone> Clone for ReadOnlyView<K, V, S> {
     }
 }
 
-impl<K: Eq + Hash + fmt::Debug, V: fmt::Debug, S: BuildHasher + Clone> fmt::Debug
-    for ReadOnlyView<K, V, S>
+impl<K, V, S> Debug for ReadOnlyView<K, V, S>
+where
+    K: Debug,
+    V: Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.map.fmt(f)
@@ -37,9 +44,7 @@ impl<K, V, S> ReadOnlyView<K, V, S> {
     pub fn into_inner(self) -> DashMap<K, V, S> {
         self.map
     }
-}
 
-impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S> {
     /// Returns the number of elements in the map.
     pub fn len(&self) -> usize {
         self.map.len()
@@ -55,41 +60,8 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
         self.map.capacity()
     }
 
-    /// Returns `true` if the map contains a value for the specified key.
-    pub fn contains_key<Q>(&'a self, key: &Q) -> bool
-    where
-        Q: Hash + Equivalent<K> + ?Sized,
-    {
-        self.get(key).is_some()
-    }
-
-    /// Returns a reference to the value corresponding to the key.
-    pub fn get<Q>(&'a self, key: &Q) -> Option<&'a V>
-    where
-        Q: Hash + Equivalent<K> + ?Sized,
-    {
-        self.get_key_value(key).map(|(_k, v)| v)
-    }
-
-    /// Returns the key-value pair corresponding to the supplied key.
-    pub fn get_key_value<Q>(&'a self, key: &Q) -> Option<(&'a K, &'a V)>
-    where
-        Q: Hash + Equivalent<K> + ?Sized,
-    {
-        let hash = self.map.hash_u64(&key);
-
-        let idx = self.map.determine_shard(hash as usize);
-
-        let shard = &self.map.shards[idx];
-        let shard = unsafe { &*shard.data_ptr() };
-
-        shard
-            .find(hash, |(k, _v)| key.equivalent(k))
-            .map(|(k, v)| (k, v))
-    }
-
-    /// An iterator visiting all key-value pairs in arbitrary order. The iterator element type is `(&'a K, &'a V)`.
-    pub fn iter(&'a self) -> impl Iterator<Item = (&'a K, &'a V)> + 'a {
+    /// An iterator visiting all key-value pairs in arbitrary order. The iterator element type is `(&K, &V)`.
+    pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
         self.map
             .shards
             .iter()
@@ -99,12 +71,12 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
     }
 
     /// An iterator visiting all keys in arbitrary order. The iterator element type is `&'a K`.
-    pub fn keys(&'a self) -> impl Iterator<Item = &'a K> + 'a {
+    pub fn keys(&self) -> impl Iterator<Item = &K> {
         self.iter().map(|(k, _v)| k)
     }
 
     /// An iterator visiting all values in arbitrary order. The iterator element type is `&'a V`.
-    pub fn values(&'a self) -> impl Iterator<Item = &'a V> + 'a {
+    pub fn values(&self) -> impl Iterator<Item = &V> {
         self.iter().map(|(_k, v)| v)
     }
 
@@ -132,6 +104,45 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> ReadOnlyView<K, V, S>
                 &self.map.shards
             }
         }
+    }
+}
+
+impl<K, V, S> ReadOnlyView<K, V, S>
+where
+    K: Eq + Hash,
+    S: BuildHasher,
+{
+    /// Returns `true` if the map contains a value for the specified key.
+    pub fn contains_key<Q>(&self, key: &Q) -> bool
+    where
+        Q: Hash + Equivalent<K> + ?Sized,
+    {
+        self.get(key).is_some()
+    }
+
+    /// Returns a reference to the value corresponding to the key.
+    pub fn get<Q>(&self, key: &Q) -> Option<&V>
+    where
+        Q: Hash + Equivalent<K> + ?Sized,
+    {
+        self.get_key_value(key).map(|(_k, v)| v)
+    }
+
+    /// Returns the key-value pair corresponding to the supplied key.
+    pub fn get_key_value<Q>(&self, key: &Q) -> Option<(&K, &V)>
+    where
+        Q: Hash + Equivalent<K> + ?Sized,
+    {
+        let hash = self.map.hash_u64(&key);
+
+        let idx = self.map.determine_shard(hash as usize);
+
+        let shard = &self.map.shards[idx];
+        let shard = unsafe { &*shard.data_ptr() };
+
+        shard
+            .find(hash, |(k, _v)| key.equivalent(k))
+            .map(|(k, v)| (k, v))
     }
 }
 

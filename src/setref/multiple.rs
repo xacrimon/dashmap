@@ -1,12 +1,11 @@
 use crate::mapref;
-use core::hash::Hash;
 use core::ops::Deref;
 
 pub struct RefMulti<'a, K> {
     inner: mapref::multiple::RefMulti<'a, K, ()>,
 }
 
-impl<'a, K: Eq + Hash> RefMulti<'a, K> {
+impl<'a, K> RefMulti<'a, K> {
     pub(crate) fn new(inner: mapref::multiple::RefMulti<'a, K, ()>) -> Self {
         Self { inner }
     }
@@ -16,7 +15,7 @@ impl<'a, K: Eq + Hash> RefMulti<'a, K> {
     }
 }
 
-impl<'a, K: Eq + Hash> Deref for RefMulti<'a, K> {
+impl<'a, K> Deref for RefMulti<'a, K> {
     type Target = K;
 
     fn deref(&self) -> &K {

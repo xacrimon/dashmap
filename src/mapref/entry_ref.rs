@@ -2,7 +2,6 @@ use hashbrown::hash_table;
 
 use super::one::RefMut;
 use crate::lock::RwLockWriteGuardDetached;
-use core::hash::Hash;
 use std::mem;
 
 /// Entry with a borrowed key.
@@ -11,7 +10,7 @@ pub enum EntryRef<'a, 'q, K, Q, V> {
     Vacant(VacantEntryRef<'a, 'q, K, Q, V>),
 }
 
-impl<'a, 'q, K: Eq + Hash, Q, V> EntryRef<'a, 'q, K, Q, V> {
+impl<'a, 'q, K, Q, V> EntryRef<'a, 'q, K, Q, V> {
     /// Apply a function to the stored value if it exists.
     pub fn and_modify(self, f: impl FnOnce(&mut V)) -> Self {
         match self {
@@ -26,7 +25,10 @@ impl<'a, 'q, K: Eq + Hash, Q, V> EntryRef<'a, 'q, K, Q, V> {
     }
 }
 
-impl<'a, 'q, K: Eq + Hash + From<&'q Q>, Q, V> EntryRef<'a, 'q, K, Q, V> {
+impl<'a, 'q, K, Q, V> EntryRef<'a, 'q, K, Q, V>
+where
+    K: From<&'q Q>,
+{
     /// Get the key of the entry.
     pub fn key(&self) -> &Q {
         match *self {
@@ -120,7 +122,7 @@ pub struct VacantEntryRef<'a, 'q, K, Q, V> {
     key: &'q Q,
 }
 
-impl<'a, 'q, K: Eq + Hash, Q, V> VacantEntryRef<'a, 'q, K, Q, V> {
+impl<'a, 'q, K, Q, V> VacantEntryRef<'a, 'q, K, Q, V> {
     pub(crate) fn new(
         shard: RwLockWriteGuardDetached<'a>,
         key: &'q Q,
@@ -168,7 +170,7 @@ pub struct OccupiedEntryRef<'a, 'q, K, Q, V> {
     key: &'q Q,
 }
 
-impl<'a, 'q, K: Eq + Hash, Q, V> OccupiedEntryRef<'a, 'q, K, Q, V> {
+impl<'a, 'q, K, Q, V> OccupiedEntryRef<'a, 'q, K, Q, V> {
     pub(crate) fn new(
         shard: RwLockWriteGuardDetached<'a>,
         key: &'q Q,

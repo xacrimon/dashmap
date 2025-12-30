@@ -1,14 +1,13 @@
 use crate::mapref::multiple::RefMulti;
 use crate::rayon::map::Iter;
 use crate::ReadOnlyView;
-use core::hash::{BuildHasher, Hash};
 use rayon::iter::IntoParallelIterator;
 
 impl<K, V, S> IntoParallelIterator for ReadOnlyView<K, V, S>
 where
-    K: Send + Eq + Hash,
+    K: Send,
     V: Send,
-    S: Send + Clone + BuildHasher,
+    S: Send,
 {
     type Iter = super::map::OwningIter<K, V>;
     type Item = (K, V);
@@ -23,9 +22,9 @@ where
 // This impl also enables `IntoParallelRefIterator::par_iter`
 impl<'a, K, V, S> IntoParallelIterator for &'a ReadOnlyView<K, V, S>
 where
-    K: Send + Sync + Eq + Hash,
+    K: Send + Sync,
     V: Send + Sync,
-    S: Send + Sync + Clone + BuildHasher,
+    S: Send + Sync,
 {
     type Iter = Iter<'a, K, V>;
     type Item = RefMulti<'a, K, V>;

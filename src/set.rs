@@ -6,7 +6,7 @@ use crate::DashMap;
 #[cfg(feature = "raw-api")]
 use crate::HashMap;
 use cfg_if::cfg_if;
-use core::fmt;
+use core::fmt::{self, Debug};
 use core::hash::{BuildHasher, Hash};
 use core::iter::FromIterator;
 #[cfg(feature = "raw-api")]
@@ -22,13 +22,20 @@ pub struct DashSet<K, S = RandomState> {
     pub(crate) inner: DashMap<K, (), S>,
 }
 
-impl<K: Eq + Hash + fmt::Debug, S: BuildHasher + Clone> fmt::Debug for DashSet<K, S> {
+impl<K, S> Debug for DashSet<K, S>
+where
+    K: Debug,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self.inner, f)
+        Debug::fmt(&self.inner, f)
     }
 }
 
-impl<K: Eq + Hash + Clone, S: Clone> Clone for DashSet<K, S> {
+impl<K, S> Clone for DashSet<K, S>
+where
+    K: Clone,
+    S: Clone,
+{
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -40,17 +47,13 @@ impl<K: Eq + Hash + Clone, S: Clone> Clone for DashSet<K, S> {
     }
 }
 
-impl<K, S> Default for DashSet<K, S>
-where
-    K: Eq + Hash,
-    S: Default + BuildHasher + Clone,
-{
+impl<K, S: Default> Default for DashSet<K, S> {
     fn default() -> Self {
         Self::with_hasher(Default::default())
     }
 }
 
-impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
+impl<K> DashSet<K, RandomState> {
     /// Creates a new DashSet with a capacity of 0.
     ///
     /// # Examples
@@ -81,7 +84,7 @@ impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
+impl<K, S> DashSet<K, S> {
     /// Creates a new DashMap with a capacity of 0 and the provided hasher.
     ///
     /// # Examples
@@ -117,10 +120,93 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
         }
     }
 
-    /// Hash a given item to produce a usize.
-    /// Uses the provided or default HashBuilder.
-    pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
-        self.inner.hash_usize(item)
+    /// Returns how many keys the set can store without reallocating.
+    pub fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
+    /// Fetches the total number of keys stored in the set.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let people = DashSet::new();
+    /// people.insert("Albin");
+    /// people.insert("Jones");
+    /// people.insert("Charlie");
+    /// assert_eq!(people.len(), 3);
+    /// ```
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Checks if the set is empty or not.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let map = DashSet::<()>::new();
+    /// assert!(map.is_empty());
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// Creates an iterator over a DashMap yielding immutable references.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let words = DashSet::new();
+    /// words.insert("hello");
+    /// assert_eq!(words.iter().count(), 1);
+    /// ```
+    pub fn iter(&self) -> Iter<'_, K> {
+        let iter = self.inner.iter();
+
+        Iter::new(iter)
+    }
+
+    /// Retain elements that whose predicates return true
+    /// and discard elements whose predicates return false.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let people = DashSet::new();
+    /// people.insert("Albin");
+    /// people.insert("Jones");
+    /// people.insert("Charlie");
+    /// people.retain(|name| name.contains('i'));
+    /// assert_eq!(people.len(), 2);
+    /// ```
+    pub fn retain(&self, mut f: impl FnMut(&K) -> bool) {
+        self.inner.retain(|k, _| f(k))
+    }
+
+    /// Removes all keys in the set.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let people = DashSet::new();
+    /// people.insert("Albin");
+    /// assert!(!people.is_empty());
+    /// people.clear();
+    /// assert!(people.is_empty());
+    /// ```
+    pub fn clear(&self) {
+        self.inner.clear()
     }
 
     cfg_if! {
@@ -142,6 +228,18 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
                 self.inner.shards()
             }
         }
+    }
+}
+
+impl<K, S> DashSet<K, S>
+where
+    K: Eq + Hash,
+    S: BuildHasher,
+{
+    /// Hash a given item to produce a usize.
+    /// Uses the provided or default HashBuilder.
+    pub fn hash_usize<T: Hash>(&self, item: &T) -> usize {
+        self.inner.hash_usize(item)
     }
 
     cfg_if! {
@@ -252,23 +350,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
         self.inner.remove_if(key, |k, _| f(k)).map(|(k, _)| k)
     }
 
-    /// Creates an iterator over a DashMap yielding immutable references.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use dashmap::DashSet;
-    ///
-    /// let words = DashSet::new();
-    /// words.insert("hello");
-    /// assert_eq!(words.iter().count(), 1);
-    /// ```
-    pub fn iter(&'a self) -> Iter<'a, K> {
-        let iter = self.inner.iter();
-
-        Iter::new(iter)
-    }
-
     /// Get a reference to an entry in the set
     ///
     /// # Examples
@@ -280,7 +361,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// youtubers.insert("Bosnian Bill");
     /// assert_eq!(*youtubers.get("Bosnian Bill").unwrap(), "Bosnian Bill");
     /// ```
-    pub fn get<Q>(&'a self, key: &Q) -> Option<Ref<'a, K>>
+    pub fn get<Q>(&self, key: &Q) -> Option<Ref<'_, K>>
     where
         Q: Hash + Equivalent<K> + ?Sized,
     {
@@ -290,78 +371,6 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// Remove excess capacity to reduce memory usage.
     pub fn shrink_to_fit(&self) {
         self.inner.shrink_to_fit()
-    }
-
-    /// Retain elements that whose predicates return true
-    /// and discard elements whose predicates return false.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use dashmap::DashSet;
-    ///
-    /// let people = DashSet::new();
-    /// people.insert("Albin");
-    /// people.insert("Jones");
-    /// people.insert("Charlie");
-    /// people.retain(|name| name.contains('i'));
-    /// assert_eq!(people.len(), 2);
-    /// ```
-    pub fn retain(&self, mut f: impl FnMut(&K) -> bool) {
-        self.inner.retain(|k, _| f(k))
-    }
-
-    /// Fetches the total number of keys stored in the set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use dashmap::DashSet;
-    ///
-    /// let people = DashSet::new();
-    /// people.insert("Albin");
-    /// people.insert("Jones");
-    /// people.insert("Charlie");
-    /// assert_eq!(people.len(), 3);
-    /// ```
-    pub fn len(&self) -> usize {
-        self.inner.len()
-    }
-
-    /// Checks if the set is empty or not.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use dashmap::DashSet;
-    ///
-    /// let map = DashSet::<()>::new();
-    /// assert!(map.is_empty());
-    /// ```
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
-    }
-
-    /// Removes all keys in the set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use dashmap::DashSet;
-    ///
-    /// let people = DashSet::new();
-    /// people.insert("Albin");
-    /// assert!(!people.is_empty());
-    /// people.clear();
-    /// assert!(people.is_empty());
-    /// ```
-    pub fn clear(&self) {
-        self.inner.clear()
-    }
-
-    /// Returns how many keys the set can store without reallocating.
-    pub fn capacity(&self) -> usize {
-        self.inner.capacity()
     }
 
     /// Checks if the set contains a specific key.
@@ -383,15 +392,15 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> PartialEq for DashSet<K, S> {
+impl<K: Eq + Hash, S: BuildHasher> PartialEq for DashSet<K, S> {
     fn eq(&self, other: &Self) -> bool {
         self.len() == other.len() && self.iter().all(|r| other.contains(r.key()))
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> Eq for DashSet<K, S> {}
+impl<K: Eq + Hash, S: BuildHasher> Eq for DashSet<K, S> {}
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
+impl<K, S> IntoIterator for DashSet<K, S> {
     type Item = K;
 
     type IntoIter = OwningIter<K>;
@@ -401,7 +410,7 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> IntoIterator for DashSet<K, S> {
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for DashSet<K, S> {
+impl<K: Eq + Hash, S: BuildHasher> Extend<K> for DashSet<K, S> {
     fn extend<T: IntoIterator<Item = K>>(&mut self, iter: T) {
         let iter = iter.into_iter().map(|k| (k, ()));
 
@@ -409,7 +418,11 @@ impl<K: Eq + Hash, S: BuildHasher + Clone> Extend<K> for DashSet<K, S> {
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher + Clone + Default> FromIterator<K> for DashSet<K, S> {
+impl<K, S> FromIterator<K> for DashSet<K, S>
+where
+    K: Eq + Hash,
+    S: BuildHasher + Default,
+{
     fn from_iter<I: IntoIterator<Item = K>>(iter: I) -> Self {
         let mut set = DashSet::default();
 
@@ -422,8 +435,8 @@ impl<K: Eq + Hash, S: BuildHasher + Clone + Default> FromIterator<K> for DashSet
 #[cfg(feature = "typesize")]
 impl<K, S> typesize::TypeSize for DashSet<K, S>
 where
-    K: typesize::TypeSize + Eq + Hash,
-    S: typesize::TypeSize + Clone + BuildHasher,
+    K: typesize::TypeSize,
+    S: typesize::TypeSize,
 {
     fn extra_size(&self) -> usize {
         self.inner.extra_size()

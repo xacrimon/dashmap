@@ -2,7 +2,6 @@ use hashbrown::hash_table;
 
 use super::one::RefMut;
 use crate::lock::RwLockWriteGuardDetached;
-use core::hash::Hash;
 use core::mem;
 
 pub enum Entry<'a, K, V> {
@@ -10,7 +9,7 @@ pub enum Entry<'a, K, V> {
     Vacant(VacantEntry<'a, K, V>),
 }
 
-impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
+impl<'a, K, V> Entry<'a, K, V> {
     /// Apply a function to the stored value if it exists.
     pub fn and_modify(self, f: impl FnOnce(&mut V)) -> Self {
         match self {
@@ -117,7 +116,7 @@ pub struct VacantEntry<'a, K, V> {
     entry: hash_table::VacantEntry<'a, (K, V)>,
 }
 
-impl<'a, K: Eq + Hash, V> VacantEntry<'a, K, V> {
+impl<'a, K, V> VacantEntry<'a, K, V> {
     pub(crate) fn new(
         shard: RwLockWriteGuardDetached<'a>,
         key: K,
@@ -158,7 +157,7 @@ pub struct OccupiedEntry<'a, K, V> {
     key: K,
 }
 
-impl<'a, K: Eq + Hash, V> OccupiedEntry<'a, K, V> {
+impl<'a, K, V> OccupiedEntry<'a, K, V> {
     pub(crate) fn new(
         shard: RwLockWriteGuardDetached<'a>,
         key: K,

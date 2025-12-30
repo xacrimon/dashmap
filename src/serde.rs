@@ -10,11 +10,7 @@ pub struct DashMapVisitor<K, V, S> {
     marker: PhantomData<fn() -> DashMap<K, V, S>>,
 }
 
-impl<K, V, S> DashMapVisitor<K, V, S>
-where
-    K: Eq + Hash,
-    S: BuildHasher + Clone,
-{
+impl<K, V, S> DashMapVisitor<K, V, S> {
     fn new() -> Self {
         DashMapVisitor {
             marker: PhantomData,
@@ -26,7 +22,7 @@ impl<'de, K, V, S> Visitor<'de> for DashMapVisitor<K, V, S>
 where
     K: Deserialize<'de> + Eq + Hash,
     V: Deserialize<'de>,
-    S: BuildHasher + Clone + Default,
+    S: BuildHasher + Default,
 {
     type Value = DashMap<K, V, S>;
 
@@ -53,21 +49,20 @@ impl<'de, K, V, S> Deserialize<'de> for DashMap<K, V, S>
 where
     K: Deserialize<'de> + Eq + Hash,
     V: Deserialize<'de>,
-    S: BuildHasher + Clone + Default,
+    S: BuildHasher + Default,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_map(DashMapVisitor::<K, V, S>::new())
+        deserializer.deserialize_map(DashMapVisitor::new())
     }
 }
 
 impl<K, V, H> Serialize for DashMap<K, V, H>
 where
-    K: Serialize + Eq + Hash,
+    K: Serialize,
     V: Serialize,
-    H: BuildHasher + Clone,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -87,11 +82,7 @@ pub struct DashSetVisitor<K, S> {
     marker: PhantomData<fn() -> DashSet<K, S>>,
 }
 
-impl<K, S> DashSetVisitor<K, S>
-where
-    K: Eq + Hash,
-    S: BuildHasher + Clone,
-{
+impl<K, S> DashSetVisitor<K, S> {
     fn new() -> Self {
         DashSetVisitor {
             marker: PhantomData,
@@ -102,7 +93,7 @@ where
 impl<'de, K, S> Visitor<'de> for DashSetVisitor<K, S>
 where
     K: Deserialize<'de> + Eq + Hash,
-    S: BuildHasher + Clone + Default,
+    S: BuildHasher + Default,
 {
     type Value = DashSet<K, S>;
 
@@ -128,20 +119,19 @@ where
 impl<'de, K, S> Deserialize<'de> for DashSet<K, S>
 where
     K: Deserialize<'de> + Eq + Hash,
-    S: BuildHasher + Clone + Default,
+    S: BuildHasher + Default,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_seq(DashSetVisitor::<K, S>::new())
+        deserializer.deserialize_seq(DashSetVisitor::new())
     }
 }
 
 impl<K, H> Serialize for DashSet<K, H>
 where
-    K: Serialize + Eq + Hash,
-    H: BuildHasher + Clone,
+    K: Serialize,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -169,35 +159,35 @@ macro_rules! serialize_impl {
 }
 
 // Map
-impl<'a, K: Eq + Hash, V: Serialize> Serialize for mapref::multiple::RefMulti<'a, K, V> {
+impl<'a, K, V: Serialize> Serialize for mapref::multiple::RefMulti<'a, K, V> {
     serialize_impl! {}
 }
 
-impl<'a, K: Eq + Hash, V: Serialize> Serialize for mapref::multiple::RefMutMulti<'a, K, V> {
+impl<'a, K, V: Serialize> Serialize for mapref::multiple::RefMutMulti<'a, K, V> {
     serialize_impl! {}
 }
 
-impl<'a, K: Eq + Hash, V: Serialize> Serialize for mapref::one::Ref<'a, K, V> {
+impl<'a, K, V: Serialize> Serialize for mapref::one::Ref<'a, K, V> {
     serialize_impl! {}
 }
 
-impl<'a, K: Eq + Hash, V: Serialize> Serialize for mapref::one::RefMut<'a, K, V> {
+impl<'a, K, V: Serialize> Serialize for mapref::one::RefMut<'a, K, V> {
     serialize_impl! {}
 }
 
-impl<'a, K: Eq + Hash, T: Serialize> Serialize for mapref::one::MappedRef<'a, K, T> {
+impl<'a, K, T: Serialize> Serialize for mapref::one::MappedRef<'a, K, T> {
     serialize_impl! {}
 }
 
-impl<'a, K: Eq + Hash, T: Serialize> Serialize for mapref::one::MappedRefMut<'a, K, T> {
+impl<'a, K, T: Serialize> Serialize for mapref::one::MappedRefMut<'a, K, T> {
     serialize_impl! {}
 }
 
 // Set
-impl<'a, V: Hash + Eq + Serialize> Serialize for setref::multiple::RefMulti<'a, V> {
+impl<'a, V: Serialize> Serialize for setref::multiple::RefMulti<'a, V> {
     serialize_impl! {}
 }
 
-impl<'a, V: Hash + Eq + Serialize> Serialize for setref::one::Ref<'a, V> {
+impl<'a, V: Serialize> Serialize for setref::one::Ref<'a, V> {
     serialize_impl! {}
 }

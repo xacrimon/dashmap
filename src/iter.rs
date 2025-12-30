@@ -4,7 +4,6 @@ use hashbrown::hash_table;
 use super::mapref::multiple::{RefMulti, RefMutMulti};
 use crate::lock::{RwLock, RwLockReadGuardDetached, RwLockWriteGuardDetached};
 use crate::{DashMap, HashMap};
-use core::hash::Hash;
 use std::sync::Arc;
 
 /// Iterator over a DashMap yielding key value pairs.
@@ -25,7 +24,7 @@ pub struct OwningIter<K, V> {
     current: Option<GuardOwningIter<K, V>>,
 }
 
-impl<K: Eq + Hash, V> OwningIter<K, V> {
+impl<K, V> OwningIter<K, V> {
     pub(crate) fn new<S>(map: DashMap<K, V, S>) -> Self {
         Self {
             shards: map.shards.into_vec().into_iter(),
@@ -36,7 +35,7 @@ impl<K: Eq + Hash, V> OwningIter<K, V> {
 
 type GuardOwningIter<K, V> = hash_table::IntoIter<(K, V)>;
 
-impl<K: Eq + Hash, V> Iterator for OwningIter<K, V> {
+impl<K, V> Iterator for OwningIter<K, V> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -79,7 +78,11 @@ pub struct Iter<'a, K, V> {
     current: Option<GuardIter<'a, K, V>>,
 }
 
-impl<'i, K: Clone + Hash + Eq, V: Clone> Clone for Iter<'i, K, V> {
+impl<'a, K, V> Clone for Iter<'a, K, V>
+where
+    K: Clone,
+    V: Clone,
+{
     fn clone(&self) -> Self {
         Iter {
             shards: self.shards.clone(),
@@ -88,7 +91,7 @@ impl<'i, K: Clone + Hash + Eq, V: Clone> Clone for Iter<'i, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a> Iter<'a, K, V> {
+impl<'a, K, V> Iter<'a, K, V> {
     pub(crate) fn new<S>(map: &'a DashMap<K, V, S>) -> Self {
         Self {
             shards: map.shards.iter(),
@@ -97,7 +100,7 @@ impl<'a, K: Eq + Hash + 'a, V: 'a> Iter<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a> Iterator for Iter<'a, K, V> {
+impl<'a, K, V> Iterator for Iter<'a, K, V> {
     type Item = RefMulti<'a, K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -138,7 +141,7 @@ pub struct IterMut<'a, K, V> {
     current: Option<GuardIterMut<'a, K, V>>,
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a> IterMut<'a, K, V> {
+impl<'a, K, V> IterMut<'a, K, V> {
     pub(crate) fn new<S>(map: &'a DashMap<K, V, S>) -> Self {
         Self {
             shards: map.shards.iter(),
@@ -147,7 +150,7 @@ impl<'a, K: Eq + Hash + 'a, V: 'a> IterMut<'a, K, V> {
     }
 }
 
-impl<'a, K: Eq + Hash + 'a, V: 'a> Iterator for IterMut<'a, K, V> {
+impl<'a, K, V> Iterator for IterMut<'a, K, V> {
     type Item = RefMutMulti<'a, K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
