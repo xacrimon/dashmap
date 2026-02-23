@@ -385,7 +385,7 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
 
 impl<K: Eq + Hash, S: BuildHasher + Clone> PartialEq for DashSet<K, S> {
     fn eq(&self, other: &Self) -> bool {
-        self.len() == other.len() && self.iter().all(|r| other.contains(r.key()))
+        self.inner == other.inner
     }
 }
 

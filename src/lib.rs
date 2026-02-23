@@ -1348,12 +1348,58 @@ impl<'a, K: 'a + Eq + Hash, V: 'a + PartialEq, S: BuildHasher + Clone> PartialEq
     for DashMap<K, V, S>
 {
     fn eq(&self, other: &Self) -> bool {
-        self.len() == other.len()
-            && self.iter().all(|r| {
-                other
-                    .get(r.key())
-                    .map_or(false, |ro| r.value() == ro.value())
-            })
+        // Short-circuit: comparing a map to itself is always true
+        // and avoids deadlock from double-locking the same shards.
+        if std::ptr::eq(self, other) {
+            return true;
+        }
+
+        // Lock all shards on both maps for a consistent snapshot.
+        // Use pointer address ordering to prevent ABBA deadlocks
+        // when two threads compare the same pair of maps in opposite order.
+        let (first, second, first_is_self) = if (self as *const Self) < (other as *const Self) {
+            (self, other, true)
+        } else {
+            (other, self, false)
+        };
+
+        let first_guards: Vec<_> = first.shards.iter().map(|s| s.read()).collect();
+        let second_guards: Vec<_> = second.shards.iter().map(|s| s.read()).collect();
+
+        let (self_guards, other_guards) = if first_is_self {
+            (&first_guards, &second_guards)
+        } else {
+            (&second_guards, &first_guards)
+        };
+
+        let self_len: usize = self_guards.iter().map(|s| s.len()).sum();
+        let other_len: usize = other_guards.iter().map(|s| s.len()).sum();
+
+        if self_len != other_len {
+            return false;
+        }
+
+        // Check every (k, v) in self exists in other with the same value.
+        for self_shard in self_guards.iter() {
+            for (k, v) in self_shard.iter() {
+                let hash = {
+                    let mut hasher = other.hasher.build_hasher();
+                    k.hash(&mut hasher);
+                    hasher.finish()
+                };
+                let other_idx = other.determine_shard(hash as usize);
+                match other_guards[other_idx].find(hash, |(ok, _)| ok == k) {
+                    Some((_, ov)) => {
+                        if v != ov {
+                            return false;
+                        }
+                    }
+                    None => return false,
+                }
+            }
+        }
+
+        true
     }
 }
 
@@ -1601,5 +1647,57 @@ mod tests {
             Err(_) => {}
             _ => panic!("should have raised CapacityOverflow error"),
         }
+    }
+
+    #[test]
+    fn test_self_equality() {
+        let map = DashMap::new();
+        map.insert(1, "hello");
+        map.insert(2, "world");
+        // Comparing a map to itself should not deadlock and should return true
+        assert_eq!(map, map);
+    }
+
+    #[test]
+    fn test_eq_race_condition() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let a: Arc<DashMap<i32, i32>> = Arc::new(DashMap::new());
+        let b: Arc<DashMap<i32, i32>> = Arc::new(DashMap::new());
+
+        // A = {0: 0}, B = {1: 1} — they should NEVER be equal.
+        a.insert(0, 0);
+        b.insert(1, 1);
+
+        let found_bug = Arc::new(AtomicBool::new(false));
+        let stop = Arc::new(AtomicBool::new(false));
+
+        // Spawn a mutator thread that toggles key 0 in B
+        let b_clone = b.clone();
+        let stop_clone = stop.clone();
+        let mutator = std::thread::spawn(move || {
+            while !stop_clone.load(Ordering::Relaxed) {
+                b_clone.insert(0, 0);
+                b_clone.remove(&0);
+            }
+        });
+
+        // Main thread repeatedly checks equality
+        for _ in 0..100_000 {
+            if *a == *b {
+                found_bug.store(true, Ordering::Relaxed);
+                break;
+            }
+        }
+
+        stop.store(true, Ordering::Relaxed);
+        mutator.join().unwrap();
+
+        // With the fix, we should never find them equal
+        assert!(
+            !found_bug.load(Ordering::Relaxed),
+            "PartialEq returned true for unequal maps under concurrent mutation!"
+        );
     }
 }
