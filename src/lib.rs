@@ -899,7 +899,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// **Locking behaviour:** May deadlock if called when holding any sort of reference into the map.
     pub fn entry_ref<'q, Q>(&'a self, key: &'q Q) -> EntryRef<'a, 'q, K, Q, V>
     where
-        Q: Hash + Equivalent<K>,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         self._entry_ref(key)
     }
@@ -1199,7 +1199,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _entry_ref<'q, Q>(&'a self, key: &'q Q) -> EntryRef<'a, 'q, K, Q, V>
     where
-        Q: Hash + Equivalent<K>,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 
@@ -1229,7 +1229,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> DashMap<K, V, S>
 
     fn _try_entry_ref<'q, Q>(&'a self, key: &'q Q) -> Option<EntryRef<'a, 'q, K, Q, V>>
     where
-        Q: Hash + Equivalent<K>,
+        Q: Hash + Equivalent<K> + ?Sized,
     {
         let hash = self.hash_u64(&key);
 

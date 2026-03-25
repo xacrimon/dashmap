@@ -6,7 +6,7 @@ use core::hash::Hash;
 use std::mem;
 
 /// Entry with a borrowed key.
-pub enum EntryRef<'a, 'q, K, Q, V> {
+pub enum EntryRef<'a, 'q, K, Q: ?Sized, V> {
     Occupied(OccupiedEntryRef<'a, 'q, K, Q, V>),
     Vacant(VacantEntryRef<'a, 'q, K, Q, V>),
 }
@@ -26,7 +26,7 @@ impl<'a, 'q, K: Eq + Hash, Q, V> EntryRef<'a, 'q, K, Q, V> {
     }
 }
 
-impl<'a, 'q, K: Eq + Hash + From<&'q Q>, Q, V> EntryRef<'a, 'q, K, Q, V> {
+impl<'a, 'q, K: Eq + Hash + From<&'q Q>, Q: ?Sized, V> EntryRef<'a, 'q, K, Q, V> {
     /// Get the key of the entry.
     pub fn key(&self) -> &Q {
         match *self {
@@ -114,13 +114,13 @@ impl<'a, 'q, K: Eq + Hash + From<&'q Q>, Q, V> EntryRef<'a, 'q, K, Q, V> {
     }
 }
 
-pub struct VacantEntryRef<'a, 'q, K, Q, V> {
+pub struct VacantEntryRef<'a, 'q, K, Q: ?Sized, V> {
     shard: RwLockWriteGuardDetached<'a>,
     entry: hash_table::VacantEntry<'a, (K, V)>,
     key: &'q Q,
 }
 
-impl<'a, 'q, K: Eq + Hash, Q, V> VacantEntryRef<'a, 'q, K, Q, V> {
+impl<'a, 'q, K: Eq + Hash, Q: ?Sized, V> VacantEntryRef<'a, 'q, K, Q, V> {
     pub(crate) fn new(
         shard: RwLockWriteGuardDetached<'a>,
         key: &'q Q,
@@ -162,13 +162,13 @@ impl<'a, 'q, K: Eq + Hash, Q, V> VacantEntryRef<'a, 'q, K, Q, V> {
     }
 }
 
-pub struct OccupiedEntryRef<'a, 'q, K, Q, V> {
+pub struct OccupiedEntryRef<'a, 'q, K, Q: ?Sized, V> {
     shard: RwLockWriteGuardDetached<'a>,
     entry: hash_table::OccupiedEntry<'a, (K, V)>,
     key: &'q Q,
 }
 
-impl<'a, 'q, K: Eq + Hash, Q, V> OccupiedEntryRef<'a, 'q, K, Q, V> {
+impl<'a, 'q, K: Eq + Hash, Q: ?Sized, V> OccupiedEntryRef<'a, 'q, K, Q, V> {
     pub(crate) fn new(
         shard: RwLockWriteGuardDetached<'a>,
         key: &'q Q,
@@ -315,5 +315,41 @@ mod tests {
         drop(entry);
 
         assert_eq!(*map.get(&1).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_unsized_insert_into_vacant() {
+        let map: DashMap<String, u32> = DashMap::new();
+
+        let entry = map.entry_ref("example");
+
+        assert!(matches!(entry, EntryRef::Vacant(_)));
+
+        let val = entry.insert(2);
+
+        assert_eq!(*val, 2);
+
+        drop(val);
+
+        assert_eq!(*map.get("example").unwrap(), 2);
+    }
+
+    #[test]
+    fn test_unsized_insert_into_occupied() {
+        let map: DashMap<String, u32> = DashMap::new();
+
+        map.insert("example".to_owned(), 1000);
+
+        let entry = map.entry_ref("example");
+
+        assert!(matches!(&entry, EntryRef::Occupied(entry) if *entry.get() == 1000));
+
+        let val = entry.insert(2);
+
+        assert_eq!(*val, 2);
+
+        drop(val);
+
+        assert_eq!(*map.get("example").unwrap(), 2);
     }
 }
