@@ -18,7 +18,7 @@ jobs:
     - uses: actions/checkout@v2
     - uses: dtolnay/rust-toolchain@stable
     - name: test
-      run: cargo test --features shuttle --test shuttle
+      run: RUSTUP_TOOLCHAIN=stable cargo test --features shuttle --test shuttle
   
   test:
     runs-on: ubuntu-22.04
