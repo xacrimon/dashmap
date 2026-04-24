@@ -1,5 +1,12 @@
+#[cfg(not(feature = "shuttle"))]
 use core::sync::atomic::{AtomicUsize, Ordering};
-use parking_lot_core::{ParkToken, SpinWait, UnparkToken};
+#[cfg(not(feature = "shuttle"))]
+use parking_lot_core::{park, unpark_all, unpark_one, ParkToken, SpinWait, UnparkToken};
+
+#[cfg(feature = "shuttle")]
+use self::shuttle_parking::{park, unpark_all, unpark_one, ParkToken, SpinWait, UnparkToken};
+#[cfg(feature = "shuttle")]
+use shuttle::sync::atomic::{AtomicUsize, Ordering};
 
 pub type RwLock<T> = lock_api::RwLock<RawRwLock, T>;
 pub(crate) type RwLockReadGuardDetached<'a> = crate::util::RwLockReadGuardDetached<'a, RawRwLock>;
@@ -80,7 +87,7 @@ unsafe impl lock_api::RawRwLockDowngrade for RawRwLock {
             .state
             .fetch_and(ONE_READER | WRITERS_PARKED, Ordering::Release);
         if state & READERS_PARKED != 0 {
-            parking_lot_core::unpark_all((self as *const _ as usize) + 1, UnparkToken(0));
+            unpark_all((self as *const _ as usize) + 1, UnparkToken(0));
         }
     }
 }
@@ -124,7 +131,7 @@ impl RawRwLock {
                 }
 
                 let _ = unsafe {
-                    parking_lot_core::park(
+                    park(
                         self as *const _ as usize,
                         || {
                             let state = self.state.load(Ordering::Relaxed);
@@ -168,13 +175,13 @@ impl RawRwLock {
 
         if parked == READERS_PARKED {
             return unsafe {
-                parking_lot_core::unpark_all((self as *const _ as usize) + 1, UnparkToken(0));
+                unpark_all((self as *const _ as usize) + 1, UnparkToken(0));
             };
         }
 
         assert_eq!(parked, WRITERS_PARKED);
         unsafe {
-            parking_lot_core::unpark_one(self as *const _ as usize, |_| UnparkToken(0));
+            unpark_one(self as *const _ as usize, |_| UnparkToken(0));
         }
     }
 
@@ -267,7 +274,7 @@ impl RawRwLock {
                 }
 
                 let _ = unsafe {
-                    parking_lot_core::park(
+                    park(
                         (self as *const _ as usize) + 1,
                         || {
                             let state = self.state.load(Ordering::Relaxed);
@@ -293,8 +300,148 @@ impl RawRwLock {
             .is_ok()
         {
             unsafe {
-                parking_lot_core::unpark_one(self as *const _ as usize, |_| UnparkToken(0));
+                unpark_one(self as *const _ as usize, |_| UnparkToken(0));
             }
+        }
+    }
+}
+
+#[cfg(feature = "shuttle")]
+mod shuttle_parking {
+    use shuttle::sync::Mutex;
+    use shuttle::thread::{self, Thread, ThreadId};
+    use std::collections::{HashMap, VecDeque};
+    use std::sync::OnceLock;
+    use std::time::Instant;
+
+    #[allow(dead_code)]
+    pub struct ParkToken(pub usize);
+    #[allow(dead_code)]
+    pub struct UnparkToken(pub usize);
+
+    pub struct ParkResult;
+    pub struct UnparkResult;
+
+    pub struct SpinWait {
+        counter: u32,
+    }
+
+    type WaitQueues = HashMap<usize, VecDeque<Thread>>;
+
+    fn wait_queues() -> &'static Mutex<WaitQueues> {
+        static WAIT_QUEUES: OnceLock<Mutex<WaitQueues>> = OnceLock::new();
+        WAIT_QUEUES.get_or_init(|| Mutex::new(HashMap::new()))
+    }
+
+    fn lock_wait_queues() -> shuttle::sync::MutexGuard<'static, WaitQueues> {
+        wait_queues()
+            .lock()
+            .expect("Shuttle wait queue mutex poisoned")
+    }
+
+    fn remove_waiter(wait_queues: &mut WaitQueues, key: usize, thread_id: ThreadId) {
+        let mut remove_key = false;
+
+        if let Some(queue) = wait_queues.get_mut(&key) {
+            if let Some(index) = queue.iter().position(|thread| thread.id() == thread_id) {
+                queue.remove(index);
+            }
+
+            remove_key = queue.is_empty();
+        }
+
+        if remove_key {
+            wait_queues.remove(&key);
+        }
+    }
+
+    impl SpinWait {
+        #[inline]
+        pub fn new() -> Self {
+            Self { counter: 0 }
+        }
+
+        #[inline]
+        pub fn spin(&mut self) -> bool {
+            self.counter += 1;
+            if self.counter <= 10 {
+                shuttle::thread::yield_now();
+                true
+            } else {
+                false
+            }
+        }
+
+        #[inline]
+        pub fn spin_no_yield(&mut self) {
+            shuttle::thread::yield_now();
+        }
+    }
+
+    pub unsafe fn park(
+        key: usize,
+        validate: impl FnOnce() -> bool,
+        before_sleep: impl FnOnce(),
+        _timed_out: impl FnOnce(usize, bool),
+        _park_token: ParkToken,
+        _timeout: Option<Instant>,
+    ) -> ParkResult {
+        let current = thread::current();
+
+        {
+            let mut wait_queues = lock_wait_queues();
+            if !validate() {
+                return ParkResult;
+            }
+
+            wait_queues
+                .entry(key)
+                .or_default()
+                .push_back(current.clone());
+            before_sleep();
+        }
+
+        thread::park();
+
+        let mut wait_queues = lock_wait_queues();
+        remove_waiter(&mut wait_queues, key, current.id());
+
+        ParkResult
+    }
+
+    pub unsafe fn unpark_one(key: usize, callback: impl FnOnce(UnparkResult) -> UnparkToken) {
+        let waiter = {
+            let mut wait_queues = lock_wait_queues();
+            let waiter = wait_queues.get_mut(&key).and_then(VecDeque::pop_front);
+
+            if wait_queues.get(&key).is_some_and(VecDeque::is_empty) {
+                wait_queues.remove(&key);
+            }
+
+            waiter
+        };
+
+        let _ = callback(UnparkResult);
+
+        if let Some(waiter) = waiter {
+            waiter.unpark();
+        }
+    }
+
+    pub unsafe fn unpark_all(key: usize, _token: UnparkToken) {
+        let waiters = {
+            let mut wait_queues = lock_wait_queues();
+            wait_queues
+                .remove(&key)
+                .unwrap_or_default()
+                .into_iter()
+                .collect::<Vec<_>>()
+        };
+
+        // Wake waiters after dropping the queue mutex so they can immediately
+        // re-register themselves if the outer lock algorithm loops.
+        for waiter in waiters {
+            waiter.unpark();
         }
     }
 }
