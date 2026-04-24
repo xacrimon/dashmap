@@ -10,7 +10,15 @@ jobs:
     - name: style
       run: cargo fmt -- --check
     - name: clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --all-targets --features all -- -D warnings
+
+  shuttle:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v2
+    - uses: dtolnay/rust-toolchain@stable
+    - name: test
+      run: cargo test --features shuttle --test shuttle
   
   test:
     runs-on: ubuntu-22.04

@@ -47,6 +47,21 @@ I will take a look as soon as I have time for it.
 That said I do not get paid (yet) to work on open-source. This means
 that my time is limited and my work here comes after my personal life.
 
+### Concurrency Testing
+
+DashMap includes a contributor-only [Shuttle](https://docs.rs/shuttle)-based test mode for
+model checking the internal lock implementation. This is not part of DashMap's supported
+runtime feature surface and is only intended to be run through the dedicated integration
+test target.
+
+Use a current stable toolchain and run:
+
+```bash
+RUSTUP_TOOLCHAIN=stable cargo test --features shuttle --test shuttle
+```
+
+Running the full crate test suite with `--features shuttle` is intentionally unsupported.
+
 ## Performance
 
 A comprehensive benchmark suite including DashMap can be found [here](https://github.com/xacrimon/conc-map-bench).

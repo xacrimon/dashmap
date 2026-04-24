@@ -16,12 +16,14 @@ categories = ["concurrency", "algorithms", "data-structures"]
 [features]
 all = ["raw-api", "typesize", "serde", "rayon", "arbitrary"]
 raw-api = []
+shuttle = ["dep:shuttle"]
 typesize = ["dep:typesize"]
 inline-more = ["hashbrown/inline-more"]
 
 [dependencies]
 lock_api = "0.4.12"
 parking_lot_core = "0.9.10"
+shuttle = { version = "0.9.1", optional = true }
 equivalent = "1.0.1"
 hashbrown = { version = "0.15.2", default-features = false }
 serde = { version = "1.0.217", optional = true, features = ["derive"] }
@@ -33,3 +35,8 @@ typesize = { version = "0.1.13", default-features = false, features = ["hashbrow
 
 [package.metadata.docs.rs]
 features = ["all"]
+
+[[test]]
+name = "shuttle"
+path = "tests/shuttle.rs"
+required-features = ["shuttle"]
