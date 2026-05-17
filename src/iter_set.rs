@@ -38,7 +38,7 @@ pub struct Iter<'a, K, S, M> {
     inner: crate::iter::Iter<'a, K, (), S, M>,
 }
 
-unsafe impl<'a, 'i, K, S, M> Send for Iter<'i, K, S, M>
+unsafe impl<'a, K, S, M> Send for Iter<'_, K, S, M>
 where
     K: 'a + Eq + Hash + Send,
     S: 'a + BuildHasher + Clone,
@@ -46,7 +46,7 @@ where
 {
 }
 
-unsafe impl<'a, 'i, K, S, M> Sync for Iter<'i, K, S, M>
+unsafe impl<'a, K, S, M> Sync for Iter<'_, K, S, M>
 where
     K: 'a + Eq + Hash + Sync,
     S: 'a + BuildHasher + Clone,
