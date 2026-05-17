@@ -16,7 +16,7 @@ impl<'a, K: Eq + Hash> RefMulti<'a, K> {
     }
 }
 
-impl<'a, K: Eq + Hash> Deref for RefMulti<'a, K> {
+impl<K: Eq + Hash> Deref for RefMulti<'_, K> {
     type Target = K;
 
     fn deref(&self) -> &K {

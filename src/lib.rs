@@ -120,7 +120,7 @@ where
     }
 }
 
-impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
+impl<K: Eq + Hash, V> DashMap<K, V, RandomState> {
     /// Creates a new DashMap with a capacity of 0.
     ///
     /// # Examples
@@ -1208,10 +1208,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
 
         let idx = self.determine_shard(hash as usize);
 
-        let mut shard = match unsafe { self._try_yield_write_shard(idx) } {
-            Some(shard) => shard,
-            None => return None,
-        };
+        let mut shard = unsafe { self._try_yield_write_shard(idx) }?;
 
         match shard.find_or_find_insert_slot(
             hash,
