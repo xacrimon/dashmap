@@ -80,6 +80,33 @@ impl<'a, K: Eq + Hash, V> Entry<'a, K, V> {
         }
     }
 
+    /// Return a mutable reference to the element if it exists,
+    /// otherwise insert the result of a provided function that accepts key as
+    /// an argument and return a mutable reference to that.
+    /// Function must take `K` by reference to avoid cloning.
+    pub fn or_insert_with_key<F: FnOnce(&K) -> V>(self, default: F) -> RefMut<'a, K, V> {
+        match self {
+            Entry::Occupied(entry) => entry.into_ref(),
+            Entry::Vacant(entry) => {
+                let value = default(entry.key());
+                entry.insert(value)
+            }
+        }
+    }
+
+    pub fn or_try_insert_with_key<E, F: FnOnce(&K) -> Result<V, E>>(
+        self,
+        default: F,
+    ) -> Result<RefMut<'a, K, V>, E> {
+        match self {
+            Entry::Occupied(entry) => Ok(entry.into_ref()),
+            Entry::Vacant(entry) => {
+                let value = default(entry.key())?;
+                Ok(entry.insert(value))
+            }
+        }
+    }
+
     /// Sets the value of the entry, and returns a reference to the inserted value.
     pub fn insert(self, value: V) -> RefMut<'a, K, V> {
         match self {
@@ -284,5 +311,36 @@ mod tests {
         drop(entry);
 
         assert_eq!(*map.get(&1).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_or_insert_with_key() {
+        let map: DashMap<&str, usize> = DashMap::new();
+
+        map.entry("poneyland")
+            .or_insert_with_key(|key| key.chars().count());
+
+        assert_eq!(*map.get("poneyland").unwrap(), 9);
+    }
+
+    #[test]
+    fn test_or_try_insert_with_key_ok() {
+        let map: DashMap<&str, usize> = DashMap::new();
+
+        let result = map
+            .entry("poneyland")
+            .or_try_insert_with_key(|key| Ok::<usize, &str>(key.chars().count()));
+
+        assert_eq!(*result.unwrap(), 9);
+    }
+
+    #[test]
+    fn test_or_try_insert_with_key_err() {
+        let map: DashMap<&str, usize> = DashMap::new();
+        let result = map
+            .entry("poneyland")
+            .or_try_insert_with_key(|_| Err::<usize, &str>("error"));
+        assert!(result.is_err());
+        assert!(map.get("poneyland").is_none());
     }
 }
