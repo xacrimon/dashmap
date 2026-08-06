@@ -36,6 +36,7 @@ use core::fmt;
 use core::hash::{BuildHasher, Hash, Hasher};
 use core::iter::FromIterator;
 use core::ops::{BitAnd, BitOr, Shl, Shr, Sub};
+use core::ptr;
 use crossbeam_utils::CachePadded;
 pub use equivalent::Equivalent;
 use hashbrown::hash_table;
@@ -127,6 +128,26 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
         DashMap::with_hasher(RandomState::default())
     }
 
+    /// Creates a new DashMap with a capacity of 0.
+    ///
+    /// This is the fallible variant of [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the allocation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let reviews = DashMap::try_new().unwrap();
+    /// reviews.insert("Veloren", "What a fantastic game!");
+    /// ```
+    pub fn try_new() -> Result<Self, TryReserveError> {
+        DashMap::try_with_hasher(RandomState::default())
+    }
+
     /// Creates a new DashMap with a specified starting capacity.
     ///
     /// # Examples
@@ -140,6 +161,27 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         DashMap::with_capacity_and_hasher(capacity, RandomState::default())
+    }
+
+    /// Creates a new DashMap with a specified starting capacity.
+    ///
+    /// This is the fallible variant of [`Self::with_capacity`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the allocation fails or the capacity overflows.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let mappings = DashMap::try_with_capacity(2).unwrap();
+    /// mappings.insert(2, 4);
+    /// mappings.insert(8, 16);
+    /// ```
+    pub fn try_with_capacity(capacity: usize) -> Result<Self, TryReserveError> {
+        DashMap::try_with_capacity_and_hasher(capacity, RandomState::default())
     }
 
     /// Creates a new DashMap with a specified shard amount
@@ -160,6 +202,29 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
         Self::with_capacity_and_hasher_and_shard_amount(0, RandomState::default(), shard_amount)
     }
 
+    /// Creates a new DashMap with a specified shard amount.
+    ///
+    /// This is the fallible variant of [`Self::with_shard_amount`].
+    ///
+    /// shard_amount must be greater than 1 and a power of two.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `shard_amount` is invalid or if the allocation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let mappings = DashMap::try_with_shard_amount(32).unwrap();
+    /// mappings.insert(2, 4);
+    /// mappings.insert(8, 16);
+    /// ```
+    pub fn try_with_shard_amount(shard_amount: usize) -> Result<Self, TryReserveError> {
+        Self::try_with_capacity_and_hasher_and_shard_amount(0, RandomState::default(), shard_amount)
+    }
+
     /// Creates a new DashMap with a specified capacity and shard amount.
     ///
     /// shard_amount should greater than 0 and be a power of two.
@@ -176,6 +241,37 @@ impl<'a, K: 'a + Eq + Hash, V: 'a> DashMap<K, V, RandomState> {
     /// ```
     pub fn with_capacity_and_shard_amount(capacity: usize, shard_amount: usize) -> Self {
         Self::with_capacity_and_hasher_and_shard_amount(
+            capacity,
+            RandomState::default(),
+            shard_amount,
+        )
+    }
+
+    /// Creates a new DashMap with a specified capacity and shard amount.
+    ///
+    /// This is the fallible variant of [`Self::with_capacity_and_shard_amount`].
+    ///
+    /// shard_amount must be greater than 1 and a power of two.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `shard_amount` is invalid, if the capacity overflows,
+    /// or if the allocation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    ///
+    /// let mappings = DashMap::try_with_capacity_and_shard_amount(32, 32).unwrap();
+    /// mappings.insert(2, 4);
+    /// mappings.insert(8, 16);
+    /// ```
+    pub fn try_with_capacity_and_shard_amount(
+        capacity: usize,
+        shard_amount: usize,
+    ) -> Result<Self, TryReserveError> {
+        Self::try_with_capacity_and_hasher_and_shard_amount(
             capacity,
             RandomState::default(),
             shard_amount,
@@ -205,6 +301,28 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         Self::with_capacity_and_hasher(0, hasher)
     }
 
+    /// Creates a new DashMap with a capacity of 0 and the provided hasher.
+    ///
+    /// This is the fallible variant of [`Self::with_hasher`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the allocation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let reviews = DashMap::try_with_hasher(s).unwrap();
+    /// reviews.insert("Veloren", "What a fantastic game!");
+    /// ```
+    pub fn try_with_hasher(hasher: S) -> Result<Self, TryReserveError> {
+        Self::try_with_capacity_and_hasher(0, hasher)
+    }
+
     /// Creates a new DashMap with a specified starting capacity and hasher.
     ///
     /// # Examples
@@ -220,6 +338,36 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     /// ```
     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self::with_capacity_and_hasher_and_shard_amount(capacity, hasher, default_shard_amount())
+    }
+
+    /// Creates a new DashMap with a specified starting capacity and hasher.
+    ///
+    /// This is the fallible variant of [`Self::with_capacity_and_hasher`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the allocation fails or the capacity overflows.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let mappings = DashMap::try_with_capacity_and_hasher(2, s).unwrap();
+    /// mappings.insert(2, 4);
+    /// mappings.insert(8, 16);
+    /// ```
+    pub fn try_with_capacity_and_hasher(
+        capacity: usize,
+        hasher: S,
+    ) -> Result<Self, TryReserveError> {
+        Self::try_with_capacity_and_hasher_and_shard_amount(
+            capacity,
+            hasher,
+            default_shard_amount(),
+        )
     }
 
     /// Creates a new DashMap with a specified hasher and shard amount
@@ -242,10 +390,43 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
         Self::with_capacity_and_hasher_and_shard_amount(0, hasher, shard_amount)
     }
 
+    /// Creates a new DashMap with a specified hasher and shard amount.
+    ///
+    /// This is the fallible variant of [`Self::with_hasher_and_shard_amount`].
+    ///
+    /// shard_amount must be greater than 1 and a power of two.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `shard_amount` is invalid or if the allocation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let mappings = DashMap::try_with_hasher_and_shard_amount(s, 32).unwrap();
+    /// mappings.insert(2, 4);
+    /// mappings.insert(8, 16);
+    /// ```
+    pub fn try_with_hasher_and_shard_amount(
+        hasher: S,
+        shard_amount: usize,
+    ) -> Result<Self, TryReserveError> {
+        Self::try_with_capacity_and_hasher_and_shard_amount(0, hasher, shard_amount)
+    }
+
     /// Creates a new DashMap with a specified starting capacity, hasher and shard_amount.
     ///
     /// shard_amount should greater than 0 and be a power of two.
     /// If a shard_amount which is not a power of two is provided, the function will panic.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `shard_amount` is not greater than 1 or not a power of two,
+    /// or if allocation fails.
     ///
     /// # Examples
     ///
@@ -283,6 +464,81 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             shards,
             hasher,
         }
+    }
+
+    /// Creates a new DashMap with a specified starting capacity, hasher and shard_amount.
+    ///
+    /// This is the fallible variant of [`Self::with_capacity_and_hasher_and_shard_amount`].
+    ///
+    /// shard_amount must be greater than 1 and a power of two.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `shard_amount` is invalid, if the capacity overflows,
+    /// or if the allocation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashMap;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let mappings = DashMap::try_with_capacity_and_hasher_and_shard_amount(2, s, 32).unwrap();
+    /// mappings.insert(2, 4);
+    /// mappings.insert(8, 16);
+    /// ```
+    pub fn try_with_capacity_and_hasher_and_shard_amount(
+        capacity: usize,
+        hasher: S,
+        shard_amount: usize,
+    ) -> Result<Self, TryReserveError> {
+        if shard_amount <= 1 || !shard_amount.is_power_of_two() {
+            return Err(TryReserveError {});
+        }
+
+        let ptr_bits = util::ptr_size_bits();
+        let nc = ncb(shard_amount);
+        let shift = ptr_bits.checked_sub(nc).ok_or(TryReserveError {})?;
+
+        let rounded_capacity = if capacity != 0 {
+            let mask = shard_amount.checked_sub(1).ok_or(TryReserveError {})?;
+            capacity.checked_add(mask).ok_or(TryReserveError {})? & !mask
+        } else {
+            0
+        };
+
+        let cps = rounded_capacity / shard_amount;
+
+        let mut guard =
+            util::InitSliceGuard::<CachePadded<RwLock<HashMap<K, V>>>>::new(shard_amount)
+                .ok_or(TryReserveError {})?;
+
+        for i in 0..shard_amount {
+            let mut map = HashMap::new();
+            map.try_reserve(cps, |(k, _v): &(K, V)| {
+                let mut h = hasher.build_hasher();
+                k.hash(&mut h);
+                h.finish()
+            })
+            .map_err(|_| TryReserveError {})?;
+
+            let shard = CachePadded::new(RwLock::new(map));
+            // SAFETY: i < shard_amount (loop bound), slot is uninitialized.
+            unsafe {
+                ptr::write(guard.get(i), shard);
+            }
+            guard.mark_init();
+        }
+
+        // SAFETY: all `shard_amount` slots have been initialized by the loop above.
+        let shards = unsafe { guard.assume_init() };
+
+        Ok(Self {
+            shift,
+            shards,
+            hasher,
+        })
     }
 
     /// Hash a given item to produce a usize.
@@ -1427,7 +1683,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::DashMap;
-    use std::collections::hash_map::RandomState;
+    use std::{collections::hash_map::RandomState, usize};
 
     #[test]
     fn test_basic() {
@@ -1598,6 +1854,14 @@ mod tests {
         let mut map: DashMap<i32, i32> = DashMap::new();
 
         match map.try_reserve(usize::MAX) {
+            Err(_) => {}
+            _ => panic!("should have raised CapacityOverflow error"),
+        }
+    }
+
+    #[test]
+    fn test_try_with_capacity_errors() {
+        match DashMap::<i32, i32>::try_with_capacity(usize::MAX) {
             Err(_) => {}
             _ => panic!("should have raised CapacityOverflow error"),
         }

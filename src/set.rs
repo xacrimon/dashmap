@@ -2,9 +2,9 @@ use crate::iter_set::{Iter, OwningIter};
 #[cfg(feature = "raw-api")]
 use crate::lock::RwLock;
 use crate::setref::one::Ref;
-use crate::DashMap;
 #[cfg(feature = "raw-api")]
 use crate::HashMap;
+use crate::{DashMap, TryReserveError};
 use cfg_if::cfg_if;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
@@ -65,7 +65,27 @@ impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
         Self::with_hasher(RandomState::default())
     }
 
-    /// Creates a new DashMap with a specified starting capacity.
+    /// Creates a new DashSet with a capacity of 0.
+    ///
+    /// This is the fallible variant of [`Self::new`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the allocation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let games = DashSet::try_new().unwrap();
+    /// games.insert("Veloren");
+    /// ```
+    pub fn try_new() -> Result<Self, TryReserveError> {
+        Self::try_with_hasher(RandomState::default())
+    }
+
+    /// Creates a new DashSet with a specified starting capacity.
     ///
     /// # Examples
     ///
@@ -78,6 +98,27 @@ impl<'a, K: 'a + Eq + Hash> DashSet<K, RandomState> {
     /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self::with_capacity_and_hasher(capacity, RandomState::default())
+    }
+
+    /// Creates a new DashSet with a specified starting capacity.
+    ///
+    /// This is the fallible variant of [`Self::with_capacity`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the allocation fails or the capacity overflows.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let numbers = DashSet::try_with_capacity(2).unwrap();
+    /// numbers.insert(2);
+    /// numbers.insert(8);
+    /// ```
+    pub fn try_with_capacity(capacity: usize) -> Result<Self, TryReserveError> {
+        Self::try_with_capacity_and_hasher(capacity, RandomState::default())
     }
 }
 
@@ -98,7 +139,29 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
         Self::with_capacity_and_hasher(0, hasher)
     }
 
-    /// Creates a new DashMap with a specified starting capacity and hasher.
+    /// Creates a new DashSet with a capacity of 0 and the provided hasher.
+    ///
+    /// This is the fallible variant of [`Self::with_hasher`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the allocation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let games = DashSet::try_with_hasher(s).unwrap();
+    /// games.insert("Veloren");
+    /// ```
+    pub fn try_with_hasher(hasher: S) -> Result<Self, TryReserveError> {
+        Self::try_with_capacity_and_hasher(0, hasher)
+    }
+
+    /// Creates a new DashSet with a specified starting capacity and hasher.
     ///
     /// # Examples
     ///
@@ -115,6 +178,50 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
         Self {
             inner: DashMap::with_capacity_and_hasher(capacity, hasher),
         }
+    }
+
+    /// Creates a new DashSet with a specified starting capacity and hasher.
+    ///
+    /// This is the fallible variant of [`Self::with_capacity_and_hasher`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the allocation fails or the capacity overflows.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let numbers = DashSet::try_with_capacity_and_hasher(2, s).unwrap();
+    /// numbers.insert(2);
+    /// numbers.insert(8);
+    /// ```
+    pub fn try_with_capacity_and_hasher(
+        capacity: usize,
+        hasher: S,
+    ) -> Result<Self, TryReserveError> {
+        Ok(Self {
+            inner: DashMap::try_with_capacity_and_hasher(capacity, hasher)?,
+        })
+    }
+
+    /// Returns a reference to the set's hasher.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// let s = RandomState::new();
+    /// let set: DashSet<u32, _> = DashSet::with_hasher(s);
+    /// let _: &RandomState = set.hasher();
+    /// ```
+    pub fn hasher(&self) -> &S {
+        self.inner.hasher()
     }
 
     /// Hash a given item to produce a usize.
@@ -380,6 +487,80 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
         Q: Hash + Equivalent<K> + ?Sized,
     {
         self.inner.contains_key(key)
+    }
+
+    /// Returns a reference to the inner [`DashMap`].
+    ///
+    /// This allows access to any [`DashMap`] method that isn't exposed by [`DashSet`],
+    /// such as [`DashMap::get_mut`], [`DashMap::entry`], or [`DashMap::try_get`].
+    /// The values in the returned map are always `()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let set = DashSet::new();
+    /// set.insert(1);
+    ///
+    /// // Use DashMap's entry API through the set
+    /// let map = set.as_dash_map();
+    /// map.entry(2).or_insert(());
+    /// assert!(set.contains(&2));
+    /// ```
+    pub fn as_dash_map(&self) -> &DashMap<K, (), S> {
+        &self.inner
+    }
+
+    /// Consumes the set and returns the inner [`DashMap`].
+    ///
+    /// The values in the returned map are always `()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::DashSet;
+    ///
+    /// let set = DashSet::new();
+    /// set.insert(1);
+    /// set.insert(2);
+    ///
+    /// let map = set.into_dash_map();
+    /// assert_eq!(map.len(), 2);
+    /// ```
+    pub fn into_dash_map(self) -> DashMap<K, (), S> {
+        self.inner
+    }
+
+    /// Creates a [`DashSet`] from a [`DashMap`] whose value type is `()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use dashmap::{DashMap, DashSet};
+    ///
+    /// let mut map: DashMap<u32, ()> = DashMap::new();
+    /// map.insert(1, ());
+    /// map.insert(2, ());
+    ///
+    /// let set = DashSet::from_dash_map(map);
+    /// assert!(set.contains(&1));
+    /// assert!(set.contains(&2));
+    /// ```
+    pub fn from_dash_map(map: DashMap<K, (), S>) -> Self {
+        Self { inner: map }
+    }
+}
+
+impl<K, S> From<DashMap<K, (), S>> for DashSet<K, S> {
+    fn from(map: DashMap<K, (), S>) -> Self {
+        Self { inner: map }
+    }
+}
+
+impl<K, S> From<DashSet<K, S>> for DashMap<K, (), S> {
+    fn from(set: DashSet<K, S>) -> Self {
+        set.inner
     }
 }
 

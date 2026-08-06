@@ -123,3 +123,79 @@ impl<'a, R: RawRwLockDowngrade> RwLockWriteGuardDetached<'a, R> {
         }
     }
 }
+
+/// A guard that owns a `Box<[MaybeUninit<T>]>` and tracks how many elements
+/// have been initialized. On drop it drops every initialized element; the
+/// box itself handles deallocation. On success, [`Self::assume_init`] transmute\-s
+/// the box into a `Box<[T]>` without dropping anything.
+///
+/// This avoids an intermediate `Vec` allocation when constructing a
+/// `Box<[T]>` element-by-element in a fallible loop.
+pub(crate) struct InitSliceGuard<T> {
+    slab: Box<[mem::MaybeUninit<T>]>,
+    init: usize,
+}
+
+impl<T> InitSliceGuard<T> {
+    /// Allocates a boxed slice of `len` uninitialized `T` elements.
+    ///
+    /// Returns `None` if the layout overflows or the allocation fails.
+    pub fn new(len: usize) -> Option<Self> {
+        let layout = core::alloc::Layout::array::<mem::MaybeUninit<T>>(len).ok()?;
+        let ptr = unsafe { std::alloc::alloc(layout) };
+        if ptr.is_null() {
+            return None;
+        }
+        // SAFETY: `ptr` is non-null, correctly aligned, and sized for `len`
+        // elements of `MaybeUninit<T>`. MaybeUninit has no invalid bitpatterns.
+        let slab: Box<[mem::MaybeUninit<T>]> = unsafe {
+            Box::from_raw(ptr::slice_from_raw_parts_mut(
+                ptr as *mut mem::MaybeUninit<T>,
+                len,
+            ))
+        };
+        Some(Self { slab, init: 0 })
+    }
+
+    /// Returns a mutable pointer to the slot at index `i`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `i` is out of bounds.
+    pub fn get(&mut self, i: usize) -> *mut T {
+        self.slab[i].as_mut_ptr()
+    }
+
+    /// Marks one more element as initialized.
+    pub fn mark_init(&mut self) {
+        self.init += 1;
+    }
+
+    /// Consumes the guard and returns a `Box<[T]>`.
+    ///
+    /// # Safety
+    ///
+    /// All elements must have been initialized (i.e. `mark_init` called
+    /// exactly `slab.len()` times). No element may be left uninitialized.
+    pub unsafe fn assume_init(mut self) -> Box<[T]> {
+        // SAFETY: The caller guarantees all elements are initialized.
+        // Box<[MaybeUninit<T>]> and Box<[T]> share the same fat-pointer layout,
+        // so casting the thin pointer is valid. We forget `self` to prevent
+        // the Drop impl from running (which would double-drop initialized elems).
+        let ptr = self.slab.as_mut_ptr().cast::<T>();
+        let len = self.slab.len();
+        mem::forget(self);
+        unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(ptr, len)) }
+    }
+}
+
+impl<T> Drop for InitSliceGuard<T> {
+    fn drop(&mut self) {
+        for i in 0..self.init {
+            // SAFETY: Elements 0..init have been written via get()/mark_init().
+            unsafe {
+                ptr::drop_in_place(self.slab.as_mut_ptr().add(i).cast::<T>());
+            }
+        }
+    }
+}
