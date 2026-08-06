@@ -2,9 +2,9 @@ use crate::iter_set::{Iter, OwningIter};
 #[cfg(feature = "raw-api")]
 use crate::lock::RwLock;
 use crate::setref::one::Ref;
-use crate::{DashMap, TryReserveError};
 #[cfg(feature = "raw-api")]
 use crate::HashMap;
+use crate::{DashMap, TryReserveError};
 use cfg_if::cfg_if;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
@@ -199,7 +199,10 @@ impl<'a, K: 'a + Eq + Hash, S: BuildHasher + Clone> DashSet<K, S> {
     /// numbers.insert(2);
     /// numbers.insert(8);
     /// ```
-    pub fn try_with_capacity_and_hasher(capacity: usize, hasher: S) -> Result<Self, TryReserveError> {
+    pub fn try_with_capacity_and_hasher(
+        capacity: usize,
+        hasher: S,
+    ) -> Result<Self, TryReserveError> {
         Ok(Self {
             inner: DashMap::try_with_capacity_and_hasher(capacity, hasher)?,
         })
