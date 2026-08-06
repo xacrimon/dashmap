@@ -1684,7 +1684,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::DashMap;
-    use std::collections::hash_map::RandomState;
+    use std::{collections::hash_map::RandomState, usize};
 
     #[test]
     fn test_basic() {
@@ -1855,6 +1855,14 @@ mod tests {
         let mut map: DashMap<i32, i32> = DashMap::new();
 
         match map.try_reserve(usize::MAX) {
+            Err(_) => {}
+            _ => panic!("should have raised CapacityOverflow error"),
+        }
+    }
+
+    #[test]
+    fn test_try_with_capacity_errors() {
+        match DashMap::<i32, i32>::try_with_capacity(usize::MAX) {
             Err(_) => {}
             _ => panic!("should have raised CapacityOverflow error"),
         }
