@@ -503,8 +503,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
 
         let rounded_capacity = if capacity != 0 {
             let mask = shard_amount.checked_sub(1).ok_or(TryReserveError {})?;
-            let rounded = capacity.checked_add(mask).ok_or(TryReserveError {})? & !mask;
-            rounded
+            capacity.checked_add(mask).ok_or(TryReserveError {})? & !mask
         } else {
             0
         };
