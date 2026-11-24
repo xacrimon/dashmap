@@ -75,6 +75,18 @@ fn ncb(shard_amount: usize) -> usize {
     shard_amount.trailing_zeros() as usize
 }
 
+// Keep `build_hasher` + `Hash::hash` + `finish` instead of `BuildHasher::hash_one`:
+// lookup/remove paths pass `&&Q` while insert/entry/rehash paths pass `&K`, so
+// `BuildHasher::hash_one` implementations that specialize on `T` (e.g. aHash on
+// nightly) can hash the same key into different shards.
+#[allow(clippy::manual_hash_one)]
+#[inline]
+fn hash_with_build_hasher<T: Hash + ?Sized, S: BuildHasher>(build_hasher: &S, item: &T) -> u64 {
+    let mut hasher = build_hasher.build_hasher();
+    item.hash(&mut hasher);
+    hasher.finish()
+}
+
 /// DashMap is an implementation of a concurrent associative array/hashmap in Rust.
 ///
 /// DashMap tries to implement an easy to use API similar to `std::collections::HashMap`
@@ -300,11 +312,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
     }
 
     fn hash_u64<T: Hash>(&self, item: &T) -> u64 {
-        let mut hasher = self.hasher.build_hasher();
-
-        item.hash(&mut hasher);
-
-        hasher.finish()
+        hash_with_build_hasher(&self.hasher, item)
     }
 
     cfg_if! {
@@ -893,9 +901,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: BuildHasher + Clone> DashMap<K, V, S> {
             shard
                 .write()
                 .try_reserve(additional, |(k, _v)| {
-                    let mut hasher = self.hasher.build_hasher();
-                    k.hash(&mut hasher);
-                    hasher.finish()
+                    hash_with_build_hasher(&self.hasher, k)
                 })
                 .map_err(|_| TryReserveError {})?;
         }
@@ -1125,11 +1131,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         self.shards.iter().for_each(|s| {
             let mut shard = s.write();
             let size = shard.len();
-            shard.shrink_to(size, |(k, _v)| {
-                let mut hasher = self.hasher.build_hasher();
-                k.hash(&mut hasher);
-                hasher.finish()
-            })
+            shard.shrink_to(size, |(k, _v)| hash_with_build_hasher(&self.hasher, k))
         });
     }
 
@@ -1192,11 +1194,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         match shard.find_or_find_insert_slot(
             hash,
             |(k, _v)| k == &key,
-            |(k, _v)| {
-                let mut hasher = self.hasher.build_hasher();
-                k.hash(&mut hasher);
-                hasher.finish()
-            },
+            |(k, _v)| hash_with_build_hasher(&self.hasher, k),
         ) {
             Ok(elem) => Entry::Occupied(unsafe { OccupiedEntry::new(shard, key, elem) }),
             Err(slot) => Entry::Vacant(unsafe { VacantEntry::new(shard, key, hash, slot) }),
@@ -1213,11 +1211,7 @@ impl<'a, K: 'a + Eq + Hash, V: 'a, S: 'a + BuildHasher + Clone> Map<'a, K, V, S>
         match shard.find_or_find_insert_slot(
             hash,
             |(k, _v)| k == &key,
-            |(k, _v)| {
-                let mut hasher = self.hasher.build_hasher();
-                k.hash(&mut hasher);
-                hasher.finish()
-            },
+            |(k, _v)| hash_with_build_hasher(&self.hasher, k),
         ) {
             Ok(elem) => Some(Entry::Occupied(unsafe {
                 OccupiedEntry::new(shard, key, elem)
@@ -1539,6 +1533,45 @@ mod tests {
         match map.try_reserve(usize::MAX) {
             Err(_) => {}
             _ => panic!("should have raised CapacityOverflow error"),
+        }
+    }
+
+    #[test]
+    fn test_consistent_hashing_with_custom_hash_one() {
+        use core::hash::{BuildHasher, Hash, Hasher};
+        use std::collections::hash_map::DefaultHasher;
+
+        #[derive(Clone, Default)]
+        struct DivergentHashOne;
+
+        impl BuildHasher for DivergentHashOne {
+            type Hasher = DefaultHasher;
+
+            fn build_hasher(&self) -> Self::Hasher {
+                DefaultHasher::new()
+            }
+
+            fn hash_one<T: Hash>(&self, x: T) -> u64 {
+                let mut hasher = self.build_hasher();
+                core::any::type_name::<T>().hash(&mut hasher);
+                x.hash(&mut hasher);
+                hasher.finish()
+            }
+        }
+
+        let mut map = DashMap::with_hasher_and_shard_amount(DivergentHashOne, 4);
+        for key in 0_u64..32 {
+            map.insert(key, key * 10);
+            assert_eq!(map.get(&key).map(|v| *v), Some(key * 10));
+        }
+
+        map.try_reserve(64).unwrap();
+        map.shrink_to_fit();
+
+        for key in 0_u64..32 {
+            assert_eq!(map.get(&key).map(|v| *v), Some(key * 10));
+            assert_eq!(*map.entry(key).or_insert(0), key * 10);
+            assert_eq!(map.remove(&key), Some((key, key * 10)));
         }
     }
 }
